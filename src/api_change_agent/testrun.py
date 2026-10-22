@@ -13,11 +13,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 SESSION_ERROR = "<session>"
+# Env vars that look like credentials never reach the repo's install or tests.
+SECRET_NAME = re.compile(r"KEY|TOKEN|SECRET|PASSW|CREDENTIAL|AUTH", re.I)
 _PYTEST = re.compile(r"(^|[\s/])(pytest|py\.test)(\s|$)")
 
 
 @dataclass(frozen=True)
 class TestOutcome:
+    __test__ = False  # not a pytest test class
+
     command: str
     passed: bool
     returncode: int
@@ -75,12 +79,16 @@ def default_install_command(repo: Path, test_command: str | None) -> str:
 
 
 class TestRunner:
+    __test__ = False  # not a pytest test class
+
     def __init__(self, repo: Path, command: str, install_command: str | None = None,
-                 venv_dir: Path | None = None, timeout: int = 1800, log=print):
+                 venv_dir: Path | None = None, timeout: int = 1800, log=print,
+                 venv_python: str | None = None):
         self.repo = Path(repo)
         self.command = command
         self.install_command = install_command
         self.venv_dir = Path(venv_dir) if venv_dir else None
+        self.venv_python = venv_python
         self.timeout = timeout
         self.log = log
 
@@ -91,9 +99,9 @@ class TestRunner:
             env["PATH"] = f"{bindir}{os.pathsep}{env.get('PATH', '')}"
             env["VIRTUAL_ENV"] = str(self.venv_dir)
             env.pop("PYTHONHOME", None)
-        # Never let repo tests reach a real API with the action's secrets.
-        for key in ("ANTHROPIC_API_KEY", "GITHUB_TOKEN", "INPUT_GITHUB-TOKEN", "INPUT_ANTHROPIC-API-KEY"):
-            env.pop(key, None)
+        # Never let repo code reach a real API with our credentials.
+        for name in [n for n in env if SECRET_NAME.search(n)]:
+            del env[name]
         return env
 
     def _sh(self, command: str) -> subprocess.CompletedProcess:
@@ -104,7 +112,10 @@ class TestRunner:
 
     def setup(self) -> None:
         if self.venv_dir and not (self.venv_dir / "bin").exists():
-            venv.create(self.venv_dir, with_pip=True)
+            if self.venv_python:
+                subprocess.run([self.venv_python, "-m", "venv", str(self.venv_dir)], check=True)
+            else:
+                venv.create(self.venv_dir, with_pip=True)
         self.install()
 
     def install(self) -> None:

@@ -54,6 +54,9 @@ def parse_args(argv=None) -> argparse.Namespace:
                    help="'auto' to detect pytest, 'none' to skip tests")
     p.add_argument("--install-command", default=_input("install-command", "auto" if in_actions else None))
     p.add_argument("--venv", default=_input("venv-dir", "/tmp/aca-venv" if in_actions else None))
+    p.add_argument("--venv-python", default=None, help="interpreter used to create the test venv")
+    p.add_argument("--output", default=None,
+                   help="write pr_body.md, changes.diff and result.json here (useful with --dry-run)")
     p.add_argument("--branch", default=_input("branch", DEFAULT_BRANCH))
     p.add_argument("--base-branch", default=_input("base-branch"))
     p.add_argument("--model", default=_input("model", DEFAULT_MODEL))
@@ -91,6 +94,7 @@ def main(argv=None) -> int:
     options = Options(
         repo=repo, rules_path=rules, dry_run=args.dry_run, test_command=test_command,
         install_command=args.install_command, venv_dir=Path(args.venv) if args.venv else None,
+        venv_python=args.venv_python,
         max_llm_attempts=args.max_llm_attempts, branch=args.branch, base_branch=args.base_branch,
         default_branch=_event_default_branch(), repo_slug=slug,
         server_url=os.environ.get("GITHUB_SERVER_URL", "https://github.com"), exclude=tuple(args.exclude),
@@ -102,6 +106,12 @@ def main(argv=None) -> int:
         return 1
 
     print(result.body)
+    if args.output:
+        out_dir = Path(args.output)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "pr_body.md").write_text(result.body + "\n")
+        (out_dir / "changes.diff").write_text(result.diff)
+        (out_dir / "result.json").write_text(json.dumps(result.summary(), indent=2) + "\n")
     if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(summary, "a") as f:
             f.write(result.body + "\n")

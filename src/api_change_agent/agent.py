@@ -32,6 +32,7 @@ class Options:
     test_command: str | None = "auto"  # None or "" disables tests
     install_command: str | None = None  # "auto" builds one from the repo's files
     venv_dir: Path | None = None
+    venv_python: str | None = None  # interpreter for the test venv (default: this one)
     max_llm_attempts: int = 2
     branch: str = DEFAULT_BRANCH
     base_branch: str | None = None
@@ -67,6 +68,26 @@ class RunResult:
     pushed: bool = False
     pr_url: str | None = None
     body: str = ""
+    diff: str = ""  # unified diff of everything the run changed
+
+    def summary(self) -> dict:
+        """JSON-friendly record of the run (what --output writes as result.json)."""
+        def tests(t):
+            return None if t is None else {"command": t.command, "passed": t.passed, "returncode": t.returncode,
+                                           "failures": sorted(t.failures), "summary": t.summary()}
+        return {
+            "rules_fired": sorted({r.rule_id for r in self.rows}),
+            "rows": [dataclasses.asdict(r) for r in self.rows],
+            "changed_files": self.changed_files,
+            "manual": [dataclasses.asdict(m) for m in self.manual],
+            "skipped_rules": self.skipped_rules,
+            "other_notes": self.skipped,
+            "rule_notes": self.rule_notes,
+            "unparsable": self.unparsable,
+            "tests_before": tests(self.tests_baseline),
+            "tests_after": tests(self.tests_after),
+            "new_failures": sorted(self.new_failures),
+        }
 
 
 # --------------------------------------------------------------------------
@@ -179,7 +200,8 @@ class _Run:
         install = self.o.install_command
         if install == "auto":
             install = default_install_command(self.repo, command)
-        self.runner = TestRunner(self.repo, command, install, self.o.venv_dir, log=self.log)
+        self.runner = TestRunner(self.repo, command, install, self.o.venv_dir, log=self.log,
+                                 venv_python=self.o.venv_python)
         try:
             self.runner.setup()
         except Exception as e:  # noqa: BLE001 - reported in the PR instead
@@ -417,6 +439,10 @@ class _Run:
         res.changed_files = sorted(
             rel.as_posix() for rel, text in self.originals.items() if (self.repo / rel).read_text() != text
         )
+        res.diff = "".join(
+            "".join(difflib.unified_diff(self.originals[Path(rel)].splitlines(True),
+                                         (self.repo / rel).read_text().splitlines(True), f"a/{rel}", f"b/{rel}"))
+            for rel in res.changed_files)
         res.tests_after = self.state_outcome if self.tested_after_changes else None
         res.new_failures = new_failures(res.tests_baseline, res.tests_after)
         slug = self.o.repo_slug
