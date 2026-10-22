@@ -1,0 +1,13 @@
+key	files	sample	repos_in_sample	est_repos_raw	incomplete	query
+httpx_with_openai	50432	100	99	49928	False	"import httpx" "from openai import" language:python
+http_client_httpx	8592	100	78	6702	False	"http_client=httpx" openai language:python
+respx_openai	441	100	50	220	False	respx "from openai import" language:python
+defaulthttpx_transport	636	100	71	452	False	DefaultHttpxClient HTTPTransport language:python
+raw_http_response_isinstance	4560	100	79	3602	False	"http_response" "httpx.Response" openai language:python
+certifi_openai	10784	100	95	10245	False	certifi "from openai import" language:python
+cli_api	207	100	78	161	False	"openai api chat.completions.create"
+cli_tools	1006	100	88	885	False	"openai tools fine_tunes.prepare_data"
+cli_module	289	100	61	176	False	"python -m openai"
+lib_validators	3	3	2	2	False	"openai.lib._validators"
+realtime_client_secret	1192	100	94	1120	False	RealtimeSessionClientSecret language:python
+computer_tool	1174	100	87	1021	False	ComputerTool "openai.types.responses" language:python

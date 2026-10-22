@@ -1,0 +1,1 @@
+{"httpx_with_openai": 49928, "http_client_httpx": 6702, "respx_openai": 216, "defaulthttpx_transport": 452, "raw_http_response_isinstance": 593, "certifi_openai": 10245, "cli_api": 161, "cli_tools": 885, "cli_module": 176, "lib_validators": 2, "realtime_client_secret": 24, "computer_tool": 669}
