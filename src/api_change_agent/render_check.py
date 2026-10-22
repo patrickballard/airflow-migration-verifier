@@ -1,0 +1,154 @@
+"""Differential render check: old templates on Airflow 2 vs new ones on Airflow 3.
+
+Each side comes from airflow_render.py run in that version's venv. Runs are
+paired by the wall-clock moment they fire (each version schedules them its own
+way), and every changed template field must render identically on every pair.
+"""
+from __future__ import annotations
+
+import json
+import subprocess
+import tempfile
+from dataclasses import dataclass, field
+from pathlib import Path
+
+import libcst as cst
+from libcst.metadata import MetadataWrapper, PositionProvider
+
+SCRIPT = Path(__file__).with_name("airflow_render.py")
+EMPTY = {"null", "", "[]", "{}"}
+
+
+@dataclass(frozen=True)
+class Mismatch:
+    label: str
+    fires: str
+    old: str
+    new: str
+
+
+@dataclass
+class FieldResult:
+    file: str
+    dag_id: str
+    task_id: str
+    field: str
+    runs: int
+    labels: list[str] = field(default_factory=list)
+    mismatches: list[Mismatch] = field(default_factory=list)
+    dst: str = ""
+
+
+def render(python: Path, repo: Path, files: list[str], timeout: int = 1800) -> dict:
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "render.json"
+        proc = subprocess.run([str(python), "-I", str(SCRIPT), "--repo", str(repo), "--files", *files, "--out", str(out)],
+                              capture_output=True, text=True, timeout=timeout)
+        if proc.returncode or not out.exists():
+            raise RuntimeError(f"render failed (exit {proc.returncode}): {proc.stderr.strip()[-800:]}")
+        return json.loads(out.read_text())
+
+
+def _strings(raw: str):
+    try:
+        value = json.loads(raw) if raw[:1] in "[{\"" else raw
+    except ValueError:
+        value = raw
+    stack = [value]
+    while stack:
+        v = stack.pop()
+        if isinstance(v, str):
+            yield v
+        elif isinstance(v, dict):
+            stack += list(v.values())
+        elif isinstance(v, list):
+            stack += v
+
+
+def changed_fields(old: dict, new: dict, changed_files: set[str]) -> set[tuple[str, str, str, str]]:
+    """Template fields whose source changed: the raw value, or a template file it points at."""
+    found = set()
+    for key, dag in new["dags"].items():
+        old_tasks = old["dags"].get(key, {}).get("tasks", {})
+        for task_id, task in dag["tasks"].items():
+            for name, f in task["fields"].items():
+                old_raw = old_tasks.get(task_id, {}).get("fields", {}).get(name, {}).get("raw")
+                refs = [s for s in _strings(f["raw"]) if s and any(c == s or c.endswith("/" + s) for c in changed_files)]
+                if old_raw != f["raw"] or refs:
+                    found.add((dag["file"], dag["dag_id"], task_id, name))
+    return found
+
+
+def compare(old: dict, new: dict, changed: set, whole_dags: set[str] = frozenset()) -> list[FieldResult]:
+    """Compare `changed` fields (and every field of `whole_dags`) run by run, paired by fire time."""
+    results = []
+    for key, ndag in new["dags"].items():
+        odag = old["dags"].get(key)
+        if odag is None:
+            continue
+        o_at = {r["fires"]: i for i, r in enumerate(odag["runs"])}
+        pairs = [(r, o_at[r["fires"]], i) for i, r in enumerate(ndag["runs"]) if r["fires"] in o_at]
+        for task_id, task in ndag["tasks"].items():
+            for name, nf in task["fields"].items():
+                if key not in whole_dags and (ndag["file"], ndag["dag_id"], task_id, name) not in changed:
+                    continue
+                of = odag["tasks"].get(task_id, {}).get("fields", {}).get(name)
+                if of is None:
+                    continue  # a new task or field: nothing to compare against
+                if of["raw"] in EMPTY and nf["raw"] in EMPTY:
+                    continue  # nothing to render (an unset cwd, env, ...)
+                res = FieldResult(ndag["file"], ndag["dag_id"], task_id, name, len(pairs),
+                                  [r["label"] for r, _, _ in pairs], dst=ndag.get("dst", ""))
+                for run, oi, ni in pairs:
+                    if of["rendered"][oi] != nf["rendered"][ni]:
+                        res.mismatches.append(Mismatch(run["label"], run["fires"], of["rendered"][oi], nf["rendered"][ni]))
+                results.append(res)
+    return results
+
+
+def summary(res: FieldResult) -> str:
+    if res.mismatches:
+        m = res.mismatches[0]
+        return (f"render mismatch on {len(res.mismatches)} of {res.runs} runs, e.g. the run firing {_when(m.fires)} "
+                f"({m.label}): Airflow 2 rendered {m.old!r}, the new template renders {m.new!r}")
+    covered = []
+    labels = " ".join(res.labels)
+    if "23:00" in labels:
+        covered.append("23:00")
+    if "month end" in labels or "year end" in labels:
+        covered.append("month/year end")
+    if "leap day" in labels:
+        covered.append("leap day")
+    dst = res.dst.split(" (")[0] if res.dst.startswith("DST: n/a") else res.dst
+    covered.append(dst)
+    return f"render-checked: identical across {res.runs} runs (incl. {', '.join(c for c in covered if c)})"
+
+
+def _when(fires: str) -> str:
+    return fires.replace("T", " ")[:16] + (" UTC" if fires.endswith("+00:00") else fires[19:])
+
+
+def mismatch_lines(results: list[FieldResult], limit: int = 6) -> list[str]:
+    lines = []
+    for r in results:
+        for m in r.mismatches[:limit]:
+            lines.append(f"{r.task_id}.{r.field}, run firing {_when(m.fires)} ({m.label}): "
+                         f"Airflow 2 rendered {m.old!r}; the new template renders {m.new!r}")
+    return lines
+
+
+def task_spans(source: str) -> dict[str, tuple[int, int]]:
+    """task_id -> (first, last) source line of the operator call that defines it."""
+    spans: dict[str, tuple[int, int]] = {}
+
+    class V(cst.CSTVisitor):
+        METADATA_DEPENDENCIES = (PositionProvider,)
+
+        def visit_Call(self, node: cst.Call) -> None:
+            for a in node.args:
+                if a.keyword is not None and a.keyword.value == "task_id" and isinstance(a.value, cst.SimpleString):
+                    pos = self.get_metadata(PositionProvider, node)
+                    spans[a.value.evaluated_value] = (pos.start.line, pos.end.line)
+
+    MetadataWrapper(cst.parse_module(source)).visit(V())
+    return spans

@@ -77,6 +77,7 @@ class RuleSet:
     rules: tuple[Rule, ...]
     distribution: str = ""  # name in requirements files, when it differs (apache-airflow)
     target_version: Version | None = None  # bump pins here *before* testing
+    source_version: Version | None = None  # the old major's version, for the render check's old venv
     install_constraints: str = ""  # pip -c URL; {version} and {python} are filled in
     verify: str = ""  # "airflow-dags": the test gate is DagBag import + dag.test()
     title: str = ""
@@ -104,8 +105,12 @@ def load_rules(path: str | Path) -> RuleSet:
     verify = str(data.get("verify") or "")
     if verify not in ("", "airflow-dags"):
         raise RuleError(f"{path}: verify must be 'airflow-dags' or empty")
+    try:
+        source = Version(str(data["source_version"])) if data.get("source_version") else None
+    except InvalidVersion as e:
+        raise RuleError(f"{path}: source_version: {e}") from e
     return RuleSet(package=package, rules=rules, distribution=str(data.get("distribution") or ""),
-                   target_version=target, install_constraints=str(data.get("install_constraints") or ""),
+                   target_version=target, source_version=source, install_constraints=str(data.get("install_constraints") or ""),
                    verify=verify, title=str(data.get("title") or ""), tools=tools)
 
 

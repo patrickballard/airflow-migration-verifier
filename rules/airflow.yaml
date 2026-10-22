@@ -3,6 +3,7 @@ package: airflow                 # import name; DAG files are the ones that impo
 distribution: apache-airflow     # name in requirements files
 title: "Airflow 2 → 3"
 target_version: "3.3.2"          # pins are raised here before anything is tested
+source_version: "2.11.2"         # render check: old templates render on this (or the repo's original pin)
 install_constraints: "https://raw.githubusercontent.com/apache/airflow/constraints-{version}/constraints-{python}.txt"
 verify: airflow-dags             # test gate: DagBag import + dag.test() per DAG, on target_version
 
@@ -48,6 +49,33 @@ x-context-keys: &context_keys
     task_instance: {execution_date: "TaskInstance has no execution_date or logical_date in Airflow 3; use the context's logical_date"}
 
 rules:
+  - id: airflow3-cron-timetable-pin
+    description: >-
+      Airflow 3 schedules cron DAGs on CronTriggerTimetable by default, where a
+      run's logical date is the moment it fires; Airflow 2 used
+      CronDataIntervalTimetable (logical date = start of the interval that just
+      ended). Pins each cron DAG to CronDataIntervalTimetable so every run keeps
+      its Airflow 2 dates; proven by the render check.
+    match: {plugin: airflow_cron_pin}
+    fix: deterministic
+    transform: {plugin: airflow_cron_pin}
+    min_sdk_version: "3.0.0"
+    changelog: https://airflow.apache.org/docs/apache-airflow/stable/configurations-ref.html#create-cron-data-intervals
+    note: "pins Airflow 2's cron timetable so run dates don't shift (see Timetable pin)"
+
+  - id: airflow3-timetable-judgment
+    description: Schedules whose run dates also shift in Airflow 3 but can't be pinned mechanically (timedelta, non-literal, unknown timezone).
+    match: {plugin: airflow_cron_pin}
+    fix: llm
+    min_sdk_version: "3.0.0"
+    changelog: https://airflow.apache.org/docs/apache-airflow/stable/configurations-ref.html#create-cron-data-intervals
+    guidance: |
+      Airflow 3 changed the default timetables: cron schedules now use CronTriggerTimetable and
+      timedelta schedules DeltaTriggerTimetable, which changes every run's logical date. Keep
+      Airflow 2's behaviour by passing the interval timetable explicitly, e.g.
+      schedule=CronDataIntervalTimetable("<cron>", timezone="<the DAG's timezone>") or
+      schedule=DeltaDataIntervalTimetable(<timedelta>), imported from airflow.sdk.
+
   - id: airflow3-context-keys
     description: >-
       Airflow 3 removed 14 task-context keys (execution_date, yesterday_ds, ...).

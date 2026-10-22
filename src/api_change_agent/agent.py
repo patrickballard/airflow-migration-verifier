@@ -7,6 +7,10 @@ import fnmatch
 import os
 import re
 import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
 import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -15,7 +19,7 @@ import libcst as cst
 from packaging.requirements import Requirement
 from packaging.version import Version
 
-from . import gitops, ruff_layer
+from . import gitops, render_check, ruff_layer
 from .codemod import Site, apply_deterministic, find_sites, missing_comments
 from .deps import plan_add_dependency
 from .llm import BudgetExhausted, PatchModel, PatchRequest
@@ -39,6 +43,7 @@ class Options:
     install_command: str | None = None  # "auto" builds one from the repo's files
     venv_dir: Path | None = None
     venv_python: str | None = None  # interpreter for the test venv (default: this one)
+    render_old_venv: Path | None = None  # Airflow 2 venv for the render check (built if install is "auto")
     max_llm_attempts: int = 2
     branch: str = DEFAULT_BRANCH
     base_branch: str | None = None
@@ -72,6 +77,7 @@ class RunResult:
     rule_notes: dict[str, str] = field(default_factory=dict)  # rule id -> why it did/didn't apply
     llm_usage: dict = field(default_factory=dict)  # calls, tokens and USD spent on Claude
     llm_notes: list = field(default_factory=list)  # Claude's full notes per attempt (never truncated)
+    render_results: list = field(default_factory=list)  # Airflow render check, one per template field
     dep_notes: list[str] = field(default_factory=list)
     pushed: bool = False
     pr_url: str | None = None
@@ -104,11 +110,21 @@ class RunResult:
 # line bookkeeping
 
 
-def _hunks(old: str, new: str):
+def _pin_can_explain(res) -> bool:
+    """A timetable changes dates, never which names exist: undefined-variable errors aren't the pin's doing."""
+    return any("RENDER ERROR UndefinedError" not in m.new for m in res.mismatches) or not res.mismatches
+
+
+def _rows(rel: Path, old: str, new: str, rule_id: str, changelog: str, note: str) -> list[Row]:
+    """One Row per changed hunk, keeping the exact source lines for a later revert."""
     a, b = old.splitlines(), new.splitlines()
+    rows = []
     for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
         if tag != "equal":
-            yield max(j1, 0) + 1, textwrap.dedent("\n".join(a[i1:i2])), textwrap.dedent("\n".join(b[j1:j2]))
+            before, after = "\n".join(a[i1:i2]), "\n".join(b[j1:j2])
+            rows.append(Row(rel.as_posix(), j1 + 1, textwrap.dedent(before), textwrap.dedent(after), rule_id,
+                            changelog, note, before, after))
+    return rows
 
 
 def _line_map(old: str, new: str):
@@ -321,8 +337,7 @@ class _Run:
             for rel in hits[rule.id]:
                 if rule.match.plugin:
                     new = PLUGINS[rule.match.plugin].apply(rel, self.current[rel], rule.options)
-                    rows = [Row(rel.as_posix(), line, before, after, rule.id, rule.changelog, rule.note)
-                            for line, before, after in _hunks(self.current[rel], new)]
+                    rows = _rows(rel, self.current[rel], new, rule.id, rule.changelog, rule.note)
                 else:
                     new, edits = apply_deterministic(self.current[rel], rule)
                     rows = [Row(rel.as_posix(), e.line, e.before, e.after, rule.id, rule.changelog) for e in edits]
@@ -342,6 +357,198 @@ class _Run:
                 return
             self.state_outcome = outcome
             self.tested_after_changes = True
+        self.render_gate()
+
+    # -- render check (Airflow) ------------------------------------------------
+    def _plugin_of(self, rule_id: str) -> str | None:
+        rule = next((r for r in self.ruleset.rules if r.id == rule_id), None)
+        return rule.match.plugin if rule else None
+
+    def _render_pythons(self):
+        if self.ruleset.verify != "airflow-dags":
+            return None
+        if not hasattr(self, "_render_py"):
+            self._render_py = None
+            new = self.o.venv_dir / "bin" / "python" if self.o.venv_dir else None
+            old = self.o.render_old_venv / "bin" / "python" if self.o.render_old_venv else self._build_old_venv()
+            if new and new.exists() and old and Path(old).exists():
+                self._render_py = (Path(old), new)
+            else:
+                self.render_unavailable = ("render check not run: needs an Airflow 2 venv (--render-old-venv, "
+                                           "or --install-command auto to build one) and an Airflow 3 test venv")
+                self.result.skipped.append(self.render_unavailable)
+        return self._render_py
+
+    def _build_old_venv(self):
+        """Airflow 2 at the repo's original pin (or the ruleset's source_version), official constraints."""
+        if self.o.install_command != "auto" or not self.o.venv_dir or not self.ruleset.source_version:
+            return None
+        original = self.originals.get(Path("requirements.txt"), "")
+        m = re.search(r"^\s*apache[-_.]airflow(?:\[[^\]]*\])?==([\w.]+)", original, re.M | re.I)
+        version = m.group(1) if m else str(self.ruleset.source_version)
+        path = self.o.venv_dir.with_name(self.o.venv_dir.name + "-airflow2")
+        py = path / "bin" / "python"
+        if not py.exists():
+            subprocess.run([self.o.venv_python or sys.executable, "-m", "venv", str(path)], check=False)
+            constraints = self.ruleset.install_constraints.replace("{version}", version).replace(
+                "{python}", f"{sys.version_info[0]}.{sys.version_info[1]}")
+            req = [f"apache-airflow=={version}"]
+            if original:
+                tmp = Path(tempfile.mkdtemp()) / "requirements-airflow2.txt"
+                tmp.write_text(original)
+                req = ["-r", str(tmp)]
+            self.log(f"render check: building an Airflow {version} venv")
+            proc = subprocess.run([str(py), "-m", "pip", "install", "-q", *req, "-c", constraints],
+                                  capture_output=True, text=True)
+            if proc.returncode:
+                self.log(f"render check: Airflow {version} venv failed: {proc.stderr.strip()[-300:]}")
+                return None
+        return py
+
+    def _old_snapshot(self) -> Path:
+        tmp = Path(tempfile.mkdtemp(prefix="aca-old-")) / "repo"
+        shutil.copytree(self.repo, tmp, ignore=shutil.ignore_patterns(".git", ".venv", "venv", "__pycache__"))
+        for rel, text in self.originals.items():
+            (tmp / rel).write_text(text)
+        return tmp
+
+    def _render_compare(self):
+        pythons = self._render_pythons()
+        if not pythons:
+            return None
+        files = sorted(f.as_posix() for f in self.sdk_files)
+        try:
+            old = render_check.render(pythons[0], self._old_snapshot(), files)
+            new = render_check.render(pythons[1], self.repo, files)
+        except Exception as e:  # noqa: BLE001
+            self.render_unavailable = f"render check failed to run: {e}"
+            self.result.skipped.append(self.render_unavailable)
+            self._render_py = None
+            return None
+        changed_files = {rel.as_posix() for rel, text in self.originals.items() if (self.repo / rel).read_text() != text}
+        changed = render_check.changed_fields(old, new, changed_files)
+        pinned = {r.path for rows in self.rows.values() for r in rows if self._plugin_of(r.rule_id) == "airflow_cron_pin"}
+        whole = {k for k, d in new["dags"].items() if d["file"] in pinned}
+        return render_check.compare(old, new, changed, whole), new
+
+    def _covering(self, res, new) -> tuple[list[Row], list[Row]]:
+        """(template rows, pin rows) that can affect this rendered field."""
+        span = render_check.task_spans(self.current[Path(res.file)]).get(res.task_id)
+        raw = new["dags"][f"{res.file}::{res.dag_id}"]["tasks"][res.task_id]["fields"][res.field]["raw"]
+        refs = {s for s in render_check._strings(raw) if s}
+        templates, pins = [], []
+        for rows in self.rows.values():
+            for r in rows:
+                plugin = self._plugin_of(r.rule_id)
+                if plugin == "airflow_templates" and (
+                        (r.path == res.file and span and span[0] <= r.line <= span[1])
+                        or (r.path != res.file and any(r.path == s or r.path.endswith("/" + s)  # by path, or by
+                                                       or (r.raw_after.strip() and r.raw_after.strip() in s)  # contents
+                                                       for s in refs))):  # (DagBag inlines template files)
+                    templates.append(r)
+                elif plugin == "airflow_cron_pin" and r.path == res.file:
+                    pins.append(r)
+        return templates, pins
+
+    def _revert_rows(self, rows: list[Row], reasons: dict) -> None:
+        for path in sorted({r.path for r in rows}):
+            rel = Path(path)
+            lines = self.current[rel].splitlines(keepends=True)
+            for r in sorted((r for r in rows if r.path == path), key=lambda r: -r.line):
+                after, before = r.raw_after.splitlines(), r.raw_before.splitlines()
+                i = r.line - 1
+                if [ln.rstrip("\n") for ln in lines[i:i + len(after)]] != after:
+                    self.log(f"render check: couldn't revert {path}:{r.line} exactly; left as is")
+                    continue
+                lines[i:i + len(after)] = [ln + "\n" for ln in before]
+                self.rows[rel] = [x for x in self.rows[rel] if x is not r]
+                self.result.manual.append(ManualItem(path, r.line, r.rule_id, reasons[id(r)]))
+            new = "".join(lines)
+            self.current[rel] = new
+            self._write(rel, new)
+
+    def render_gate(self) -> None:
+        """Deterministic template rewrites and pins must render identically; revert any that don't."""
+        compared = self._render_compare()
+        if not compared:
+            return
+        results, new = compared
+        blamed, reasons = [], {}
+        for res in results:
+            if not res.mismatches:
+                continue
+            templates, pins = self._covering(res, new)
+            if not templates and not _pin_can_explain(res):
+                continue  # a removed variable still waiting for judgment, not the schedule
+            for r in templates or pins:
+                if id(r) not in reasons:
+                    blamed.append(r)
+                    reasons[id(r)] = f"{render_check.summary(res)} (field {res.task_id}.{res.field})"
+        if not blamed:
+            return
+        self.log(f"render check: reverting {len(blamed)} deterministic change(s) that render differently")
+        self._revert_rows(blamed, reasons)
+        if self.runner:
+            self.state_outcome = self._run_tests()
+
+    def _render_problem(self, rel: Path, original: str, proposed: str) -> str | None:
+        """For a Claude patch: mismatches in the fields of the tasks it touched (None = fine / not checked)."""
+        if self._render_pythons() is None:
+            return None
+        on_disk = (self.repo / rel).read_text()
+        (self.repo / rel).write_text(proposed)
+        saved = self.current[rel]
+        self.current[rel] = proposed
+        try:
+            compared = self._render_compare()
+        finally:
+            self.current[rel] = saved
+            (self.repo / rel).write_text(on_disk)
+        if not compared:
+            return None
+        results, _ = compared
+        spans = render_check.task_spans(proposed)
+        touched = {t for t, (a, b) in spans.items()
+                   if any(a <= r.line <= b for r in _rows(rel, original, proposed, "", "", ""))}
+        bad = [r for r in results if r.mismatches and r.file == rel.as_posix() and r.task_id in touched]
+        if not bad:
+            return None
+        return ("render mismatch (old template on Airflow 2 vs yours on Airflow 3, runs paired by the moment "
+                "they fire):\n" + "\n".join(render_check.mismatch_lines(bad)))
+
+    def render_annotate(self) -> None:
+        """Final pass: say on every Airflow row whether and how it was render-checked."""
+        if self.ruleset.verify != "airflow-dags" or not any(self.rows.values()):
+            return
+        compared = self._render_compare()
+        results, new = compared if compared else ([], None)
+        self.result.render_results = results
+        by_row: dict[int, list] = {}
+        for res in results:
+            templates, pins = self._covering(res, new)
+            for r in templates + (pins if _pin_can_explain(res) else []):
+                by_row.setdefault(id(r), []).append(res)
+        for rel, rows in self.rows.items():
+            out = []
+            for r in rows:
+                plugin = self._plugin_of(r.rule_id)
+                extra = None
+                if plugin == "airflow_context_keys" and r.path.endswith(".py"):
+                    extra = "not render-checked (Python context reads are out of scope for v0)"
+                elif plugin in ("airflow_templates", "airflow_cron_pin"):
+                    covering = by_row.get(id(r))
+                    if not compared:
+                        extra = f"not render-checked: {getattr(self, 'render_unavailable', 'unavailable')}"
+                    elif not covering:
+                        extra = "not render-checked (no rendered template field uses this line)"
+                    else:
+                        worst = next((c for c in covering if c.mismatches), min(covering, key=lambda c: c.runs))
+                        extra = render_check.summary(worst)
+                        if plugin == "airflow_cron_pin" and not worst.mismatches:
+                            extra = extra.replace("render-checked:", f"render-checked: all {len(covering)} template "
+                                                  "field(s) of this DAG", 1)
+                out.append(dataclasses.replace(r, note=f"{r.note}; {extra}" if r.note and extra else (extra or r.note)))
+            self.rows[rel] = out
 
     def _revert_all(self, rules, reason, hits) -> None:
         for rel, text in self.originals.items():
@@ -449,6 +656,8 @@ class _Run:
             else:
                 problem = self._validate(original, proposed, rule, rel)
             entry = {"path": rel.as_posix(), "rule_id": rule.id, "attempt": attempt, "notes": notes}
+            if problem is None and rule.match.plugin in ("airflow_templates", "airflow_cron_pin"):
+                problem = self._render_problem(rel, original, proposed)
             if problem is None and self.runner:
                 (self.repo / rel).write_text(proposed)
                 outcome = self._run_tests()
@@ -466,9 +675,7 @@ class _Run:
             if problem is None:
                 first = re.split(r"(?<=[.!?])\s", " ".join(notes.split()), maxsplit=1)[0][:200] if notes else ""
                 note = (f"Claude: {first} (full notes below)" if notes else "patched by Claude")
-                rows = [Row(rel.as_posix(), line, before, after, rule.id, rule.changelog, note)
-                        for line, before, after in _hunks(original, proposed)]
-                self._set_source(rel, proposed, rows)
+                self._set_source(rel, proposed, _rows(rel, original, proposed, rule.id, rule.changelog, note))
                 return True
             reason = problem.splitlines()[0]
             diff = "".join(difflib.unified_diff(original.splitlines(True), proposed.splitlines(True),
@@ -586,7 +793,7 @@ class _Run:
             tools=self.ruleset.tools if self.result.rows or rows else (),
             dag_target=(f"{self.ruleset.dist} {self.ruleset.target_version}"
                         if self.ruleset.verify == "airflow-dags" else None),
-            llm_usage=res.llm_usage, llm_notes=res.llm_notes,
+            llm_usage=res.llm_usage, llm_notes=res.llm_notes, render_results=res.render_results,
         )
         return res
 
@@ -630,6 +837,7 @@ def run(options: Options, model: PatchModel | None = None, github=None) -> RunRe
     r.deterministic(hits)
     r.llm(hits)
     r.dependencies(hits)
+    r.render_annotate()
     result = r.finish()
     if result.rows and not options.dry_run:
         r.open_pr()

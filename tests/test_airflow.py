@@ -26,7 +26,7 @@ from conftest import FIXTURES, ROOT
 AIRFLOW_RULES = ROOT / "rules" / "airflow.yaml"
 AIRFLOW_REPO = FIXTURES / "airflow_repo"
 RULESET = load_rules(AIRFLOW_RULES)
-OPTS = RULESET.rules[0].options
+OPTS = next(r for r in RULESET.rules if r.id == "airflow3-context-keys").options
 CTX, TPL = PLUGINS["airflow_context_keys"], PLUGINS["airflow_templates"]
 CHECK = ROOT / "src" / "api_change_agent" / "airflow_dag_check.py"
 
@@ -41,6 +41,7 @@ def test_ruleset_loads():
     (tool,) = RULESET.tools
     assert (tool.tool, tool.select) == ("ruff", "AIR3") and "--unsafe-fixes" in tool.args
     assert [(r.id, r.fix) for r in RULESET.rules] == [
+        ("airflow3-cron-timetable-pin", "deterministic"), ("airflow3-timetable-judgment", "llm"),
         ("airflow3-context-keys", "deterministic"), ("airflow3-templates", "deterministic"),
         ("airflow3-context-judgment", "llm"), ("airflow3-template-judgment", "llm")]
 
@@ -184,7 +185,8 @@ def test_agent_on_fixture_without_tests(tmp_path):
     assert any(r.startswith("ruff AIR3") for r in rules)
     assert (repo / "requirements.txt").read_text() == "apache-airflow==3.3.2\n"
     etl = (repo / "dags" / "etl_daily.py").read_text()
-    assert 'context["logical_date"]' in etl and 'schedule="@daily"' in etl and "execution_date" not in etl
+    assert 'context["logical_date"]' in etl and "execution_date" not in etl
+    assert 'schedule=CronDataIntervalTimetable("@daily", timezone="UTC")' in etl
     assert "{{ logical_date.strftime('%Y-%m-%d') }}" in (repo / "dags" / "scripts" / "report.sh").read_text()
     assert "{{ macros.ds_add(ds, 1) }}" in (repo / "dags" / "sql" / "summary.sql").read_text()
     # judgment sites are untouched and listed, each with its reason
@@ -267,11 +269,11 @@ def test_manual_runs_warning_lists_every_execution_date_site(tmp_path):
                          repo_slug="acme/dags", branch="api-change-agent/airflow"), model=None)
     section = _manual_runs(result.body)
     blob = "https://github.com/acme/dags/blob/api-change-agent/airflow"
-    for path, line in [("dags/etl_daily.py", 10), ("dags/etl_daily.py", 16), ("dags/etl_daily.py", 34),
+    for path, line in [("dags/etl_daily.py", 11), ("dags/etl_daily.py", 17), ("dags/etl_daily.py", 35),
                        ("dags/scripts/report.sh", 3), ("dags/sql/summary.sql", 3)]:
         assert f"[`{path}:{line}`]({blob}/{path}#L{line})" in section
     assert "These 5 line(s) now read `logical_date` where they read `execution_date`" in section
-    assert "etl_daily.py:17" not in section          # yesterday_ds -> macros.ds_add: no logical_date
+    assert "etl_daily.py:18" not in section          # yesterday_ds -> macros.ds_add: no logical_date
     assert "partitions.py" not in section            # left for judgment, not changed
     assert FALLBACK in section and "{{ logical_date or dag_run.run_after }}" in section
     assert "can have **no logical date**" in section
@@ -292,8 +294,8 @@ def test_manual_runs_warning_includes_claude_patches(tmp_path):
 
     result = run(Options(repo=repo, rules_path=AIRFLOW_RULES, dry_run=True, test_command=None), model=JudgmentModel())
     section = _manual_runs(result.body)
-    assert "`dags/partitions.py:11`" in section.split("in place of another removed key")[0]  # execution_date -> logical_date
-    assert "`dags/partitions.py:20`" in section.split("in place of another removed key")[1]  # next_ds -> logical_date + 1h
+    assert "`dags/partitions.py:12`" in section.split("in place of another removed key")[0]  # execution_date -> logical_date
+    assert "`dags/partitions.py:21`" in section.split("in place of another removed key")[1]  # next_ds -> logical_date + 1h
     assert "These 6 line(s)" in section and "These 1 line(s)" in section
 
 

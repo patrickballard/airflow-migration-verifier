@@ -79,6 +79,8 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--install-command", default=_input("install-command", "auto" if in_actions else None))
     p.add_argument("--venv", default=_input("venv-dir", "/tmp/aca-venv" if in_actions else None))
     p.add_argument("--venv-python", default=None, help="interpreter used to create the test venv")
+    p.add_argument("--render-old-venv", default=None,
+                   help="Airflow 2 venv for the render check (default: built when --install-command auto)")
     p.add_argument("--output", default=None,
                    help="write pr_body.md, changes.diff and result.json here (useful with --dry-run)")
     p.add_argument("--branch", default=_input("branch"), help="default: api-change-agent/<package>")
@@ -126,6 +128,7 @@ def main(argv=None) -> int:
         repo=repo, rules_path=rules, dry_run=args.dry_run, test_command=test_command,
         install_command=args.install_command, venv_dir=Path(args.venv) if args.venv else None,
         venv_python=args.venv_python,
+        render_old_venv=Path(args.render_old_venv) if args.render_old_venv else None,
         max_llm_attempts=args.max_llm_attempts, branch=branch, base_branch=args.base_branch,
         default_branch=_event_default_branch(), repo_slug=slug,
         server_url=os.environ.get("GITHUB_SERVER_URL", "https://github.com"), exclude=tuple(args.exclude),

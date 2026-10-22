@@ -18,6 +18,8 @@ class Row:
     rule_id: str
     changelog: str
     note: str = ""  # why this change, shown under the "after" value
+    raw_before: str = ""  # exact source lines (not dedented), so one site can be reverted
+    raw_after: str = ""
 
 
 def _cell(code: str, empty: str = "(removed)") -> str:
@@ -89,6 +91,33 @@ def _manual_runs_section(rows: list[Row], blob_base: str | None) -> list[str]:
     return out
 
 
+TIMETABLE_PIN = (
+    "### Timetable pin\n\n"
+    "Airflow 3 changed the default timetable for cron schedules: with `[scheduler] create_cron_data_intervals = False` "
+    "(the new default) a cron DAG runs on `CronTriggerTimetable`, where a run's logical date is the moment it fires, "
+    "whereas Airflow 2 used `CronDataIntervalTimetable`, where the logical date is the start of the interval that just "
+    "ended. Left alone, every date derived from it (`{{ ds }}`, `{{ logical_date }}`, partition paths) would move by one "
+    "interval for a run that fires at the same wall-clock time. This PR pins each cron DAG to "
+    "`CronDataIntervalTimetable(<same cron>, timezone=<the DAG's timezone>)`, which is exactly the timetable Airflow 2 "
+    "built for it, so runs fire at the same times with the same dates; the render check below compares them run by run. "
+    "Teams can adopt the new semantics deliberately later by removing the pin and reviewing every date the DAG "
+    "derives from its run. To keep the old behaviour for all DAGs instead of per DAG, set "
+    "`[scheduler] create_cron_data_intervals = True` (env `AIRFLOW__SCHEDULER__CREATE_CRON_DATA_INTERVALS=True`) and "
+    "drop the pins; either choice preserves Airflow 2's run dates.")
+
+
+def _render_section(results) -> list[str]:
+    from .render_check import summary  # local: render_check imports nothing from here, but keep report light
+
+    out = ["### Render check", "",
+           "Old templates rendered on Airflow 2, new ones on Airflow 3, for runs as each version schedules them, "
+           "paired by the moment they fire.", "", "| Template field | Result |", "|---|---|"]
+    for r in sorted(results, key=lambda r: (r.file, r.dag_id, r.task_id, r.field)):
+        text = html.escape(summary(r), quote=False).replace("|", "&#124;")
+        out.append(f"| `{r.file}` `{r.dag_id}.{r.task_id}.{r.field}` | {'✅' if not r.mismatches else '❌'} {text} |")
+    return out + [""]
+
+
 def _dag_status(outcome, test_id) -> str:
     if outcome is None:
         return "—"
@@ -114,7 +143,7 @@ def _dag_table(before, after, target) -> list[str]:
 def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes, skipped_rules, skipped, manual,
                 unparsable, tests_baseline, tests_after, new_failures, blob_base, rules_path,
                 rule_notes=None, dep_notes=(), title="", tools=(), dag_target=None, llm_usage=None,
-                llm_notes=()) -> str:
+                llm_notes=(), render_results=()) -> str:
     rule_notes = rule_notes or {}
     applied = sorted({r.rule_id for r in rows})
     parts = [
@@ -126,7 +155,11 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
     if rows:
         parts += [render_table(rows, blob_base), ""]
     if dag_target:
+        if any(r.rule_id == "airflow3-cron-timetable-pin" for r in rows):
+            parts += [TIMETABLE_PIN, ""]
         parts += _manual_runs_section(rows, blob_base)
+        if render_results:
+            parts += _render_section(render_results)
 
     if rules or tools:
         parts.append("### Rules")

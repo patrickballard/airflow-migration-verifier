@@ -333,4 +333,123 @@ class AirflowTemplates:
         return self._python(text, options, True)[0] if path.suffix == ".py" else self._file(text, options)[0]
 
 
-PLUGINS = {p.name: p for p in (AirflowContextKeys(), AirflowTemplates())}
+# --------------------------------------------------------------------------
+# Airflow 3: pin cron DAGs to Airflow 2's timetable
+
+CRON_PRESETS = {"@hourly", "@daily", "@weekly", "@monthly", "@quarterly", "@yearly", "@annually", "@midnight"}
+_CRON = re.compile(r"^\s*(\S+\s+){4,5}\S+\s*$")  # 5 (or 6) cron fields
+_TIMEDELTA = ("timedelta", "datetime.timedelta", "relativedelta", "dateutil.relativedelta.relativedelta")
+
+
+def _callee(node: cst.Call) -> str:
+    return _EMPTY.code_for_node(node.func)
+
+
+def _kw(call: cst.Call, name: str):
+    return next((a.value for a in call.args if a.keyword is not None and a.keyword.value == name), None)
+
+
+def _literal_timezone(start) -> str | None:
+    """The timezone Airflow 2 would schedule in, if it can be read off a literal start_date."""
+    if not isinstance(start, cst.Call):
+        return None
+    callee = _callee(start)
+    if callee in ("datetime.datetime", "datetime", "dt.datetime"):
+        # naive datetime: Airflow uses [core] default_timezone, "utc" unless configured
+        return None if _kw(start, "tzinfo") is not None or len(start.args) > 7 else "UTC"
+    if callee in ("pendulum.datetime", "datetime"):
+        tz = _kw(start, "tz")
+        if tz is None:
+            return "UTC"  # pendulum's default
+        return tz.evaluated_value if isinstance(tz, cst.SimpleString) else None
+    return None
+
+
+class _CronPin(cst.CSTTransformer):
+    METADATA_DEPENDENCIES = (PositionProvider,)
+
+    def __init__(self, rewrite: bool):
+        self.rewrite = rewrite
+        self.det: list[Site] = []
+        self.llm: list[Site] = []
+        self.pinned = 0
+
+    def _site(self, node, bucket, reason=""):
+        bucket.append(Site(self.get_metadata(PositionProvider, node).start.line, _EMPTY.code_for_node(node), reason))
+
+    def leave_Call(self, original: cst.Call, updated: cst.Call):
+        if not (_callee(original).split(".")[-1] == "DAG" or _callee(original) == "dag"):
+            return updated
+        idx = next((i for i, a in enumerate(original.args)
+                    if a.keyword is not None and a.keyword.value in ("schedule", "schedule_interval")), None)
+        if idx is None:
+            return updated
+        value = original.args[idx].value
+        if isinstance(value, cst.SimpleString):
+            cron = value.evaluated_value
+            if cron not in CRON_PRESETS and not _CRON.match(cron):
+                return updated  # @once, @continuous, ...
+            tz = _literal_timezone(_kw(original, "start_date"))
+            if tz is None:
+                self._site(value, self.llm, "cron schedule, but the DAG's timezone can't be read off a literal "
+                                            "start_date; pin CronDataIntervalTimetable(cron, timezone=...) by hand")
+                return updated
+            self._site(value, self.det)
+            if not self.rewrite:
+                return updated
+            self.pinned += 1
+            pinned = cst.parse_expression(f'CronDataIntervalTimetable({value.value}, timezone="{tz}")')
+            arg = updated.args[idx].with_changes(keyword=cst.Name("schedule"), value=pinned)
+            return updated.with_changes(args=[*updated.args[:idx], arg, *updated.args[idx + 1:]])
+        if isinstance(value, cst.Call) and _callee(value) in _TIMEDELTA:
+            self._site(value, self.llm, "timedelta schedule: Airflow 3 also changed the default for these "
+                                        "([scheduler] create_delta_data_intervals = False); pin "
+                                        "DeltaDataIntervalTimetable to keep Airflow 2's run dates")
+        elif isinstance(value, cst.Attribute) or (isinstance(value, cst.Name) and value.value != "None"):
+            self._site(value, self.llm, "schedule is not a literal; if it is a cron string, Airflow 3's default "
+                                        "timetable changes this DAG's run dates")
+        return updated
+
+    def leave_Module(self, original: cst.Module, updated: cst.Module):
+        if not self.pinned or "CronDataIntervalTimetable" in _imported_names(original):
+            return updated
+        body = list(updated.body)
+        last = max((i for i, st in enumerate(body) if isinstance(st, cst.SimpleStatementLine)
+                    and any(isinstance(x, (cst.Import, cst.ImportFrom)) for x in st.body)), default=-1)
+        imp = cst.parse_statement("from airflow.sdk import CronDataIntervalTimetable\n")
+        body.insert(last + 1, imp)
+        return updated.with_changes(body=body)
+
+
+def _imported_names(module: cst.Module) -> set[str]:
+    names = set()
+    for st in module.body:
+        if not isinstance(st, cst.SimpleStatementLine):
+            continue
+        for small in st.body:
+            if isinstance(small, cst.ImportFrom) and not isinstance(small.names, cst.ImportStar):
+                names |= {(a.asname.name.value if a.asname else _EMPTY.code_for_node(a.name)) for a in small.names}
+    return names
+
+
+class AirflowCronPin:
+    """`schedule="@daily"` -> `schedule=CronDataIntervalTimetable("@daily", timezone=...)` (Airflow 2 semantics)."""
+
+    name = "airflow_cron_pin"
+    file_globs: tuple[str, ...] = ()
+
+    def _run(self, text: str, rewrite: bool):
+        t = _CronPin(rewrite)
+        return MetadataWrapper(cst.parse_module(text)).visit(t).code, t
+
+    def find(self, path: Path, text: str, options: dict, mode: str) -> list[Site]:
+        if path.suffix != ".py":
+            return []
+        _, t = self._run(text, rewrite=False)
+        return t.det if mode == "deterministic" else t.llm
+
+    def apply(self, path: Path, text: str, options: dict) -> str:
+        return text if path.suffix != ".py" else self._run(text, rewrite=True)[0]
+
+
+PLUGINS = {p.name: p for p in (AirflowContextKeys(), AirflowTemplates(), AirflowCronPin())}
