@@ -1,0 +1,492 @@
+[
+  {
+    "repo": "Ansud/kaizilla",
+    "patterns": [
+      "beta_parse"
+    ],
+    "pins": [
+      [
+        "requirements-dev.txt",
+        811,
+        "openai==2.54.0"
+      ],
+      [
+        "requirements.txt",
+        247,
+        "openai==2.54.0"
+      ]
+    ],
+    "tests": 7,
+    "files": 33,
+    "size_kb": 977,
+    "stars": 2,
+    "pushed_at": "2026-10-19T15:05:18Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "Barry2llen/flask",
+    "patterns": [
+      "beta_stream"
+    ],
+    "pins": [
+      [
+        "pyproject.toml",
+        19,
+        "openai==2.9.0"
+      ],
+      [
+        "requirements.txt",
+        1009,
+        "openai==2.9.0"
+      ]
+    ],
+    "tests": 2,
+    "files": 66,
+    "size_kb": 2631,
+    "stars": 0,
+    "pushed_at": "2026-04-08T11:00:34Z",
+    "default_branch": "dev"
+  },
+  {
+    "repo": "CharlesQ9/HistAgent",
+    "patterns": [
+      "beta_parse"
+    ],
+    "pins": [
+      [
+        "requirements.txt",
+        14,
+        "openai==1.82.0"
+      ]
+    ],
+    "tests": 4,
+    "files": 120,
+    "size_kb": 3152,
+    "stars": 54,
+    "pushed_at": "2025-10-18T01:15:07Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "DavidTokar12/SkyAgent",
+    "patterns": [
+      "beta_stream"
+    ],
+    "pins": [
+      [
+        "pyproject.toml",
+        10,
+        "openai = \"^1.58.1\""
+      ]
+    ],
+    "tests": 9,
+    "files": 75,
+    "size_kb": 1631,
+    "stars": 5,
+    "pushed_at": "2025-06-20T14:36:27Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "JaynouOliver/rankwise",
+    "patterns": [
+      "beta_parse"
+    ],
+    "pins": [
+      [
+        "requirements.txt",
+        1,
+        "openai==1.68.2"
+      ]
+    ],
+    "tests": 2,
+    "files": 13,
+    "size_kb": 13,
+    "stars": 3,
+    "pushed_at": "2025-03-26T00:31:28Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "KTS-o7/Compliance-agent",
+    "patterns": [
+      "beta_stream"
+    ],
+    "pins": [
+      [
+        "requirements.txt",
+        4,
+        "openai==2.33.0"
+      ]
+    ],
+    "tests": 9,
+    "files": 75,
+    "size_kb": 3769,
+    "stars": 0,
+    "pushed_at": "2026-05-01T01:54:33Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "Mabel55/Digital--Era",
+    "patterns": [
+      "beta_parse"
+    ],
+    "pins": [
+      [
+        "requirements.txt",
+        97,
+        "openai==2.44.0"
+      ]
+    ],
+    "tests": 8,
+    "files": 448,
+    "size_kb": 11332,
+    "stars": 0,
+    "pushed_at": "2026-10-01T12:35:19Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "MalarzDawid/KFT",
+    "patterns": [
+      "beta_parse"
+    ],
+    "pins": [
+      [
+        "requirements.txt",
+        16,
+        "openai==1.78.1"
+      ]
+    ],
+    "tests": 9,
+    "files": 29,
+    "size_kb": 70,
+    "stars": 0,
+    "pushed_at": "2025-06-11T20:33:52Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "Packstack-Tech/packstack-api",
+    "patterns": [
+      "functions"
+    ],
+    "pins": [
+      [
+        "requirements.txt",
+        8,
+        "openai<3"
+      ]
+    ],
+    "tests": 16,
+    "files": 102,
+    "size_kb": 759,
+    "stars": 6,
+    "pushed_at": "2026-10-17T19:36:30Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "Suhao07/HuaWeiNav",
+    "patterns": [
+      "beta_parse"
+    ],
+    "pins": [
+      [
+        "requirements.txt",
+        8,
+        "openai==1.109.1"
+      ]
+    ],
+    "tests": 44,
+    "files": 416,
+    "size_kb": 22260,
+    "stars": 0,
+    "pushed_at": "2026-09-23T10:56:22Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "Tambe-Lab/agent-memory-profiling",
+    "patterns": [
+      "functions"
+    ],
+    "pins": [
+      [
+        "requirements.txt",
+        60,
+        "openai>=1.99.1,<2.25.0"
+      ]
+    ],
+    "tests": 56,
+    "files": 1387,
+    "size_kb": 20243,
+    "stars": 1,
+    "pushed_at": "2026-08-18T19:59:29Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "bladepop/quantum-llama",
+    "patterns": [
+      "functions"
+    ],
+    "pins": [
+      [
+        "pyproject.toml",
+        30,
+        "openai = \"1.1.1\""
+      ]
+    ],
+    "tests": 18,
+    "files": 77,
+    "size_kb": 231,
+    "stars": 0,
+    "pushed_at": "2025-04-30T17:28:12Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "grasp-technologies/grasp-agents",
+    "patterns": [
+      "beta_stream"
+    ],
+    "pins": [
+      [
+        "pyproject.toml",
+        18,
+        "openai>=2.47,<3"
+      ],
+      [
+        "requirements.txt",
+        31,
+        "openai==1.78.0"
+      ]
+    ],
+    "tests": 257,
+    "files": 680,
+    "size_kb": 7548,
+    "stars": 13,
+    "pushed_at": "2026-10-20T13:03:06Z",
+    "default_branch": "master"
+  },
+  {
+    "repo": "kody-w/CommunityRAPP",
+    "patterns": [
+      "functions"
+    ],
+    "pins": [
+      [
+        "requirements.txt",
+        13,
+        "openai==1.55.3"
+      ]
+    ],
+    "tests": 3,
+    "files": 75,
+    "size_kb": 301,
+    "stars": 0,
+    "pushed_at": "2026-10-07T22:16:32Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "meiotoufa/DR-Rubric",
+    "patterns": [
+      "beta_stream"
+    ],
+    "pins": [
+      [
+        "requirements.txt",
+        126,
+        "openai==2.14.0"
+      ]
+    ],
+    "tests": 71,
+    "files": 676,
+    "size_kb": 10773,
+    "stars": 29,
+    "pushed_at": "2026-06-30T16:06:22Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "robocorp/llmstatemachine",
+    "patterns": [
+      "functions"
+    ],
+    "pins": [
+      [
+        "pyproject.toml",
+        10,
+        "openai = \"^1.3.3\""
+      ]
+    ],
+    "tests": 2,
+    "files": 18,
+    "size_kb": 128,
+    "stars": 75,
+    "pushed_at": "2024-01-02T16:32:58Z",
+    "default_branch": "master"
+  },
+  {
+    "repo": "sr2mg/aituber_prompt_engineering_example",
+    "patterns": [
+      "beta_parse"
+    ],
+    "pins": [
+      [
+        "pyproject.toml",
+        12,
+        "openai = \"^1.55.0\""
+      ]
+    ],
+    "tests": 7,
+    "files": 39,
+    "size_kb": 58,
+    "stars": 18,
+    "pushed_at": "2024-11-23T07:17:43Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "vale95ntino/cot2tot",
+    "patterns": [
+      "beta_parse"
+    ],
+    "pins": [
+      [
+        "pyproject.toml",
+        12,
+        "openai = \"^1.61.0\""
+      ]
+    ],
+    "tests": 4,
+    "files": 32,
+    "size_kb": 1874,
+    "stars": 13,
+    "pushed_at": "2025-02-16T21:16:46Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "TioeAre/BayesRAG",
+    "patterns": [
+      "httpx"
+    ],
+    "pins": [
+      [
+        "requirements.txt",
+        186,
+        "openai==2.14.0"
+      ]
+    ],
+    "tests": 9,
+    "files": 97,
+    "size_kb": 777,
+    "stars": 6,
+    "pushed_at": "2026-01-13T11:54:24Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "elicervantess/bot-wsp",
+    "patterns": [
+      "httpx"
+    ],
+    "pins": [
+      [
+        "pyproject.toml",
+        15,
+        "openai = \"^1.35.14\""
+      ]
+    ],
+    "tests": 3,
+    "files": 45,
+    "size_kb": 134,
+    "stars": 0,
+    "pushed_at": "2026-01-11T02:51:40Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "gitmichaelqiu/LLMMisinfoClassification",
+    "patterns": [
+      "httpx"
+    ],
+    "pins": [
+      [
+        "requirements.txt",
+        3,
+        "openai==2.37.0"
+      ]
+    ],
+    "tests": 3,
+    "files": 31,
+    "size_kb": 9600,
+    "stars": 2,
+    "pushed_at": "2026-07-28T13:27:32Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "joeloliver/positron-docs",
+    "patterns": [
+      "httpx"
+    ],
+    "pins": [
+      [
+        "requirements.txt",
+        11,
+        "openai==1.102.0"
+      ]
+    ],
+    "tests": 2,
+    "files": 37,
+    "size_kb": 1397,
+    "stars": 0,
+    "pushed_at": "2026-07-15T18:49:23Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "lfh21/Agent",
+    "patterns": [
+      "httpx"
+    ],
+    "pins": [
+      [
+        "pyproject.toml",
+        7,
+        "openai==2.44.0"
+      ]
+    ],
+    "tests": 4,
+    "files": 19,
+    "size_kb": 270,
+    "stars": 0,
+    "pushed_at": "2026-07-06T14:14:25Z",
+    "default_branch": "main"
+  },
+  {
+    "repo": "liuyngchng/llm_agent",
+    "patterns": [
+      "httpx"
+    ],
+    "pins": [
+      [
+        "requirements.txt",
+        147,
+        "openai==1.68.2"
+      ]
+    ],
+    "tests": 44,
+    "files": 486,
+    "size_kb": 14806,
+    "stars": 1,
+    "pushed_at": "2026-09-24T05:12:14Z",
+    "default_branch": "master"
+  },
+  {
+    "repo": "thichcode/mythuky",
+    "patterns": [
+      "httpx"
+    ],
+    "pins": [
+      [
+        "requirements.txt",
+        7,
+        "openai==1.75.0"
+      ]
+    ],
+    "tests": 5,
+    "files": 26,
+    "size_kb": 84,
+    "stars": 0,
+    "pushed_at": "2026-04-16T15:52:34Z",
+    "default_branch": "main"
+  }
+]
