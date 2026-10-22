@@ -1,0 +1,30 @@
+--- codemod-samples/pydantic/sample.py	2026-10-22 22:31:52
++++ results/codemods/pydantic/sample.py	2026-10-22 22:33:17
+@@ -1,6 +1,7 @@
+ from typing import Optional
+ 
+-from pydantic import BaseModel, BaseSettings, Field, root_validator, validator
++from pydantic import field_validator, BaseModel, Field, root_validator
++from pydantic_settings import BaseSettings, SettingsConfigDict
+ 
+ 
+ class Settings(BaseSettings):
+@@ -10,13 +11,12 @@
+ class User(BaseModel):
+     id: int
+     code: str
+-    nickname: Optional[str]
+-    email: str = Field(..., regex=r".+@.+")
++    nickname: Optional[str] = None
++    email: str = Field(..., pattern=r".+@.+")
++    model_config = SettingsConfigDict(from_attributes=True)
+ 
+-    class Config:
+-        orm_mode = True
+-
+-    @validator("code")
++    @field_validator("code")
++    @classmethod
+     def upper(cls, v):
+         return v.upper()
+ 

@@ -1,0 +1,16 @@
+pydantic     basesettings_import  files=  18368 precision=100% own_repos=100/100 est_repos~18368
+pydantic     root_validator       files=  34624 precision=100% own_repos= 93/100 est_repos~32200
+sqlalchemy   engine_execute       files=  24448 precision= 99% own_repos= 86/100 est_repos~21025
+sqlalchemy   select_list          files=  20672 precision=100% own_repos= 63/100 est_repos~13023
+numpy        np_float_            files= 150528 precision=100% own_repos= 88/100 est_repos~132465
+numpy        np_product           files=  50624 precision=100% own_repos= 89/100 est_repos~45055
+pandas       applymap             files=  66432 precision=100% own_repos=100/100 est_repos~66432
+pandas       fillna_method        files= 173056 precision=100% own_repos= 91/100 est_repos~157481
+langchain    llmchain_import      files=  34880 precision=100% own_repos= 97/100 est_repos~33834
+langchain    initialize_agent     files=  20032 precision=100% own_repos=100/100 est_repos~20032
+llamaindex   toplevel_import      files=   6704 precision=100% own_repos= 83/100 est_repos~5564
+llamaindex   service_context      files=   6976 precision=100% own_repos= 89/100 est_repos~6209
+airflow      schedule_interval    files=  82494 precision=100% own_repos= 83/100 est_repos~68470
+airflow      old_operator_paths   files=  13824 precision=100% own_repos= 84/100 est_repos~11612
+marshmallow  missing_kwarg        files=   2536 precision=100% own_repos= 64/100 est_repos~1623
+marshmallow  schema_context       files=    614 precision=100% own_repos= 49/100 est_repos~301

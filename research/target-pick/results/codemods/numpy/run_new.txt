@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "./results/codemods/numpy/sample.py", line 4, in <module>
+    print(np.prod([2, 3]), np.all(x > 0), np.cumprod([1, 2]), np.in1d([1], [1]))
+                                                              ^^^^^^^
+  File "./.venvs/numpy-2/lib/python3.12/site-packages/numpy/__init__.py", line 769, in __getattr__
+    raise AttributeError(f"module {__name__!r} has no attribute {attr!r}")
+AttributeError: module 'numpy' has no attribute 'in1d'. Did you mean: 'int16'?

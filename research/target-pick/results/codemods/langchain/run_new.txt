@@ -1,0 +1,4 @@
+Traceback (most recent call last):
+  File "./results/codemods/langchain/sample.py", line 1, in <module>
+    from langchain.agents import AgentType, initialize_agent
+ImportError: cannot import name 'AgentType' from 'langchain.agents' (./.venvs/langchain-1/lib/python3.12/site-packages/langchain/agents/__init__.py). Did you mean: 'AgentState'?

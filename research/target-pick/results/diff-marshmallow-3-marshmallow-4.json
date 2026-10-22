@@ -1,0 +1,64 @@
+{
+ "old": "marshmallow 3.26.2",
+ "new": "marshmallow 4.3.1",
+ "old_modules": 13,
+ "new_modules": 14,
+ "modules_removed": 2,
+ "names_removed": 58,
+ "params_removed": 16,
+ "examples": {
+  "modules": [
+   "marshmallow.base",
+   "marshmallow.warnings"
+  ],
+  "names": [
+   "marshmallow.Version",
+   "marshmallow.annotations",
+   "marshmallow.base",
+   "marshmallow.importlib",
+   "marshmallow.pprint",
+   "marshmallow.typing",
+   "marshmallow.warnings",
+   "marshmallow.decorators.Any",
+   "marshmallow.decorators.Callable",
+   "marshmallow.decorators.cast",
+   "marshmallow.exceptions.FieldInstanceResolutionError",
+   "marshmallow.fields.ChangedInMarshmallow4Warning",
+   "marshmallow.fields.FieldABC",
+   "marshmallow.fields.FieldInstanceResolutionError",
+   "marshmallow.fields.Inferred",
+   "marshmallow.fields.RemovedInMarshmallow4Warning",
+   "marshmallow.fields.is_aware",
+   "marshmallow.fields.is_collection",
+   "marshmallow.fields.resolve_field_instance",
+   "marshmallow.fields.warnings",
+   "marshmallow.schema.OrderedDict",
+   "marshmallow.schema.RemovedInMarshmallow4Warning",
+   "marshmallow.schema.base",
+   "marshmallow.schema.is_instance_or_subclass",
+   "marshmallow.schema.validate_unknown_parameter_value"
+  ],
+  "params": [
+   "marshmallow.decorators.validates(field_name)",
+   "marshmallow.decorators.validates_schema(pass_many)",
+   "marshmallow.decorators.pre_dump(pass_many)",
+   "marshmallow.decorators.post_dump(pass_many)",
+   "marshmallow.decorators.pre_load(pass_many)",
+   "marshmallow.decorators.post_load(pass_many)",
+   "marshmallow.fields.Field.__init__(missing, default, additional_metadata)",
+   "marshmallow.fields.Nested.__init__(dump_default, default)",
+   "marshmallow.fields.TimeDelta.__init__(serialization_type)",
+   "marshmallow.schema.SchemaOpts.__init__(ordered)",
+   "marshmallow.schema.Schema.__init__(context)",
+   "marshmallow.schema.Schema.loads(json_data)",
+   "marshmallow.schema.BaseSchema.__init__(context)",
+   "marshmallow.schema.BaseSchema.loads(json_data)",
+   "marshmallow.types.RenderModule.loads(json_data)",
+   "marshmallow.validate.And.__init__(error)"
+  ]
+ },
+ "import_failures": [
+  0,
+  0
+ ]
+}

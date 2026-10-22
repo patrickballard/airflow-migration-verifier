@@ -1,0 +1,57 @@
+{
+ "old": "llama_index 0.9.48",
+ "new": "llama_index 0.14.25",
+ "old_modules": 730,
+ "new_modules": 482,
+ "modules_removed": 723,
+ "names_removed": 83,
+ "params_removed": 0,
+ "examples": {
+  "modules": [
+   "llama_index",
+   "llama_index.agent",
+   "llama_index.agent.custom",
+   "llama_index.agent.custom.pipeline_worker",
+   "llama_index.agent.custom.simple",
+   "llama_index.agent.legacy",
+   "llama_index.agent.legacy.context_retriever_agent",
+   "llama_index.agent.legacy.openai_agent",
+   "llama_index.agent.legacy.react",
+   "llama_index.agent.legacy.react.base",
+   "llama_index.agent.legacy.retriever_openai_agent",
+   "llama_index.agent.openai"
+  ],
+  "names": [
+   "llama_index.core.base_auto_retriever",
+   "llama_index.core.base_multi_modal_retriever",
+   "llama_index.core.base_query_engine",
+   "llama_index.core.base_retriever",
+   "llama_index.core.base_selector",
+   "llama_index.core.query_pipeline",
+   "llama_index.core.embeddings.base",
+   "llama_index.core.llms.types",
+   "llama_index.core.response.schema",
+   "llama_index.embeddings.openai.Any",
+   "llama_index.embeddings.openai.AsyncOpenAI",
+   "llama_index.embeddings.openai.BaseEmbedding",
+   "llama_index.embeddings.openai.CallbackManager",
+   "llama_index.embeddings.openai.Dict",
+   "llama_index.embeddings.openai.EMBED_MAX_TOKEN_LIMIT",
+   "llama_index.embeddings.openai.Enum",
+   "llama_index.embeddings.openai.Field",
+   "llama_index.embeddings.openai.List",
+   "llama_index.embeddings.openai.OAEM",
+   "llama_index.embeddings.openai.OAEMM",
+   "llama_index.embeddings.openai.OAEMT",
+   "llama_index.embeddings.openai.OpenAI",
+   "llama_index.embeddings.openai.Optional",
+   "llama_index.embeddings.openai.PrivateAttr",
+   "llama_index.embeddings.openai.Tuple"
+  ],
+  "params": []
+ },
+ "import_failures": [
+  15,
+  5
+ ]
+}

@@ -1,0 +1,68 @@
+# pydantic: pydantic-1 -> pydantic-2
+  01_basesettings_import                 BREAKS (error)
+      old: OK  BaseSettings ok: False
+      new: ERR For further information visit https://errors.pydantic.dev/2.14/u/import-error
+  02_optional_defaults_to_none           BREAKS (error)
+      old: OK  M() -> None
+      new: ERR     For further information visit https://errors.pydantic.dev/2.14/v/missing
+  03_int_coerced_to_str                  BREAKS (error)
+      old: OK  code=123 -> '123'
+      new: ERR     For further information visit https://errors.pydantic.dev/2.14/v/string_type
+# sqlalchemy: sqlalchemy-1 -> sqlalchemy-2
+  01_engine_execute                      BREAKS (error)
+      old: OK  engine.execute -> 1
+      new: ERR AttributeError: 'Engine' object has no attribute 'execute'
+  02_autocommit_silent_rollback          BREAKS (silently different)
+      old: OK  rows persisted: 2
+      new: OK  rows persisted: 0
+  03_select_list_and_string_sql          BREAKS (error)
+      old: OK  raw string -> 1
+      new: ERR sqlalchemy.exc.ArgumentError: Column expression, FROM clause, or other columns clause element expected, got [Column('id', Integer(), table=<t>, primar
+# numpy: numpy-1 -> numpy-2
+  01_removed_aliases                     BREAKS (error)
+      old: OK  np.float_, np.NaN, np.product: 1.5 nan 6
+      new: ERR AttributeError: `np.float_` was removed in the NumPy 2.0 release. Use `np.float64` instead.
+  02_nep50_promotion                     BREAKS (silently different)
+      old: OK  float32(3)+3.0 -> float64 | uint8(200)+100 -> int64 300
+      new: OK  float32(3)+3.0 -> float32 | uint8(200)+100 -> uint8 44
+# pandas: pandas-2 -> pandas-3
+  01_chained_assignment_cow              BREAKS (silently different)
+      old: OK  df.a after chained writes -> [99, 77, 3]
+      new: OK  df.a after chained writes -> [1, 2, 3]
+  02_string_dtype_default                BREAKS (silently different)
+      old: OK  dtype == object -> True | dtype: object
+      new: OK  dtype == object -> False | dtype: str
+  03_removed_methods_and_aliases         BREAKS (error)
+      old: OK  1.0 [1.0, 1.0, 3.0] 2
+      new: ERR AttributeError: 'DataFrame' object has no attribute 'applymap'
+# langchain: langchain-0 -> langchain-1
+  01_llmchain_import                     BREAKS (error)
+      old: OK  LLMChain -> hi
+      new: ERR ModuleNotFoundError: No module named 'langchain.chains'
+  02_initialize_agent                    BREAKS (error)
+      old: OK  initialize_agent: True zero-shot-react-description
+      new: ERR ImportError: cannot import name 'AgentType' from 'langchain.agents' (<venv>
+# llamaindex: llamaindex-0 -> llamaindex-1
+  01_top_level_import                    BREAKS (error)
+      old: OK  ok VectorStoreIndex x
+      new: ERR ImportError: cannot import name 'Document' from 'llama_index' (unknown location)
+  02_service_context                     BREAKS (error)
+      old: OK  ServiceContext.from_defaults -> ServiceContext
+      new: ERR https://docs.llamaindex.ai/en/stable/module_guides/supporting_modules/service_context_migration/
+# airflow: airflow-2 -> airflow-3
+  01_schedule_interval                   BREAKS (error)
+      old: OK  schedule_interval ok: d
+      new: ERR TypeError: DAG.__init__() got an unexpected keyword argument 'schedule_interval'
+  02_operator_import_paths               BREAKS (error)
+      old: OK  old operator paths ok: BashOperator PythonOperator
+      new: ERR ModuleNotFoundError: No module named 'airflow.operators.bash_operator'
+  03_execution_date_context              BREAKS (error)
+      old: OK  execution_date is a task context key
+      new: ERR AssertionError: execution_date is no longer a task context key
+# marshmallow: marshmallow-3 -> marshmallow-4
+  01_missing_default_kwargs              BREAKS (error)
+      old: OK  load {} -> {'name': 'anon'}
+      new: ERR TypeError: Field.__init__() got an unexpected keyword argument 'missing'
+  02_schema_context                      BREAKS (error)
+      old: OK  context -> {'greeting': 'hi ann'}
+      new: ERR TypeError: Schema.__init__() got an unexpected keyword argument 'context'

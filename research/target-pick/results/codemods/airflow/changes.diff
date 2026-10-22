@@ -1,0 +1,22 @@
+--- codemod-samples/airflow/sample.py	2026-10-22 22:31:52
++++ results/codemods/airflow/sample.py	2026-10-22 22:33:17
+@@ -1,15 +1,15 @@
+ import datetime
+ 
+-from airflow import DAG
+-from airflow.operators.bash_operator import BashOperator
+-from airflow.operators.python_operator import PythonOperator
++from airflow.sdk import DAG
++from airflow.providers.standard.operators.bash import BashOperator
++from airflow.providers.standard.operators.python import PythonOperator
+ 
+ 
+ def run(**context):
+     print(context["execution_date"])
+ 
+ 
+-with DAG("d", schedule_interval="@daily", start_date=datetime.datetime(2024, 1, 1)) as dag:
++with DAG("d", schedule="@daily", start_date=datetime.datetime(2024, 1, 1)) as dag:
+     PythonOperator(task_id="t", python_callable=run)
+     BashOperator(task_id="b", bash_command="echo {{ execution_date }}")
+ print(dag.dag_id, sorted(dag.task_dict))

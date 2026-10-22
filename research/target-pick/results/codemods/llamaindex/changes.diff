@@ -1,0 +1,10 @@
+--- codemod-samples/llamaindex/sample.py	2026-10-22 22:31:52
++++ results/codemods/llamaindex/sample.py	2026-10-22 22:33:29
+@@ -1,5 +1,5 @@
+-from llama_index import Document, MockEmbedding, ServiceContext, VectorStoreIndex
+-from llama_index.llms import MockLLM
++from llama_index.core import Document, MockEmbedding, ServiceContext, VectorStoreIndex
++from llama_index.core.llms import MockLLM
+ 
+ ctx = ServiceContext.from_defaults(llm=MockLLM(), embed_model=MockEmbedding(embed_dim=8))
+ index = VectorStoreIndex.from_documents([Document(text="hello")], service_context=ctx)
