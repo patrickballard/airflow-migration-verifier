@@ -14,6 +14,15 @@ RULES = ROOT / "rules" / "openai.yaml"
 FIXTURE_TEST_COMMAND = f"{shlex.quote(sys.executable)} -m pytest -q -p no:cacheprovider"
 
 
+@pytest.fixture(autouse=True)
+def no_real_credentials(tmp_path_factory, monkeypatch):
+    """No test may see the developer's real Anthropic key (env var or key file) or spend money."""
+    monkeypatch.setenv("HOME", str(tmp_path_factory.mktemp("home")))
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("INPUT_ANTHROPIC-API-KEY", raising=False)
+    monkeypatch.delenv("INPUT_ANTHROPIC_API_KEY", raising=False)
+
+
 @pytest.fixture
 def sample_repo(tmp_path):
     dest = tmp_path / "repo"
