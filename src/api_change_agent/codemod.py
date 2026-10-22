@@ -64,6 +64,19 @@ class _SiteFinder(cst.CSTVisitor):
         if self.rule.match.call and _call_matches(node, self.rule):
             self._add(node)
 
+    def _imports_module(self, name: cst.BaseExpression | None) -> bool:
+        dotted = _EMPTY.code_for_node(name) if name is not None else ""
+        module = self.rule.match.module
+        return dotted == module or dotted.startswith(module + ".")
+
+    def visit_Import(self, node: cst.Import) -> None:
+        if self.rule.match.module and any(self._imports_module(a.name) for a in node.names):
+            self._add(node)
+
+    def visit_ImportFrom(self, node: cst.ImportFrom) -> None:
+        if self.rule.match.module and not node.relative and self._imports_module(node.module):
+            self._add(node)
+
 
 def find_sites(source: str | cst.Module, rule: Rule) -> list[Site]:
     module = cst.parse_module(source) if isinstance(source, str) else source

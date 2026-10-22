@@ -178,7 +178,7 @@ _SPEC = rf"\s*{_CLAUSE}(?:\s*,\s*{_CLAUSE})*"
 def _req_regex(package: str) -> re.Pattern:
     name = re.escape(package).replace(r"\-", "[-_.]").replace("_", "[-_.]")
     return re.compile(
-        rf"(?P<req>(?P<name>{name})(?P<extras>\s*\[[^\]]*\])?(?P<spec>{_SPEC})?)(?=\s*(?:;|#|$))",
+        rf"(?P<req>(?P<name>{name})(?P<extras>\s*\[[^\]]*\])?(?P<spec>{_SPEC})?)(?=\s*(?:;|#|\\|--|$))",
         re.I,
     )
 
@@ -238,6 +238,7 @@ class _Planner:
         self.req = _req_regex(package)
         self.plan = PinPlan(minimum=minimum)
         self._previous: str | None = None  # line above the one being handled
+        self.hash_pinned: Path | None = None
 
     # Each handler returns the (possibly rewritten) line.
     def _bump_req(self, rel, lineno, line, start, end, spec, req_text, poetry=False):
@@ -246,6 +247,10 @@ class _Planner:
             self.plan.conflicts.append(PinConflict(rel, lineno, req_text.strip(), result.reason))
             return line
         if result.status != "bumped":
+            return line
+        if self.hash_pinned == rel:
+            self.plan.conflicts.append(PinConflict(rel, lineno, req_text.strip(),
+                                                   "hash-pinned file; regenerate it (e.g. pip-compile) instead"))
             return line
         if why := intent_comment(line, self._previous):
             self.plan.holds.append(PinHold(rel, lineno, req_text.strip(), why))
@@ -311,6 +316,11 @@ class _Planner:
         text = path.read_text(errors="replace")
         if self.package.lower() not in text.lower():
             return
+        if _is_requirements_file(rel) and "--hash" in text:
+            # Editing a version here would invalidate its hash; report it instead.
+            self.hash_pinned = rel
+        else:
+            self.hash_pinned = None
         lines = text.splitlines(keepends=True)
         changed = False
         for i, raw in enumerate(lines):

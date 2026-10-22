@@ -113,3 +113,9 @@ def test_lockfile_notes(tmp_path):
     (tmp_path / "uv.lock").write_text('[[package]]\nname = "openai"\nversion = "2.0.0"\n')
     plan = plan_pins(tmp_path, "openai", MIN)
     assert [(str(n.path), n.version) for n in plan.lock_notes] == [("poetry.lock", "1.50.0")]
+
+
+def test_hash_pinned_requirements_are_a_conflict_not_an_edit(tmp_path):
+    (tmp_path / "requirements.txt").write_text("openai==1.50.0 \\\n    --hash=sha256:abc\n")
+    plan = plan_pins(tmp_path, "openai", MIN)
+    assert plan.edits == [] and "hash-pinned" in plan.conflicts[0].reason

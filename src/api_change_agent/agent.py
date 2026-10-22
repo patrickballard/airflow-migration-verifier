@@ -1,21 +1,24 @@
 """Orchestration: scan -> deterministic fixes -> pins -> LLM fixes -> tests -> PR."""
 from __future__ import annotations
 
+import dataclasses
 import difflib
 import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import libcst as cst
+from packaging.requirements import Requirement
 from packaging.version import Version
 
 from . import gitops
 from .codemod import Site, apply_deterministic, find_sites, missing_comments
+from .deps import plan_add_dependency
 from .llm import PatchModel, PatchRequest
 from .pins import PinPlan, apply_pins, plan_pins
 from .report import Row, render_body
 from .rules import Rule, load_rules
-from .scanner import scan_repo
+from .scanner import iter_python_files, scan_repo
 from .testrun import TestOutcome, TestRunner, default_install_command, detect_test_command, new_failures
 
 DEFAULT_BRANCH = "api-change-agent/openai"
@@ -59,6 +62,8 @@ class RunResult:
     tests_baseline: TestOutcome | None = None
     tests_after: TestOutcome | None = None
     new_failures: set[str] = field(default_factory=set)
+    rule_notes: dict[str, str] = field(default_factory=dict)  # rule id -> why it did/didn't apply
+    dep_notes: list[str] = field(default_factory=list)
     pushed: bool = False
     pr_url: str | None = None
     body: str = ""
@@ -102,6 +107,7 @@ class _Run:
         self.tested_after_changes = False
         self.tests_unusable = False
         self.pin_minimum: Version | None = None
+        self.inserted: list[tuple[Path, int]] = []  # (file, line) of whole lines added by dependency rules
 
     # -- helpers ------------------------------------------------------------
     def _write(self, rel: Path, text: str) -> None:
@@ -110,9 +116,7 @@ class _Run:
 
     def _set_source(self, rel: Path, new: str, new_rows: list[Row]) -> None:
         remap = _line_map(self.current[rel], new)
-        self.rows[rel] = [
-            Row(r.path, remap(r.line), r.before, r.after, r.rule_id, r.changelog) for r in self.rows.get(rel, [])
-        ] + new_rows
+        self.rows[rel] = [dataclasses.replace(r, line=remap(r.line)) for r in self.rows.get(rel, [])] + new_rows
         self.current[rel] = new
         self._write(rel, new)
 
@@ -140,10 +144,28 @@ class _Run:
         for rel in scan.files:
             self.current[rel] = (self.repo / rel).read_text()
             for rule in self.ruleset.rules:
+                if rule.match.module:
+                    continue
                 sites = find_sites(self.current[rel], rule)
                 if sites:
                     hits.setdefault(rule.id, {})[rel] = sites
                     self.originals.setdefault(rel, self.current[rel])
+        module_rules = [r for r in self.ruleset.rules if r.match.module]
+        if module_rules:
+            for rel in iter_python_files(self.repo, self.o.exclude):
+                try:
+                    text = (self.repo / rel).read_text(encoding="utf-8")
+                except (UnicodeDecodeError, OSError):
+                    continue
+                for rule in module_rules:
+                    if rule.match.module.split(".")[0] not in text:
+                        continue
+                    try:
+                        sites = find_sites(text, rule)
+                    except cst.ParserSyntaxError:
+                        continue
+                    if sites:
+                        hits.setdefault(rule.id, {})[rel] = sites
         self.log(f"scanned {len(scan.files)} file(s) importing {self.ruleset.package}; "
                  + ", ".join(f"{rid}: {sum(map(len, f.values()))} site(s)" for rid, f in hits.items()) or "no hits")
         return hits
@@ -178,7 +200,7 @@ class _Run:
     def deterministic(self, hits) -> None:
         stage_rules = []
         for rule in self.ruleset.rules:
-            if rule.fix != "deterministic" or rule.id not in hits:
+            if rule.fix != "deterministic" or rule.id not in hits or "add_dependency" in rule.transform:
                 continue
             if reason := self._pin_blocker(rule):
                 self.result.skipped_rules.append(reason)
@@ -314,6 +336,72 @@ class _Run:
         self.result.manual += [ManualItem(rel.as_posix(), s.line, rule.id, reason) for s in sites]
         return False
 
+    def dependencies(self, hits) -> None:
+        """``add_dependency`` rules. Run last, so the SDK pins they look at
+        already include this run's bumps (and held pins stay as they are)."""
+        package = self.ruleset.package
+        for rule in self.ruleset.rules:
+            if "add_dependency" not in rule.transform or rule.id not in hits:
+                continue
+            requirement = rule.transform["add_dependency"]
+            name = Requirement(requirement).name
+            importers = [f"`{rel.as_posix()}:{sites[0].line}`" for rel, sites in sorted(hits[rule.id].items())]
+            shown = ", ".join(importers[:5]) + (f" and {len(importers) - 5} more" if len(importers) > 5 else "")
+            plan = plan_add_dependency(self.repo, package, requirement, rule.match.sdk_allows)
+            notes = self.result.rule_notes
+
+            if plan.holds:
+                h = plan.holds[0]
+                self.result.skipped_rules.append(
+                    f"`{rule.id}`: `{h.path}:{h.line}` says `{h.reason}`, so `{name}` was left undeclared "
+                    f"even though it is imported at {shown}")
+                continue
+            if plan.declared:
+                d = plan.declared[0]
+                notes[rule.id] = f"`{name}` is already declared at `{d.path}:{d.line}`."
+                continue
+            if not plan.sdk:
+                notes[rule.id] = (f"`{name}` is imported at {shown}, but no dependency file declares `{package}`, "
+                                  "so there is no file to add it to.")
+                continue
+            if not plan.triggering:
+                pins = ", ".join(f"`{d.path}:{d.line}` `{d.text}`" for d in plan.sdk)
+                notes[rule.id] = (f"not needed yet: {pins} doesn't allow `{package}{rule.match.sdk_allows}` "
+                                  f"(`{name}` is imported at {shown}).")
+                continue
+            for prob in plan.problems:
+                self.result.manual.append(ManualItem(prob.path.as_posix(), prob.line, rule.id,
+                                                     f"add `{requirement}` yourself: this file {prob.reason}"))
+            if not plan.files:
+                continue
+
+            before = {rel: (self.repo / rel).read_text() for rel in plan.files}
+            for rel, text in plan.files.items():
+                self._write(rel, text)
+            why = f"{rule.note} ({shown})" if rule.note else f"imported at {shown}"
+            if self.runner:
+                self.runner.install()
+                outcome = self._run_tests()
+                regressions = new_failures(self.state_outcome, outcome)
+                if regressions:
+                    for rel, text in before.items():
+                        (self.repo / rel).write_text(text)
+                    self.runner.install()
+                    self.result.manual += [
+                        ManualItem(e.path.as_posix(), e.line, rule.id,
+                                   f"adding `{requirement}` broke tests: {', '.join(sorted(regressions))}")
+                        for e in plan.edits]
+                    continue
+                self.state_outcome = outcome
+                self.tested_after_changes = True
+            for e in plan.edits:
+                self.rows.setdefault(e.path, []).append(Row(e.path.as_posix(), e.line, "", e.text, rule.id,
+                                                            rule.changelog, why))
+                if e.new_line:
+                    self.inserted.append((e.path, e.line))
+            self.result.dep_notes += plan.notes
+            self.applied_rules.append(rule)
+
     # -- output -------------------------------------------------------------
     def finish(self) -> RunResult:
         res = self.result
@@ -321,7 +409,10 @@ class _Run:
         plan = res.pin_plan
         if plan and plan.edits and rows:
             top = max(self.applied_rules, key=lambda r: r.min_sdk_version)
-            rows += [Row(e.path.as_posix(), e.line, e.before, e.after, top.id, top.changelog) for e in plan.edits]
+            for e in plan.edits:
+                shift = sum(1 for path, line in self.inserted if path == e.path and line <= e.line)
+                rows.append(Row(e.path.as_posix(), e.line + shift, e.before, e.after, top.id, top.changelog))
+            rows.sort(key=lambda r: (r.path, r.line))
         res.rows = rows
         res.changed_files = sorted(
             rel.as_posix() for rel, text in self.originals.items() if (self.repo / rel).read_text() != text
@@ -334,6 +425,7 @@ class _Run:
             package=self.ruleset.package, rows=rows, rules=self.ruleset.rules,
             pin_minimum=self.pin_minimum if plan and plan.edits else None,
             pin_conflicts=plan.conflicts if plan else [], lock_notes=plan.lock_notes if plan else [],
+            rule_notes=res.rule_notes, dep_notes=res.dep_notes,
             skipped_rules=res.skipped_rules, skipped=res.skipped, manual=res.manual, unparsable=res.unparsable,
             tests_baseline=res.tests_baseline, tests_after=res.tests_after, new_failures=res.new_failures,
             blob_base=blob, rules_path=Path(self.o.rules_path).name,
@@ -375,6 +467,7 @@ def run(options: Options, model: PatchModel | None = None, github=None) -> RunRe
     r.setup_tests()
     r.deterministic(hits)
     r.llm(hits)
+    r.dependencies(hits)
     result = r.finish()
     if result.rows and not options.dry_run:
         r.open_pr()

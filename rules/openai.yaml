@@ -42,3 +42,19 @@ rules:
         assistant message that preceded it must carry `tool_calls` (append the
         returned assistant message as-is).
       Only touch code needed for this migration.
+
+  - id: declare-httpx
+    description: >-
+      openai 3.0 switched to HTTPX2 and no longer installs `httpx`, so code
+      that imports `httpx` itself fails with ModuleNotFoundError unless the
+      repo declares it. Adds the range openai 1.x/2.x installed, so nothing
+      already installed changes.
+    match:
+      import: httpx          # any .py file in the repo
+      sdk_allows: ">=3.0.0"  # only if the openai pin (after this run's bumps) allows 3.x
+    fix: deterministic
+    transform:
+      add_dependency: "httpx>=0.23.0,<1"
+    min_sdk_version: "0"     # no openai bump needed for this fix
+    changelog: https://github.com/openai/openai-python/releases/tag/v3.0.0
+    note: "openai 3.0 no longer installs httpx; this repo imports it directly"

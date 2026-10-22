@@ -17,16 +17,17 @@ class Row:
     after: str
     rule_id: str
     changelog: str
+    note: str = ""  # why this change, shown under the "after" value
 
 
-def _cell(code: str) -> str:
+def _cell(code: str, empty: str = "(removed)") -> str:
     lines = textwrap.dedent(code).strip("\n").splitlines() or [""]
     truncated = len(lines) > MAX_LINES
     lines = [ln if len(ln) <= MAX_WIDTH else ln[: MAX_WIDTH - 1] + "…" for ln in lines[:MAX_LINES]]
     if truncated:
         lines.append("…")
     body = "<br>".join(html.escape(ln, quote=False).replace("|", "&#124;") for ln in lines)
-    return f"<code>{body}</code>" if body else "<i>(removed)</i>"
+    return f"<code>{body}</code>" if body else f"<i>{empty}</i>"
 
 
 def render_table(rows: list[Row], blob_base: str | None) -> str:
@@ -35,12 +36,17 @@ def render_table(rows: list[Row], blob_base: str | None) -> str:
         loc = f"{r.path}:{r.line}"
         if blob_base:
             loc = f"[{loc}]({blob_base}/{r.path}#L{r.line})"
-        out.append(f"| {loc} | {_cell(r.before)} → {_cell(r.after)} | `{r.rule_id}` | [changelog]({r.changelog}) |")
+        change = f"{_cell(r.before, empty='(not declared)')} → {_cell(r.after)}"
+        if r.note:
+            change += f"<br><sub>{html.escape(r.note, quote=False).replace('|', '&#124;')}</sub>"
+        out.append(f"| {loc} | {change} | `{r.rule_id}` | [changelog]({r.changelog}) |")
     return "\n".join(out)
 
 
 def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes, skipped_rules, skipped, manual,
-                unparsable, tests_baseline, tests_after, new_failures, blob_base, rules_path) -> str:
+                unparsable, tests_baseline, tests_after, new_failures, blob_base, rules_path,
+                rule_notes=None, dep_notes=()) -> str:
+    rule_notes = rule_notes or {}
     applied = sorted({r.rule_id for r in rows})
     parts = [
         f"## api-change-agent: `{package}` SDK migration",
@@ -55,18 +61,22 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
         parts.append("### Rules")
         for rule in rules:
             mark = "applied" if rule.id in applied else "not applied"
-            parts.append(f"- `{rule.id}` ({rule.fix}, {mark}): {rule.description} "
-                         f"Needs `{package}>={rule.min_sdk_version}`.")
+            needs = (f"Needs `{package}>={rule.min_sdk_version}`." if rule.needs_sdk_bump
+                     else f"No `{package}` bump needed.")
+            extra = f" {rule_notes[rule.id]}" if rule.id in rule_notes else ""
+            parts.append(f"- `{rule.id}` ({rule.fix}, {mark}): {rule.description} {needs}{extra}")
         parts.append("")
 
-    if pin_minimum or pin_conflicts or lock_notes:
-        parts.append("### Dependency pins")
+    if pin_minimum or pin_conflicts or lock_notes or dep_notes:
+        parts.append("### Dependencies")
         if pin_minimum:
             parts.append(f"Pins raised to allow only `{package}>={pin_minimum}` (rows above).")
         for c in pin_conflicts:
             parts.append(f"- ⚠️ `{c.path}:{c.line}` `{c.text}`: {c.reason}")
         for n in lock_notes:
             parts.append(f"- ⚠️ `{n.path}` locks `{package}=={n.version}`. Regenerate the lock file before merging.")
+        for note in dep_notes:
+            parts.append(f"- ⚠️ {note}.")
         parts.append("")
 
     parts.append("### Tests")

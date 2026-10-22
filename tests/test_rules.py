@@ -8,7 +8,7 @@ from conftest import RULES
 def test_bundled_rules_load():
     rs = load_rules(RULES)
     assert rs.package == "openai"
-    beta, fns = rs.rules
+    beta, fns, httpx_rule = rs.rules
     assert beta.id == "beta-chat-completions-to-ga"
     assert beta.fix == "deterministic"
     assert beta.min_sdk_version == Version("1.92.0")
@@ -17,6 +17,12 @@ def test_bundled_rules_load():
     assert fns.fix == "llm"
     assert fns.match.kwargs == ("functions", "function_call")
     assert fns.guidance
+    assert httpx_rule.id == "declare-httpx" and httpx_rule.fix == "deterministic"
+    assert httpx_rule.match.module == "httpx"
+    assert str(httpx_rule.match.sdk_allows) == ">=3.0.0"
+    assert httpx_rule.transform == {"add_dependency": "httpx>=0.23.0,<1"}
+    assert not httpx_rule.needs_sdk_bump
+    assert httpx_rule.note == "openai 3.0 no longer installs httpx; this repo imports it directly"
 
 
 @pytest.mark.parametrize(

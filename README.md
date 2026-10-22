@@ -12,6 +12,7 @@ changelog URL:
 |---|---|---|---|
 | `beta-chat-completions-to-ga` | deterministic (libcst) | 1.92.0 | `client.beta.chat.completions.{parse,stream}` → `client.chat.completions.{parse,stream}` |
 | `functions-to-tools` | llm (Claude) | 1.1.0 | `functions=`/`function_call=` → `tools=`/`tool_choice=`, plus the response handling |
+| `declare-httpx` | deterministic | (no bump) | openai 3.0 stopped installing `httpx`: if any `.py` file imports `httpx`, the openai pin allows `>=3.0.0` (after this run's bumps), and `httpx` isn't declared, add `httpx>=0.23.0,<1` next to the openai pin, in that file's format |
 
 If the repo pins openai below a rule's minimum, the pin is raised in the same
 PR. Supported files: `requirements*.txt`/`.in`, PEP 621 and Poetry
@@ -19,7 +20,7 @@ PR. Supported files: `requirements*.txt`/`.in`, PEP 621 and Poetry
 the minimum (`openai<1.80`) skips that rule and the PR says so. Lock files are
 flagged, not rewritten.
 
-Only `.py` files that import `openai` are scanned. Rewrites go through
+Only `.py` files that import `openai` are scanned, except by `import:` rules (like `declare-httpx`), which look at every `.py` file. Rewrites go through
 **libcst**, so comments and formatting survive.
 
 ## Probe result: is the beta path broken?
@@ -62,6 +63,10 @@ prints the report to the step summary without touching git.
   marked untested.
 - The branch is cut from the checked-out ref. Run the action on the default
   branch (`schedule` / `workflow_dispatch`).
+
+## Research
+
+[`research/openai-breaks/`](research/openai-breaks/) has the harness that proved which 1.x → 3.x changes really break: per-version venvs, a mock API server, one snippet per candidate, and the GitHub code-search estimates. See its README.
 
 ## Development
 
