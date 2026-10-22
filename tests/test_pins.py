@@ -119,3 +119,11 @@ def test_hash_pinned_requirements_are_a_conflict_not_an_edit(tmp_path):
     (tmp_path / "requirements.txt").write_text("openai==1.50.0 \\\n    --hash=sha256:abc\n")
     plan = plan_pins(tmp_path, "openai", MIN)
     assert plan.edits == [] and "hash-pinned" in plan.conflicts[0].reason
+
+
+@pytest.mark.parametrize("line", ["apache-airflow==2.11.2", "apache_airflow==2.11.2", "Apache.Airflow==2.11.2",
+                                  "apache-airflow[celery]==2.11.2"])
+def test_dashed_distribution_names(tmp_path, line):
+    (tmp_path / "requirements.txt").write_text(line + "\napache-airflow-providers-standard==1.0\n")
+    plan = plan_pins(tmp_path, "apache-airflow", "3.3.2")
+    assert [(e.line, e.after.split("==")[1]) for e in plan.edits] == [(1, "3.3.2")]  # the provider is untouched

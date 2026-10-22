@@ -176,7 +176,8 @@ _SPEC = rf"\s*{_CLAUSE}(?:\s*,\s*{_CLAUSE})*"
 
 
 def _req_regex(package: str) -> re.Pattern:
-    name = re.escape(package).replace(r"\-", "[-_.]").replace("_", "[-_.]")
+    # PEP 503: '-', '_' and '.' are interchangeable in names (apache-airflow == apache_airflow)
+    name = "[-_.]".join(re.escape(part) for part in re.split(r"[-_.]+", package))
     return re.compile(
         rf"(?P<req>(?P<name>{name})(?P<extras>\s*\[[^\]]*\])?(?P<spec>{_SPEC})?)(?=\s*(?:;|#|\\|--|$))",
         re.I,
