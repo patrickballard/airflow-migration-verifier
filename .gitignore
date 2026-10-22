@@ -1,0 +1,28 @@
+# virtualenvs
+.venv/
+venv/
+env/
+
+# python build / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# secrets: never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.*
+.secrets
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

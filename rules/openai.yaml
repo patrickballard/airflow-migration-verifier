@@ -1,0 +1,44 @@
+# Rules for the openai Python SDK. Each rule: match pattern, fix type,
+# minimum SDK version that supports the new form, changelog link.
+package: openai
+rules:
+  - id: beta-chat-completions-to-ga
+    description: >-
+      `chat.completions.parse` and `.stream` moved out of `beta`. The beta
+      alias still works (checked on openai 3.36.1, no warning), so this is
+      forward-compat cleanup.
+    match:
+      attribute: "*.beta.chat.completions.{parse,stream}"
+    fix: deterministic
+    transform:
+      drop_attribute: beta
+    min_sdk_version: "1.92.0"
+    changelog: https://github.com/openai/openai-python/releases/tag/v1.92.0
+
+  - id: functions-to-tools
+    description: >-
+      `functions=` / `function_call=` are deprecated in favour of `tools=` /
+      `tool_choice=`.
+    match:
+      call: "*.chat.completions.{create,parse,stream}"
+      kwargs: [functions, function_call]
+    fix: llm
+    min_sdk_version: "1.1.0"
+    changelog: https://github.com/openai/openai-python/releases/tag/v1.1.0
+    guidance: |
+      Migrate legacy function calling to tool calling:
+      - `functions=[f, ...]` -> `tools=[{"type": "function", "function": f}, ...]`.
+        If the list is built elsewhere, wrap at the call site (a comprehension
+        is fine) rather than editing unrelated definitions.
+      - `function_call="auto"` / `"none"` -> `tool_choice="auto"` / `"none"`.
+      - `function_call={"name": N}` -> `tool_choice={"type": "function", "function": {"name": N}}`.
+      - Response handling: `message.function_call` -> `message.tool_calls[0].function`
+        (it has `.name` and `.arguments`); check `message.tool_calls` where the code
+        checked `message.function_call` for None. Streaming deltas:
+        `delta.function_call` -> `delta.tool_calls[i].function`.
+      - `finish_reason == "function_call"` -> `finish_reason == "tool_calls"`.
+      - Follow-up messages: `{"role": "function", "name": N, "content": C}` ->
+        `{"role": "tool", "tool_call_id": <id of the tool call>, "content": C}`, and the
+        assistant message that preceded it must carry `tool_calls` (append the
+        returned assistant message as-is).
+      Only touch code needed for this migration.

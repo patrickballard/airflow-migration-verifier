@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "api-change-agent"
+version = "0.1.0"
+description = "GitHub Action that migrates deprecated openai SDK usage and opens a PR."
+requires-python = ">=3.10"
+dependencies = [
+    "libcst>=1.4",
+    "PyYAML>=6",
+    "packaging>=23",
+    "anthropic>=0.40",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "openai", "pydantic>=2"]
+
+[project.scripts]
+api-change-agent = "api_change_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+api_change_agent = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = [".*", "*.egg", "build", "dist", "venv", "fixtures"]
+pythonpath = ["src"]

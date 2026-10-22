@@ -1,0 +1,50 @@
+name: api-change-agent
+description: Find deprecated openai Python SDK usage, fix it (libcst or Claude), run your tests, and open a PR.
+author: api-change-agent
+branding:
+  icon: git-pull-request
+  color: purple
+inputs:
+  github-token:
+    description: Token used to push the bot branch and open the PR (needs contents + pull-requests write).
+    default: ${{ github.token }}
+  anthropic-api-key:
+    description: Claude API key for `fix: llm` rules. Without it those sites are listed as manual.
+    required: false
+  model:
+    description: Claude model for LLM patches.
+    default: claude-opus-5-5
+  rules:
+    description: Path to a rules YAML (repo-relative). Defaults to the bundled openai rules.
+    required: false
+  test-command:
+    description: "'auto' detects pytest; 'none' disables the test gate."
+    default: auto
+  install-command:
+    description: "Run inside the test venv before tests and after pin bumps. 'auto' installs requirements*.txt / the project + pytest."
+    default: auto
+  branch:
+    description: Bot branch to push. Pushing to main/master/the default or base branch is refused.
+    default: api-change-agent/openai
+  base-branch:
+    description: PR base. Defaults to the repo's default branch.
+    required: false
+  max-llm-attempts:
+    description: Attempts per file for LLM patches (test failures are fed back).
+    default: "2"
+  exclude:
+    description: Comma/newline separated globs (repo-relative) to skip.
+    required: false
+  dry-run:
+    description: Report only; no commit, push or PR.
+    default: "false"
+outputs:
+  pr-url:
+    description: URL of the opened or updated PR (empty if none).
+  changes:
+    description: Number of rows in the change table.
+  manual:
+    description: Number of sites left for manual migration.
+runs:
+  using: docker
+  image: Dockerfile
