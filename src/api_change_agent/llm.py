@@ -1,6 +1,7 @@
 """Claude-written patches for ``fix: llm`` rules."""
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -8,6 +9,8 @@ from .codemod import Site
 from .rules import Rule
 
 DEFAULT_MODEL = "claude-opus-5-5"
+
+_FILE_BLOCK = re.compile(r"<updated_file>\n?(.*?)</updated_file>", re.S)
 
 
 class PatchError(RuntimeError):
@@ -40,7 +43,9 @@ import order, unrelated code.
 - The file must stay valid Python and keep its public behaviour; the repo's \
 tests will run against it.
 - If a site can't be migrated safely in this file alone, still return the \
-file, leave that site as it is, and say why in `notes`."""
+file, leave that site as it is, and say why in `notes`.
+- Always answer by calling submit_patch exactly once. If you cannot use the \
+tool, reply with the whole file inside <updated_file></updated_file> tags."""
 
 SUBMIT_TOOL = {
     "name": "submit_patch",
@@ -91,12 +96,14 @@ class ClaudePatchModel:
 
     def propose(self, request: PatchRequest) -> str:
         # Streamed: a whole file back can exceed the non-streaming time limit.
+        # tool_choice stays "auto": some models reject forced tool use
+        # ("tool"/"any"), so the system prompt asks for the call instead.
         with self.client.messages.stream(
             model=self.model,
             max_tokens=self.max_tokens,
             system=SYSTEM,
             tools=[SUBMIT_TOOL],
-            tool_choice={"type": "tool", "name": "submit_patch"},
+            tool_choice={"type": "auto"},
             messages=[{"role": "user", "content": build_prompt(request)}],
         ) as stream:
             message = stream.get_final_message()
@@ -109,4 +116,9 @@ class ClaudePatchModel:
                     raise PatchError("submit_patch had no updated_source")
                 self.last_notes = block.input.get("notes", "") or ""
                 return source
-        raise PatchError("model did not call submit_patch")
+        text = "".join(block.text for block in message.content if block.type == "text")
+        match = _FILE_BLOCK.search(text)
+        if match:
+            self.last_notes = ""
+            return match.group(1)
+        raise PatchError("model did not call submit_patch or return an <updated_file> block")

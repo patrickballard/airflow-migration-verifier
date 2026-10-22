@@ -14,12 +14,20 @@ from conftest import FIXTURES, RULES, SAMPLE_REPO
 RULE = load_rules(RULES).rules[1]
 
 
-def sse(stop_reason, tool_input):
+def sse(stop_reason, tool_input, text=None):
     events = [
         ("message_start", {"type": "message_start", "message": {
             "id": "msg_1", "type": "message", "role": "assistant", "model": "claude-opus-5-5", "content": [],
             "stop_reason": None, "stop_sequence": None, "usage": {"input_tokens": 10, "output_tokens": 1}}}),
     ]
+    if text is not None:
+        events += [
+            ("content_block_start", {"type": "content_block_start", "index": 0, "content_block": {
+                "type": "text", "text": ""}}),
+            ("content_block_delta", {"type": "content_block_delta", "index": 0, "delta": {
+                "type": "text_delta", "text": text}}),
+            ("content_block_stop", {"type": "content_block_stop", "index": 0}),
+        ]
     if tool_input is not None:
         events += [
             ("content_block_start", {"type": "content_block_start", "index": 0, "content_block": {
@@ -45,7 +53,17 @@ def server():
             pass
 
         def do_POST(self):
-            state["requests"].append(json.loads(self.rfile.read(int(self.headers["content-length"]))))
+            req = json.loads(self.rfile.read(int(self.headers["content-length"])))
+            state["requests"].append(req)
+            if req.get("tool_choice", {}).get("type") in ("tool", "any"):
+                # what claude-opus-5-5 really answers to forced tool use
+                err = json.dumps({"type": "error", "error": {"type": "invalid_request_error", "message":
+                                  'tool_choice: type "tool" and "any" are not supported for this model.'}})
+                self.send_response(400)
+                self.send_header("content-type", "application/json")
+                self.end_headers()
+                self.wfile.write(err.encode())
+                return
             body = state["reply"]
             self.send_response(200)
             self.send_header("content-type", "text/event-stream")
@@ -69,7 +87,7 @@ def request(feedback=None):
     return PatchRequest("app/weather.py", src, RULE, find_sites(src, RULE), feedback)
 
 
-def test_returns_tool_source_and_sends_forced_tool(server):
+def test_returns_tool_source_without_forcing_tool_choice(server):
     good = (FIXTURES / "llm" / "weather_good.py").read_text()
     server["reply"] = sse("tool_use", {"updated_source": good, "notes": "ok"})
     m = model(server)
@@ -78,7 +96,8 @@ def test_returns_tool_source_and_sends_forced_tool(server):
     (req,) = server["requests"]
     assert req["model"] == "claude-opus-5-5"
     assert req["stream"] is True
-    assert req["tool_choice"] == {"type": "tool", "name": "submit_patch"}
+    assert req["tool_choice"] == {"type": "auto"}
+    assert "submit_patch" in req["system"]
     assert req["tools"][0]["name"] == "submit_patch"
     prompt = req["messages"][0]["content"]
     assert "line 22" in prompt and "functions=[WEATHER_FN]" in prompt
@@ -92,7 +111,16 @@ def test_truncated_response_is_an_error(server):
         model(server).propose(request())
 
 
+def test_text_fallback_block(server):
+    good = (FIXTURES / "llm" / "weather_good.py").read_text()
+    server["reply"] = sse("end_turn", None, text=f"Here you go.\n<updated_file>\n{good}</updated_file>\n")
+    assert model(server).propose(request()) == good
+
+
 def test_no_tool_call_is_an_error(server):
     server["reply"] = sse("end_turn", None)
     with pytest.raises(PatchError, match="submit_patch"):
+        model(server).propose(request())
+    server["reply"] = sse("end_turn", None, text="I'd rather not.")
+    with pytest.raises(PatchError, match="updated_file"):
         model(server).propose(request())
