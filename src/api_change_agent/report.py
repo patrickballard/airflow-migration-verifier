@@ -67,7 +67,8 @@ def _dag_table(before, after, target) -> list[str]:
 
 def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes, skipped_rules, skipped, manual,
                 unparsable, tests_baseline, tests_after, new_failures, blob_base, rules_path,
-                rule_notes=None, dep_notes=(), title="", tools=(), dag_target=None) -> str:
+                rule_notes=None, dep_notes=(), title="", tools=(), dag_target=None, llm_usage=None,
+                llm_notes=()) -> str:
     rule_notes = rule_notes or {}
     applied = sorted({r.rule_id for r in rows})
     parts = [
@@ -143,5 +144,18 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
         parts += [f"- `{p}`: could not be parsed, not scanned" for p in unparsable]
         parts.append("")
 
+    if llm_notes:
+        parts.append("### Claude's notes")
+        parts.append("What Claude said about each patch it proposed, in full. Check the caveats before merging.")
+        for n in llm_notes:
+            verdict = "accepted" if n.get("accepted") else "rejected"
+            parts.append(f"- `{n['path']}` (`{n['rule_id']}`, attempt {n['attempt']}, {verdict}):")
+            parts += ["  > " + line if line.strip() else "  >" for line in n["notes"].splitlines()]
+        parts.append("")
+    if llm_usage and llm_usage.get("calls"):
+        budget = f" of a ${llm_usage['budget_usd']:.2f} budget" if llm_usage.get("budget_usd") is not None else ""
+        parts.append(f"<sub>Claude: {llm_usage['calls']} call(s), ${llm_usage['usd']:.4f}{budget} "
+                     f"({', '.join(llm_usage['models'])}).</sub>")
+        parts.append("")
     parts.append("<sub>Opened by api-change-agent. It only pushes to its own branch, never to the default branch.</sub>")
     return "\n".join(parts)

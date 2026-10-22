@@ -113,3 +113,19 @@ def test_default_install_command(tmp_path):
     assert "-r requirements.txt" in cmd and "-e ." not in cmd and "install -q pytest" in cmd
     (tmp_path / "pyproject.toml").write_text("[project]\nname='x'\n")
     assert "-e ." in default_install_command(tmp_path, None)
+
+
+def test_claude_notes_kept_in_full(sample_repo):
+    long_notes = "Replaced functions with tools. " + "Caveat: " + "x" * 900 + " END-OF-NOTES"
+
+    class NotesModel(FileModel):
+        def propose(self, request):
+            self.last_notes = long_notes
+            return super().propose(request)
+
+    result = run(opts(sample_repo), model=NotesModel(GOOD))
+    (entry,) = result.llm_notes
+    assert entry["notes"] == long_notes and entry["accepted"] is True
+    assert "END-OF-NOTES" in result.body  # the full text reaches the PR
+    row = next(r for r in result.rows if r.rule_id == "functions-to-tools")
+    assert row.note == "Claude: Replaced functions with tools. (full notes below)"

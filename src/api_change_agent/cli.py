@@ -45,6 +45,28 @@ def _event_default_branch() -> str | None:
         return None
 
 
+def key_file() -> Path:
+    return Path.home() / ".config" / "api-change-agent" / "anthropic_key"
+
+
+def anthropic_api_key() -> str | None:
+    """Action input, then ANTHROPIC_API_KEY, then ~/.config/api-change-agent/anthropic_key.
+
+    The key is only ever handed to the Anthropic client: it is never printed or
+    logged, and never put into the environment that repo code (tests, installs) sees.
+    """
+    key = _input("anthropic-api-key") or os.environ.get("ANTHROPIC_API_KEY")
+    if key:
+        return key.strip() or None
+    path = key_file()
+    if not path.is_file():
+        return None
+    if path.stat().st_mode & 0o077:
+        print(f"::warning::{path} is readable by other users (mode {path.stat().st_mode & 0o777:o}); "
+              "run: chmod 600 " + str(path), file=sys.stderr)
+    return path.read_text().strip() or None
+
+
 def parse_args(argv=None) -> argparse.Namespace:
     in_actions = os.environ.get("GITHUB_ACTIONS") == "true"
     p = argparse.ArgumentParser(prog="api-change-agent", description=__doc__)
@@ -63,6 +85,8 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--base-branch", default=_input("base-branch"))
     p.add_argument("--model", default=_input("model", DEFAULT_MODEL))
     p.add_argument("--max-llm-attempts", type=int, default=int(_input("max-llm-attempts", "2")))
+    p.add_argument("--max-llm-usd", type=float, default=float(_input("max-llm-usd", "5")),
+                   help="hard cap on Claude spend for the whole run (default $5)")
     p.add_argument("--exclude", action="append", default=[
         x.strip() for x in (_input("exclude") or "").replace("\n", ",").split(",") if x.strip()
     ])
@@ -82,12 +106,14 @@ def main(argv=None) -> int:
     if os.environ.get("GITHUB_ACTIONS") == "true":
         subprocess.run(["git", "config", "--global", "--add", "safe.directory", str(repo)], check=False)
 
-    api_key = _input("anthropic-api-key") or os.environ.get("ANTHROPIC_API_KEY")
+    api_key = anthropic_api_key()
     model = None
     if api_key:
         import anthropic
 
-        model = ClaudePatchModel(client=anthropic.Anthropic(api_key=api_key), model=args.model)
+        model = ClaudePatchModel(client=anthropic.Anthropic(api_key=api_key), model=args.model,
+                                 max_usd=args.max_llm_usd)
+    del api_key  # nothing below needs it
 
     slug = os.environ.get("GITHUB_REPOSITORY")
     token = _input("github-token") or os.environ.get("GITHUB_TOKEN")

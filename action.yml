@@ -31,6 +31,9 @@ inputs:
   base-branch:
     description: PR base. Defaults to the repo's default branch.
     required: false
+  max-llm-usd:
+    description: Hard cap on Claude spend for the whole run, in USD.
+    default: "5"
   max-llm-attempts:
     description: Attempts per file for LLM patches (test failures are fed back).
     default: "2"

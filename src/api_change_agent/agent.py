@@ -5,6 +5,7 @@ import dataclasses
 import difflib
 import fnmatch
 import os
+import re
 import shlex
 import textwrap
 from dataclasses import dataclass, field
@@ -17,7 +18,7 @@ from packaging.version import Version
 from . import gitops, ruff_layer
 from .codemod import Site, apply_deterministic, find_sites, missing_comments
 from .deps import plan_add_dependency
-from .llm import PatchModel, PatchRequest
+from .llm import BudgetExhausted, PatchModel, PatchRequest
 from .pins import PinPlan, apply_pins, plan_pins
 from .plugins import PLUGINS
 from .report import Row, render_body
@@ -69,6 +70,8 @@ class RunResult:
     tests_after: TestOutcome | None = None
     new_failures: set[str] = field(default_factory=set)
     rule_notes: dict[str, str] = field(default_factory=dict)  # rule id -> why it did/didn't apply
+    llm_usage: dict = field(default_factory=dict)  # calls, tokens and USD spent on Claude
+    llm_notes: list = field(default_factory=list)  # Claude's full notes per attempt (never truncated)
     dep_notes: list[str] = field(default_factory=list)
     pushed: bool = False
     pr_url: str | None = None
@@ -92,6 +95,8 @@ class RunResult:
             "tests_before": tests(self.tests_baseline),
             "tests_after": tests(self.tests_after),
             "new_failures": sorted(self.new_failures),
+            "llm_usage": self.llm_usage,
+            "llm_notes": self.llm_notes,
         }
 
 
@@ -429,11 +434,21 @@ class _Run:
             self.log(f"{rel}: asking for a {rule.id} patch (attempt {attempt})")
             try:
                 proposed = self.model.propose(PatchRequest(rel.as_posix(), original, rule, sites, feedback))
+            except BudgetExhausted as e:
+                reason = str(e)
+                break
             except Exception as e:  # noqa: BLE001
                 reason = f"LLM request failed: {e}"
                 feedback = None
                 continue
-            problem = self._validate(original, proposed, rule, rel)
+            notes = (getattr(self.model, "last_notes", "") or "").strip()
+            if notes:
+                self.log(f"{rel}: Claude's notes: {notes[:300]}")
+            if proposed == original and notes:
+                problem = f"Claude left the file unchanged: {notes}"
+            else:
+                problem = self._validate(original, proposed, rule, rel)
+            entry = {"path": rel.as_posix(), "rule_id": rule.id, "attempt": attempt, "notes": notes}
             if problem is None and self.runner:
                 (self.repo / rel).write_text(proposed)
                 outcome = self._run_tests()
@@ -445,8 +460,13 @@ class _Run:
                 else:
                     self.state_outcome = outcome
                     self.tested_after_changes = True
+            if notes:
+                entry["accepted"] = problem is None
+                self.result.llm_notes.append(entry)
             if problem is None:
-                rows = [Row(rel.as_posix(), line, before, after, rule.id, rule.changelog)
+                first = re.split(r"(?<=[.!?])\s", " ".join(notes.split()), maxsplit=1)[0][:200] if notes else ""
+                note = (f"Claude: {first} (full notes below)" if notes else "patched by Claude")
+                rows = [Row(rel.as_posix(), line, before, after, rule.id, rule.changelog, note)
                         for line, before, after in _hunks(original, proposed)]
                 self._set_source(rel, proposed, rows)
                 return True
@@ -551,6 +571,8 @@ class _Run:
             for rel in res.changed_files)
         res.tests_after = self.state_outcome if self.tested_after_changes else None
         res.new_failures = new_failures(res.tests_baseline, res.tests_after)
+        if self.model is not None and hasattr(self.model, "usage_summary"):
+            res.llm_usage = self.model.usage_summary()
         slug = self.o.repo_slug
         blob = f"{self.o.server_url}/{slug}/blob/{self.o.branch}" if slug else None
         res.body = render_body(
@@ -564,6 +586,7 @@ class _Run:
             tools=self.ruleset.tools if self.result.rows or rows else (),
             dag_target=(f"{self.ruleset.dist} {self.ruleset.target_version}"
                         if self.ruleset.verify == "airflow-dags" else None),
+            llm_usage=res.llm_usage, llm_notes=res.llm_notes,
         )
         return res
 
