@@ -9,7 +9,7 @@ inputs:
     description: Token used to push the bot branch and open the PR (needs contents + pull-requests write).
     default: ${{ github.token }}
   anthropic-api-key:
-    description: Claude API key for `fix: llm` rules. Without it those sites are listed as manual.
+    description: "Claude API key for `fix: llm` rules. Without it those sites are listed as manual."
     required: false
   model:
     description: Claude model for LLM patches.
@@ -23,6 +23,9 @@ inputs:
   install-command:
     description: "Run inside the test venv before tests and after pin bumps. 'auto' installs requirements*.txt / the project + pytest."
     default: auto
+  venv-dir:
+    description: Where the test venv is created (kept separate from the action's own dependencies).
+    default: /tmp/aca-venv
   branch:
     description: Bot branch to push. Pushing to main/master/the default or base branch is refused.
     default: api-change-agent/openai
