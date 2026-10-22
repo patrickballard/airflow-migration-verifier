@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import dataclasses
 import difflib
+import fnmatch
+import os
+import shlex
 import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -11,17 +14,19 @@ import libcst as cst
 from packaging.requirements import Requirement
 from packaging.version import Version
 
-from . import gitops
+from . import gitops, ruff_layer
 from .codemod import Site, apply_deterministic, find_sites, missing_comments
 from .deps import plan_add_dependency
 from .llm import PatchModel, PatchRequest
 from .pins import PinPlan, apply_pins, plan_pins
+from .plugins import PLUGINS
 from .report import Row, render_body
 from .rules import Rule, load_rules
-from .scanner import iter_python_files, scan_repo
+from .scanner import SKIP_DIRS, iter_python_files, scan_repo
 from .testrun import TestOutcome, TestRunner, default_install_command, detect_test_command, new_failures
 
 DEFAULT_BRANCH = "api-change-agent/openai"
+DAG_CHECK = Path(__file__).with_name("airflow_dag_check.py")
 
 
 @dataclass
@@ -143,16 +148,34 @@ class _Run:
 
     def _pin_blocker(self, rule: Rule) -> str | None:
         """Why the pins can't be raised to this rule's minimum, if they can't."""
-        plan = plan_pins(self.repo, self.ruleset.package, rule.min_sdk_version)
+        plan = plan_pins(self.repo, self.ruleset.dist, rule.min_sdk_version)
         if plan.holds:
             where = ", ".join(f"`{h.path}:{h.line}` `{h.text}` (`{h.comment}`)" for h in plan.holds)
-            return (f"`{rule.id}`: needs `{self.ruleset.package}>={rule.min_sdk_version}`, but {where} "
+            return (f"`{rule.id}`: needs `{self.ruleset.dist}>={rule.min_sdk_version}`, but {where} "
                     "is marked as intentional, so the pin was left alone and the rule was not applied")
         if plan.conflicts:
             where = ", ".join(f"`{c.path}:{c.line}` `{c.text}`" for c in plan.conflicts)
             return (f"`{rule.id}`: {where} can't be raised to >={rule.min_sdk_version} "
                     f"({plan.conflicts[0].reason})")
         return None
+
+    def _sites(self, text: str, rule: Rule, rel: Path) -> list[Site]:
+        if rule.match.plugin:
+            mode = "deterministic" if rule.fix == "deterministic" else "llm"
+            return PLUGINS[rule.match.plugin].find(rel, text, rule.options, mode)
+        return find_sites(text, rule)
+
+    def _template_files(self) -> list[Path]:
+        globs = {g for r in self.ruleset.rules if r.match.plugin for g in PLUGINS[r.match.plugin].file_globs}
+        found = []
+        for dirpath, dirnames, filenames in os.walk(self.repo):
+            dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
+            for name in sorted(filenames):
+                rel = (Path(dirpath) / name).relative_to(self.repo)
+                if any(fnmatch.fnmatch(name, g) for g in globs) and not any(
+                        fnmatch.fnmatch(rel.as_posix(), pat) for pat in self.o.exclude):
+                    found.append(rel)
+        return found
 
     def _run_tests(self) -> TestOutcome | None:
         return self.runner.run() if self.runner else None
@@ -167,7 +190,7 @@ class _Run:
             for rule in self.ruleset.rules:
                 if rule.match.module:
                     continue
-                sites = find_sites(self.current[rel], rule)
+                sites = self._sites(self.current[rel], rule, rel)
                 if sites:
                     hits.setdefault(rule.id, {})[rel] = sites
                     self.originals.setdefault(rel, self.current[rel])
@@ -187,19 +210,60 @@ class _Run:
                         continue
                     if sites:
                         hits.setdefault(rule.id, {})[rel] = sites
+        self.sdk_files = list(scan.files)
+        if scan.files and any(r.match.plugin for r in self.ruleset.rules):
+            for rel in self._template_files():
+                try:
+                    text = (self.repo / rel).read_text(encoding="utf-8")
+                except (UnicodeDecodeError, OSError):
+                    continue
+                for rule in self.ruleset.rules:
+                    if rule.match.plugin and (sites := self._sites(text, rule, rel)):
+                        hits.setdefault(rule.id, {})[rel] = sites
+                        self.current.setdefault(rel, text)
+                        self.originals.setdefault(rel, text)
+        for tool in self.ruleset.tools:
+            diags = ruff_layer.diagnose(self.repo, [f.as_posix() for f in scan.files], tool)
+            for d in diags:
+                hits.setdefault(tool.id, {}).setdefault(Path(d.path), []).append(Site(d.line, f"{d.code}: {d.message}"))
+            for rel in hits.get(tool.id, {}):
+                self.originals.setdefault(rel, self.current[rel])
         found = ", ".join(f"{rid}: {sum(map(len, f.values()))} site(s)" for rid, f in hits.items())
         self.log(f"scanned {len(scan.files)} file(s) importing {self.ruleset.package}; {found or 'no hits'}")
         return hits
 
+    def bump_to_target(self) -> None:
+        """Raise the pins to the ruleset's target first, so the baseline is old code on the new major."""
+        target = self.ruleset.target_version
+        plan = plan_pins(self.repo, self.ruleset.dist, target)
+        if plan.holds or plan.conflicts:
+            where = ", ".join(f"`{x.path}:{x.line}` `{x.text}`" for x in (*plan.holds, *plan.conflicts))
+            self.result.skipped_rules.append(
+                f"upgrade to `{self.ruleset.dist}` {target}: {where} can't be raised "
+                f"({'marked as intentional' if plan.holds else plan.conflicts[0].reason})")
+            self.result.pin_plan = plan
+            return
+        for rel in plan.files:
+            self.originals.setdefault(rel, (self.repo / rel).read_text())
+        apply_pins(self.repo, plan)
+        self.result.pin_plan = plan
+        self.pin_minimum = target
+
     def setup_tests(self) -> None:
         command = self.o.test_command
         if command == "auto":
-            command = detect_test_command(self.repo)
+            if self.ruleset.verify == "airflow-dags":
+                command = f"python {shlex.quote(str(DAG_CHECK))} --repo . --junitxml {{junit}}"
+            else:
+                command = detect_test_command(self.repo)
         if not command:
             return
         install = self.o.install_command
         if install == "auto":
-            install = default_install_command(self.repo, command)
+            constraints = self.ruleset.install_constraints
+            if constraints and self.ruleset.target_version:
+                constraints = constraints.replace("{version}", str(self.ruleset.target_version))
+            install = default_install_command(self.repo, command, constraints)
         self.runner = TestRunner(self.repo, command, install, self.o.venv_dir, log=self.log,
                                  venv_python=self.o.venv_python)
         try:
@@ -219,8 +283,30 @@ class _Run:
             self.runner = None
             self.tests_unusable = True
 
+    def tools(self, hits) -> list:
+        applied = []
+        for tool in self.ruleset.tools:
+            if tool.id not in hits:
+                continue
+            res = ruff_layer.run(self.repo, [f.as_posix() for f in self.sdk_files], tool)
+            by_file: dict[Path, list[Row]] = {}
+            for c in res.changes:
+                codes = "/".join(c.codes) or tool.select
+                note = f"fixed by ruff {', '.join(c.codes)}: " + " ".join(c.messages)
+                by_file.setdefault(Path(c.path), []).append(
+                    Row(c.path, c.line, c.before, c.after, f"ruff {codes}", c.url or tool.changelog, note))
+            for rel, text in res.new_text.items():
+                # ruff already wrote the file; this records it (self.current still holds the pre-ruff text)
+                self._set_source(Path(rel), text, by_file.get(Path(rel), []))
+            for d in res.left:
+                self.result.manual.append(ManualItem(d.path, d.line, f"ruff {d.code}",
+                                                     f"ruff {d.code} has no automatic fix: {d.message}"))
+            if res.changes:
+                applied.append(tool)
+        return applied
+
     def deterministic(self, hits) -> None:
-        stage_rules = []
+        stage_rules = self.tools(hits)
         for rule in self.ruleset.rules:
             if rule.fix != "deterministic" or rule.id not in hits or "add_dependency" in rule.transform:
                 continue
@@ -228,13 +314,19 @@ class _Run:
                 self.result.skipped_rules.append(reason)
                 continue
             for rel in hits[rule.id]:
-                new, edits = apply_deterministic(self.current[rel], rule)
-                rows = [Row(rel.as_posix(), e.line, e.before, e.after, rule.id, rule.changelog) for e in edits]
-                self._set_source(rel, new, rows)
+                if rule.match.plugin:
+                    new = PLUGINS[rule.match.plugin].apply(rel, self.current[rel], rule.options)
+                    rows = [Row(rel.as_posix(), line, before, after, rule.id, rule.changelog, rule.note)
+                            for line, before, after in _hunks(self.current[rel], new)]
+                else:
+                    new, edits = apply_deterministic(self.current[rel], rule)
+                    rows = [Row(rel.as_posix(), e.line, e.before, e.after, rule.id, rule.changelog) for e in edits]
+                if new != self.current[rel]:
+                    self._set_source(rel, new, rows)
             stage_rules.append(rule)
         if not stage_rules:
             return
-        self.applied_rules += stage_rules
+        self.applied_rules += [r for r in stage_rules if isinstance(r, Rule)]
         self.bump_pins()
         if self.runner:
             outcome = self._run_tests()
@@ -269,7 +361,7 @@ class _Run:
         # always plan from the original pin files so edits don't stack
         for rel in list(self.result.pin_plan.files if self.result.pin_plan else ()):
             (self.repo / rel).write_text(self.originals[rel])
-        plan = plan_pins(self.repo, self.ruleset.package, minimum)
+        plan = plan_pins(self.repo, self.ruleset.dist, minimum)
         for rel in plan.files:
             self.originals.setdefault(rel, (self.repo / rel).read_text())
         apply_pins(self.repo, plan)
@@ -291,20 +383,28 @@ class _Run:
             elif self.tests_unusable:
                 why = "LLM patch not attempted: the repo's tests can't verify it (see Other notes)"
             if why:
-                for rel, sites in hits[rule.id].items():
-                    self.result.manual += [ManualItem(rel.as_posix(), s.line, rule.id, why) for s in sites]
+                for rel in hits[rule.id]:
+                    sites = self._sites(self.current.get(rel, (self.repo / rel).read_text()), rule, rel)
+                    self.result.manual += [
+                        ManualItem(rel.as_posix(), s.line, rule.id, f"{s.reason} ({why})" if s.reason else why)
+                        for s in sites]
                 continue
             applied = False
             for rel in hits[rule.id]:
                 # re-find sites: deterministic rules may have moved lines
-                sites = find_sites(self.current[rel], rule)
+                sites = self._sites(self.current[rel], rule, rel)
+                if sites and rel.suffix != ".py":
+                    self.result.manual += [ManualItem(rel.as_posix(), s.line, rule.id,
+                                                      f"{s.reason} (LLM patches are Python-only for now)")
+                                           for s in sites]
+                    continue
                 if sites and self._llm_file(rel, rule, sites):
                     applied = True
             if applied:
                 self.applied_rules.append(rule)
                 self.bump_pins()
 
-    def _validate(self, original: str, proposed: str, rule: Rule) -> str | None:
+    def _validate(self, original: str, proposed: str, rule: Rule, rel: Path) -> str | None:
         if proposed == original:
             return "patch made no changes"
         try:
@@ -316,7 +416,7 @@ class _Run:
             listed = "; ".join(f"line {line}: `{text}`" for line, text in lost)
             return (f"patch removed comment(s) from the original: {listed}. Keep every comment "
                     "(next to the code it describes) unless you delete its whole line.")
-        left = find_sites(module, rule)
+        left = self._sites(proposed, rule, rel) if rule.match.plugin else find_sites(module, rule)
         if left:
             return f"patch still matches the rule at line(s) {', '.join(str(s.line) for s in left)}"
         return None
@@ -333,7 +433,7 @@ class _Run:
                 reason = f"LLM request failed: {e}"
                 feedback = None
                 continue
-            problem = self._validate(original, proposed, rule)
+            problem = self._validate(original, proposed, rule, rel)
             if problem is None and self.runner:
                 (self.repo / rel).write_text(proposed)
                 outcome = self._run_tests()
@@ -361,7 +461,7 @@ class _Run:
     def dependencies(self, hits) -> None:
         """``add_dependency`` rules. Run last, so the SDK pins they look at
         already include this run's bumps (and held pins stay as they are)."""
-        package = self.ruleset.package
+        package = self.ruleset.dist
         for rule in self.ruleset.rules:
             if "add_dependency" not in rule.transform or rule.id not in hits:
                 continue
@@ -429,11 +529,17 @@ class _Run:
         res = self.result
         rows = [r for rel in sorted(self.rows) for r in sorted(self.rows[rel], key=lambda r: r.line)]
         plan = res.pin_plan
-        if plan and plan.edits and rows:
-            top = max(self.applied_rules, key=lambda r: r.min_sdk_version)
+        if plan and plan.edits and (rows or self.ruleset.target_version):
+            if self.ruleset.target_version:  # the upgrade itself, not one rule's minimum
+                rid = f"{self.ruleset.dist} {self.ruleset.target_version}"
+                changelog = next((t.changelog for t in self.ruleset.tools if t.changelog), self.ruleset.rules[0].changelog)
+                note = f"upgrade target; installed with {'official constraints' if self.ruleset.install_constraints else 'pip'}"
+            else:
+                top = max(self.applied_rules, key=lambda r: r.min_sdk_version)
+                rid, changelog, note = top.id, top.changelog, ""
             for e in plan.edits:
                 shift = sum(1 for path, line in self.inserted if path == e.path and line <= e.line)
-                rows.append(Row(e.path.as_posix(), e.line + shift, e.before, e.after, top.id, top.changelog))
+                rows.append(Row(e.path.as_posix(), e.line + shift, e.before, e.after, rid, changelog, note))
             rows.sort(key=lambda r: (r.path, r.line))
         res.rows = rows
         res.changed_files = sorted(
@@ -448,13 +554,16 @@ class _Run:
         slug = self.o.repo_slug
         blob = f"{self.o.server_url}/{slug}/blob/{self.o.branch}" if slug else None
         res.body = render_body(
-            package=self.ruleset.package, rows=rows, rules=self.ruleset.rules,
+            package=self.ruleset.dist, rows=rows, rules=self.ruleset.rules,
             pin_minimum=self.pin_minimum if plan and plan.edits else None,
             pin_conflicts=plan.conflicts if plan else [], lock_notes=plan.lock_notes if plan else [],
             rule_notes=res.rule_notes, dep_notes=res.dep_notes,
             skipped_rules=res.skipped_rules, skipped=res.skipped, manual=res.manual, unparsable=res.unparsable,
             tests_baseline=res.tests_baseline, tests_after=res.tests_after, new_failures=res.new_failures,
-            blob_base=blob, rules_path=Path(self.o.rules_path).name,
+            blob_base=blob, rules_path=Path(self.o.rules_path).name, title=self.ruleset.title,
+            tools=self.ruleset.tools if self.result.rows or rows else (),
+            dag_target=(f"{self.ruleset.dist} {self.ruleset.target_version}"
+                        if self.ruleset.verify == "airflow-dags" else None),
         )
         return res
 
@@ -467,12 +576,14 @@ class _Run:
         base = self.o.base_branch or default
         gitops.ensure_safe_branch(self.o.branch, default_branch=default, base_branch=base)
         rule_ids = sorted({r.rule_id for r in res.rows})
-        message = f"chore({self.ruleset.package}): migrate deprecated SDK usage\n\nRules: {', '.join(rule_ids)}"
+        what = self.ruleset.title or f"{self.ruleset.package}: migrate deprecated SDK usage"
+        message = f"chore({self.ruleset.package}): {what}\n\nRules: {', '.join(rule_ids)}"
         res.pushed = gitops.publish(self.repo, branch=self.o.branch, default_branch=default, base_branch=base,
                                     files=res.changed_files, message=message)
         if self.github is None:
             return
-        title = f"{self.ruleset.package} SDK: migrate deprecated API usage"
+        title = (f"{self.ruleset.title}: automated migration" if self.ruleset.title
+                 else f"{self.ruleset.package} SDK: migrate deprecated API usage")
         existing = self.github.find_open_pr(self.o.branch)
         if existing:
             pr = self.github.update_pr(existing["number"], title=title, body=res.body)
@@ -490,6 +601,8 @@ def run(options: Options, model: PatchModel | None = None, github=None) -> RunRe
     hits = r.scan()
     if not hits:
         return r.finish()
+    if r.ruleset.target_version:
+        r.bump_to_target()
     r.setup_tests()
     r.deterministic(hits)
     r.llm(hits)

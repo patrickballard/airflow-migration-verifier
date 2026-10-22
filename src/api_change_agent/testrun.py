@@ -33,6 +33,8 @@ class TestOutcome:
     has_junit: bool = False
     output: str = ""
     executed: int | None = None  # tests that actually ran (from junit), None if unknown
+    ids: tuple[str, ...] = ()  # every testcase id in the junit report, passing or not
+    messages: dict = field(default_factory=dict)  # failure message per failing id
 
     def summary(self) -> str:
         if self.executed is None:
@@ -52,8 +54,25 @@ def new_failures(baseline: TestOutcome | None, after: TestOutcome | None) -> set
     if baseline is None:
         return set(after.failures) or {f"<exit {after.returncode}>"}
     if baseline.has_junit and after.has_junit:
-        return set(after.failures - baseline.failures)
+        return {t for t in after.failures - baseline.failures if not _was_blocked(t, baseline)}
     return set() if not baseline.passed else (set(after.failures) or {f"<exit {after.returncode}>"})
+
+
+def _was_blocked(test_id: str, baseline: TestOutcome) -> bool:
+    """A check that didn't exist at baseline because something before it failed.
+
+    Fixing an import can let a DAG (or a test module) get far enough to hit
+    its *next* problem; that is progress, not a regression.
+    """
+    if test_id in baseline.ids:
+        return False
+    owner = test_id.split("::", 1)[0]
+    if f"{owner}::import" in baseline.failures:  # Airflow DAG checker: the file didn't import
+        return True
+    for failed in baseline.failures:  # pytest collection error "::pkg.module" blocks "pkg.module[.Class]::test"
+        if failed.startswith("::") and (owner == failed[2:] or owner.startswith(failed[2:] + ".")):
+            return True
+    return False
 
 
 def detect_test_command(repo: Path) -> str | None:
@@ -70,12 +89,17 @@ def detect_test_command(repo: Path) -> str | None:
     return None
 
 
-def default_install_command(repo: Path, test_command: str | None) -> str:
+def default_install_command(repo: Path, test_command: str | None, constraints: str = "") -> str:
+    """`constraints` is a pip -c URL/path; `{python}` in it becomes the venv's X.Y."""
     repo = Path(repo)
     steps = ["python -m pip install -q --upgrade pip"]
+    c = ""
+    if constraints:
+        py = "$(python -c 'import sys; print(\"%d.%d\" % sys.version_info[:2])')"
+        c = " -c \"" + constraints.replace("{python}", py) + "\""
     for name in ("requirements.txt", "requirements-dev.txt", "dev-requirements.txt", "requirements-test.txt"):
         if (repo / name).exists():
-            steps.append(f"python -m pip install -q -r {name}")
+            steps.append(f"python -m pip install -q -r {name}{c}")
     pyproject = repo / "pyproject.toml"
     installable = pyproject.exists() and any(
         h in pyproject.read_text(errors="replace") for h in ("[project]", "[build-system]", "[tool.poetry]")
@@ -83,7 +107,7 @@ def default_install_command(repo: Path, test_command: str | None) -> str:
     extras, groups, poetry_dev = _dev_dependencies(pyproject) if pyproject.exists() else ([], [], [])
     if installable or (repo / "setup.py").exists():
         target = f".[{','.join(extras)}]" if extras else "."
-        steps.append(f"python -m pip install -q -e {shlex.quote(target)}")
+        steps.append(f"python -m pip install -q -e {shlex.quote(target)}{c}")
     steps += [f"python -m pip install -q --group {shlex.quote(g)}" for g in groups]
     if poetry_dev:
         steps.append("python -m pip install -q " + " ".join(shlex.quote(r) for r in poetry_dev))
@@ -181,7 +205,12 @@ class TestRunner:
     def run(self) -> TestOutcome:
         command = self.command
         junit = None
-        if _PYTEST.search(command) and not re.search(r"[;&|]", command):
+        if "{junit}" in command:  # e.g. the Airflow DAG checker writes junit where we say
+            fd, junit = tempfile.mkstemp(suffix=".xml", prefix="aca-junit-")
+            os.close(fd)
+            os.unlink(junit)
+            command = command.replace("{junit}", shlex.quote(junit))
+        elif _PYTEST.search(command) and not re.search(r"[;&|]", command):
             fd, junit = tempfile.mkstemp(suffix=".xml", prefix="aca-junit-")
             os.close(fd)
             os.unlink(junit)
@@ -195,10 +224,10 @@ class TestRunner:
             rc, out = -1, f"timed out after {self.timeout}s\n{e.stdout or ''}"
         failures: set[str] = set()
         has_junit = False
-        executed = None
+        executed, ids, messages = None, (), {}
         if junit and os.path.exists(junit):
             try:
-                failures, executed = _junit_failures(junit)
+                failures, executed, ids, messages = _junit_failures(junit)
                 has_junit = True
             except ET.ParseError:
                 pass
@@ -207,20 +236,25 @@ class TestRunner:
         passed = rc in (0, 5)  # 5 = pytest collected nothing
         if not passed and has_junit and not failures:
             failures = {SESSION_ERROR}  # e.g. collection/import error
-        return TestOutcome(self.command, passed, rc, frozenset(failures), has_junit, out[-6000:], executed)
+        return TestOutcome(self.command, passed, rc, frozenset(failures), has_junit, out[-6000:], executed,
+                           tuple(ids), messages)
 
 
-def _junit_failures(path: str) -> tuple[set[str], int]:
-    """(failed test ids, number of tests that actually ran).
+def _junit_failures(path: str) -> tuple[set[str], int, list[str], dict[str, str]]:
+    """(failed ids, number of tests that actually ran, all ids, failure message per failed id).
 
     Collection errors appear as testcases with an empty name or a classname
     but no test function; they count as failures, not as executed tests."""
-    failed, executed = set(), 0
+    failed, executed, ids, messages = set(), 0, [], {}
     for case in ET.parse(path).getroot().iter("testcase"):
         test_id = f"{case.get('classname', '')}::{case.get('name', '')}"
+        ids.append(test_id)
         is_collection_error = not case.get("classname")
-        if case.find("failure") is not None or case.find("error") is not None:
+        problem = case.find("failure") if case.find("failure") is not None else case.find("error")
+        if problem is not None:
             failed.add(test_id)
+            messages[test_id] = (problem.get("message") or problem.text or "").strip().splitlines()[0][:300] \
+                if (problem.get("message") or problem.text) else ""
         if case.find("skipped") is None and not is_collection_error:
             executed += 1
-    return failed, executed
+    return failed, executed, ids, messages

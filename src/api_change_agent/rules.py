@@ -14,7 +14,8 @@ from packaging.version import InvalidVersion, Version
 from .patterns import ChainPattern
 
 FIX_TYPES = ("deterministic", "llm")
-TRANSFORMS = ("drop_attribute", "add_dependency")
+TRANSFORMS = ("drop_attribute", "add_dependency", "plugin")
+TOOLS = ("ruff",)
 _MODULE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$")
 
 
@@ -33,6 +34,9 @@ class Match:
     # Only trigger when the repo's SDK pin (after this run's bumps) allows
     # some version in this range.
     sdk_allows: SpecifierSet | None = None
+    # ``plugin: name`` hands matching and rewriting to a registered codemod
+    # (see plugins.py) for changes the pattern language can't express.
+    plugin: str | None = None
 
     @property
     def pattern(self) -> ChainPattern:
@@ -50,6 +54,7 @@ class Rule:
     transform: dict = field(default_factory=dict)
     guidance: str = ""
     note: str = ""  # one-line "why" shown on each PR row
+    options: dict = field(default_factory=dict)  # passed to a plugin
 
     @property
     def needs_sdk_bump(self) -> bool:
@@ -57,9 +62,29 @@ class Rule:
 
 
 @dataclass(frozen=True)
+class Tool:
+    """An external fixer run before our own rules (e.g. ruff's AIR rules)."""
+    id: str
+    tool: str
+    select: str
+    args: tuple[str, ...] = ()
+    changelog: str = ""
+
+
+@dataclass(frozen=True)
 class RuleSet:
-    package: str
+    package: str  # import name
     rules: tuple[Rule, ...]
+    distribution: str = ""  # name in requirements files, when it differs (apache-airflow)
+    target_version: Version | None = None  # bump pins here *before* testing
+    install_constraints: str = ""  # pip -c URL; {version} and {python} are filled in
+    verify: str = ""  # "airflow-dags": the test gate is DagBag import + dag.test()
+    title: str = ""
+    tools: tuple[Tool, ...] = ()
+
+    @property
+    def dist(self) -> str:
+        return self.distribution or self.package
 
 
 def load_rules(path: str | Path) -> RuleSet:
@@ -68,10 +93,29 @@ def load_rules(path: str | Path) -> RuleSet:
         raise RuleError(f"{path}: expected a mapping with a 'rules' list")
     package = data.get("package", "openai")
     rules = tuple(_rule(r, i) for i, r in enumerate(data["rules"]))
-    ids = [r.id for r in rules]
+    tools = tuple(_tool(t) for t in data.get("tools") or ())
+    ids = [r.id for r in rules] + [t.id for t in tools]
     if len(set(ids)) != len(ids):
         raise RuleError(f"{path}: duplicate rule ids")
-    return RuleSet(package=package, rules=rules)
+    try:
+        target = Version(str(data["target_version"])) if data.get("target_version") else None
+    except InvalidVersion as e:
+        raise RuleError(f"{path}: target_version: {e}") from e
+    verify = str(data.get("verify") or "")
+    if verify not in ("", "airflow-dags"):
+        raise RuleError(f"{path}: verify must be 'airflow-dags' or empty")
+    return RuleSet(package=package, rules=rules, distribution=str(data.get("distribution") or ""),
+                   target_version=target, install_constraints=str(data.get("install_constraints") or ""),
+                   verify=verify, title=str(data.get("title") or ""), tools=tools)
+
+
+def _tool(raw: dict) -> Tool:
+    if raw.get("tool") not in TOOLS:
+        raise RuleError(f"tool {raw.get('id')!r}: tool must be one of {TOOLS}")
+    if not raw.get("select"):
+        raise RuleError(f"tool {raw.get('id')!r}: needs `select`")
+    return Tool(id=str(raw["id"]), tool=raw["tool"], select=str(raw["select"]),
+                args=tuple(str(a) for a in raw.get("args") or ()), changelog=str(raw.get("changelog") or ""))
 
 
 def _rule(raw: dict, index: int) -> Rule:
@@ -93,8 +137,14 @@ def _rule(raw: dict, index: int) -> Rule:
     module = m.get("import")
     if module is not None and not _MODULE.match(str(module)):
         raise fail(f"match.import must be a module name, got {module!r}")
-    if sum(x is not None for x in (attribute, call, module)) != 1:
-        raise fail("match needs exactly one of 'attribute', 'call' or 'import'")
+    plugin = m.get("plugin")
+    if plugin is not None:
+        from .plugins import PLUGINS  # local import: plugins import rules
+
+        if plugin not in PLUGINS:
+            raise fail(f"unknown plugin {plugin!r}; known: {sorted(PLUGINS)}")
+    if sum(x is not None for x in (attribute, call, module, plugin)) != 1:
+        raise fail("match needs exactly one of 'attribute', 'call', 'import' or 'plugin'")
     kwargs = tuple(m.get("kwargs") or ())
     if kwargs and call is None:
         raise fail("match.kwargs only applies to 'call' patterns")
@@ -118,7 +168,10 @@ def _rule(raw: dict, index: int) -> Rule:
     if fix == "deterministic":
         if len(transform) != 1 or next(iter(transform)) not in TRANSFORMS:
             raise fail(f"deterministic rules need a transform, one of {TRANSFORMS}")
-        if "drop_attribute" in transform:
+        if "plugin" in transform:
+            if plugin is None or transform["plugin"] != plugin:
+                raise fail("transform.plugin must name the same plugin as match.plugin")
+        elif "drop_attribute" in transform:
             if attribute is None and call is None:
                 raise fail("drop_attribute needs an 'attribute' or 'call' pattern")
             try:
@@ -135,7 +188,8 @@ def _rule(raw: dict, index: int) -> Rule:
 
     return Rule(
         id=rid,
-        match=Match(attribute=attribute, call=call, kwargs=kwargs, module=module, sdk_allows=sdk_allows),
+        match=Match(attribute=attribute, call=call, kwargs=kwargs, module=module, sdk_allows=sdk_allows,
+                    plugin=plugin),
         fix=fix,
         min_sdk_version=min_version,
         changelog=changelog,
@@ -143,4 +197,5 @@ def _rule(raw: dict, index: int) -> Rule:
         transform=transform,
         guidance=str(raw.get("guidance") or ""),
         note=" ".join(str(raw.get("note") or "").split()),
+        options=dict(raw.get("options") or {}),
     )

@@ -15,6 +15,7 @@ from .agent import DEFAULT_BRANCH, Options, run
 from .github_api import GitHubClient
 from .gitops import UnsafeBranchError
 from .llm import DEFAULT_MODEL, ClaudePatchModel
+from .rules import load_rules
 
 # src layout during development; /app/rules inside the action image
 _RULE_DIRS = (Path(__file__).resolve().parents[2] / "rules", Path("/app/rules"))
@@ -48,7 +49,8 @@ def parse_args(argv=None) -> argparse.Namespace:
     in_actions = os.environ.get("GITHUB_ACTIONS") == "true"
     p = argparse.ArgumentParser(prog="api-change-agent", description=__doc__)
     p.add_argument("--repo", default=os.environ.get("GITHUB_WORKSPACE", "."))
-    p.add_argument("--rules", default=_input("rules"), help="rules YAML (default: bundled openai rules)")
+    p.add_argument("--rules", default=_input("rules"),
+                   help="rules YAML, or a bundled ruleset name: openai (default), airflow")
     p.add_argument("--dry-run", action="store_true", default=_bool(_input("dry-run", "false")))
     p.add_argument("--test-command", default=_input("test-command", "auto"),
                    help="'auto' to detect pytest, 'none' to skip tests")
@@ -57,7 +59,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--venv-python", default=None, help="interpreter used to create the test venv")
     p.add_argument("--output", default=None,
                    help="write pr_body.md, changes.diff and result.json here (useful with --dry-run)")
-    p.add_argument("--branch", default=_input("branch", DEFAULT_BRANCH))
+    p.add_argument("--branch", default=_input("branch"), help="default: api-change-agent/<package>")
     p.add_argument("--base-branch", default=_input("base-branch"))
     p.add_argument("--model", default=_input("model", DEFAULT_MODEL))
     p.add_argument("--max-llm-attempts", type=int, default=int(_input("max-llm-attempts", "2")))
@@ -71,8 +73,11 @@ def main(argv=None) -> int:
     args = parse_args(argv)
     repo = Path(args.repo).resolve()
     rules = Path(args.rules) if args.rules else BUNDLED_RULES
-    if not rules.is_absolute() and not rules.exists():
+    if args.rules and (BUNDLED_RULES.parent / f"{args.rules}.yaml").exists() and not rules.exists():
+        rules = BUNDLED_RULES.parent / f"{args.rules}.yaml"  # bundled ruleset by name
+    elif not rules.is_absolute() and not rules.exists():
         rules = repo / rules
+    branch = args.branch or (DEFAULT_BRANCH if rules == BUNDLED_RULES else f"api-change-agent/{load_rules(rules).package}")
 
     if os.environ.get("GITHUB_ACTIONS") == "true":
         subprocess.run(["git", "config", "--global", "--add", "safe.directory", str(repo)], check=False)
@@ -95,7 +100,7 @@ def main(argv=None) -> int:
         repo=repo, rules_path=rules, dry_run=args.dry_run, test_command=test_command,
         install_command=args.install_command, venv_dir=Path(args.venv) if args.venv else None,
         venv_python=args.venv_python,
-        max_llm_attempts=args.max_llm_attempts, branch=args.branch, base_branch=args.base_branch,
+        max_llm_attempts=args.max_llm_attempts, branch=branch, base_branch=args.base_branch,
         default_branch=_event_default_branch(), repo_slug=slug,
         server_url=os.environ.get("GITHUB_SERVER_URL", "https://github.com"), exclude=tuple(args.exclude),
     )

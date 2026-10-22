@@ -43,13 +43,35 @@ def render_table(rows: list[Row], blob_base: str | None) -> str:
     return "\n".join(out)
 
 
+def _dag_status(outcome, test_id) -> str:
+    if outcome is None:
+        return "—"
+    if test_id not in outcome.ids:
+        owner = test_id.split("::", 1)[0]
+        return "❌ not reached: file failed to import" if f"{owner}::import" in outcome.failures else "—"
+    if test_id in outcome.failures:
+        why = outcome.messages.get(test_id, "")
+        return "❌ " + html.escape(why[:140], quote=False).replace("|", "&#124;") if why else "❌"
+    return "✅"
+
+
+def _dag_table(before, after, target) -> list[str]:
+    ids = list(dict.fromkeys([*before.ids, *(after.ids if after else ())]))
+    lines = [f"### DAG checks on {target}", "",
+             "Each DAG file is imported (DagBag) and each DAG run with `dag.test()`, before and after this PR.", "",
+             "| Check | Before | After |", "|---|---|---|"]
+    for test_id in ids:
+        lines.append(f"| `{test_id}` | {_dag_status(before, test_id)} | {_dag_status(after, test_id)} |")
+    return lines + [""]
+
+
 def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes, skipped_rules, skipped, manual,
                 unparsable, tests_baseline, tests_after, new_failures, blob_base, rules_path,
-                rule_notes=None, dep_notes=()) -> str:
+                rule_notes=None, dep_notes=(), title="", tools=(), dag_target=None) -> str:
     rule_notes = rule_notes or {}
     applied = sorted({r.rule_id for r in rows})
     parts = [
-        f"## api-change-agent: `{package}` SDK migration",
+        f"## api-change-agent: {title}" if title else f"## api-change-agent: `{package}` SDK migration",
         "",
         f"{len(rows)} change(s) from `{rules_path}`. Every row links to the changelog entry behind it.",
         "",
@@ -57,8 +79,12 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
     if rows:
         parts += [render_table(rows, blob_base), ""]
 
-    if rules:
+    if rules or tools:
         parts.append("### Rules")
+        for tool in tools:
+            n = sum(1 for r in rows if r.rule_id.startswith("ruff "))
+            parts.append(f"- `{tool.id}` (tool: `{tool.tool} --select {tool.select}`, "
+                         f"{'applied' if n else 'not applied'}): {n} change(s), credited per rule below.")
         for rule in rules:
             mark = "applied" if rule.id in applied else "not applied"
             needs = (f"Needs `{package}>={rule.min_sdk_version}`." if rule.needs_sdk_bump
@@ -78,6 +104,9 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
         for note in dep_notes:
             parts.append(f"- ⚠️ {note}.")
         parts.append("")
+
+    if dag_target and tests_baseline is not None:
+        parts += _dag_table(tests_baseline, tests_after, dag_target)
 
     parts.append("### Tests")
     if tests_after is None and tests_baseline is None:

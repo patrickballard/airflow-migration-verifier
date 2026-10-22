@@ -1,0 +1,109 @@
+# Airflow 2 -> 3. Evidence: research/target-pick (proofs, ruff test, KNOWN_CONTEXT_KEYS diff).
+package: airflow                 # import name; DAG files are the ones that import it
+distribution: apache-airflow     # name in requirements files
+title: "Airflow 2 → 3"
+target_version: "3.3.2"          # pins are raised here before anything is tested
+install_constraints: "https://raw.githubusercontent.com/apache/airflow/constraints-{version}/constraints-{python}.txt"
+verify: airflow-dags             # test gate: DagBag import + dag.test() per DAG, on target_version
+
+tools:
+  # Deterministic first pass: imports, removed arguments (schedule_interval, ...), moved operators.
+  - id: ruff-air
+    tool: ruff
+    select: AIR3
+    args: [--preview, --unsafe-fixes]
+    changelog: https://airflow.apache.org/docs/apache-airflow/stable/installation/upgrading_to_airflow3.html
+
+# Shared by both plugins. Replacements only where Airflow 2's own docs say the
+# old key is the *same* value; everything that depends on the DAG's timetable
+# goes to `judgment` (LLM rule, or manual without an API key).
+x-context-keys: &context_keys
+  rename:
+    execution_date: logical_date                         # "same as logical_date"
+    triggering_dataset_events: triggering_asset_events   # datasets were renamed assets in 3.0
+  expressions:   # Python: context["key"] -> expression ({ctx} is the context variable)
+    yesterday_ds: '{ctx}["macros"].ds_add({ctx}["ds"], -1)'
+    tomorrow_ds: '{ctx}["macros"].ds_add({ctx}["ds"], 1)'
+    yesterday_ds_nodash: '{ctx}["macros"].ds_format({ctx}["macros"].ds_add({ctx}["ds"], -1), "%Y-%m-%d", "%Y%m%d")'
+    tomorrow_ds_nodash: '{ctx}["macros"].ds_format({ctx}["macros"].ds_add({ctx}["ds"], 1), "%Y-%m-%d", "%Y%m%d")'
+  template_expressions:   # Jinja: {{ key }} -> {{ expression }}
+    yesterday_ds: "macros.ds_add(ds, -1)"
+    tomorrow_ds: "macros.ds_add(ds, 1)"
+    yesterday_ds_nodash: "macros.ds_format(macros.ds_add(ds, -1), '%Y-%m-%d', '%Y%m%d')"
+    tomorrow_ds_nodash: "macros.ds_format(macros.ds_add(ds, 1), '%Y-%m-%d', '%Y%m%d')"
+  judgment:
+    next_execution_date: "Airflow 2 docs: 'you may be able to use data_interval_end' — only true for some timetables"
+    next_ds: "next run's date; data_interval_end | ds only matches for interval timetables, not manual runs"
+    next_ds_nodash: "next run's date; data_interval_end | ds_nodash only matches for interval timetables"
+    prev_execution_date: "previous scheduled run's date; no exact Airflow 3 equivalent, depends on the timetable"
+    prev_ds: "previous run's date; no exact Airflow 3 equivalent, depends on the timetable"
+    prev_ds_nodash: "previous run's date; no exact Airflow 3 equivalent, depends on the timetable"
+    prev_execution_date_success: "Airflow 2 docs: 'you may be able to use prev_data_interval_start_success' if the timetable is compatible"
+    conf: "the airflow.cfg object is no longer in the task context; read the setting explicitly"
+  attribute_rename:
+    dag_run: {execution_date: logical_date}
+    dr: {execution_date: logical_date}
+  attribute_judgment:
+    ti: {execution_date: "TaskInstance has no execution_date or logical_date in Airflow 3; use the context's logical_date"}
+    task_instance: {execution_date: "TaskInstance has no execution_date or logical_date in Airflow 3; use the context's logical_date"}
+
+rules:
+  - id: airflow3-context-keys
+    description: >-
+      Airflow 3 removed 14 task-context keys (execution_date, yesterday_ds, ...).
+      Rewrites lookups on the task context itself: a callable's **kwargs, a
+      `context` parameter, or get_current_context().
+    match: {plugin: airflow_context_keys}
+    fix: deterministic
+    transform: {plugin: airflow_context_keys}
+    options: *context_keys
+    min_sdk_version: "3.0.0"
+    changelog: https://airflow.apache.org/docs/apache-airflow/stable/installation/upgrading_to_airflow3.html
+    note: "Airflow 3 removed this context key; the replacement is the same value"
+
+  - id: airflow3-templates
+    description: >-
+      The same removed keys inside Jinja templates: operator arguments in DAG
+      files and template files (.sql, .sh, .hql, .j2, ...).
+    match: {plugin: airflow_templates}
+    fix: deterministic
+    transform: {plugin: airflow_templates}
+    options: *context_keys
+    min_sdk_version: "3.0.0"
+    changelog: https://airflow.apache.org/docs/apache-airflow/stable/installation/upgrading_to_airflow3.html
+    note: "Airflow 3 removed this template variable; the replacement renders the same value"
+
+  - id: airflow3-context-judgment
+    description: >-
+      Removed context keys that need judgment: the context is passed around
+      indirectly, the key depends on the DAG's timetable (next_ds, prev_ds, ...),
+      or a callable takes it as a named parameter.
+    match: {plugin: airflow_context_keys}
+    fix: llm
+    options: *context_keys
+    min_sdk_version: "3.0.0"
+    changelog: https://airflow.apache.org/docs/apache-airflow/2.11.0/templates-ref.html
+    guidance: |
+      These task-context keys no longer exist in Airflow 3. Replace each one using
+      what the surrounding code and the DAG's schedule tell you:
+      - execution_date -> logical_date (same value).
+      - next_ds / next_execution_date -> data_interval_end (| ds) only for interval
+        timetables (cron, timedelta, presets) on scheduled runs; otherwise derive it.
+      - prev_* -> prev_data_interval_start_success only if the timetable defines a
+        compatible data interval; otherwise keep the old meaning explicitly.
+      - A helper that receives the context (e.g. `ctx`) should read the new key.
+      - A callable taking `execution_date` as a parameter should read it from
+        `**context` instead (Airflow 3 does not pass it).
+      Keep behaviour identical; leave a short comment where the timetable matters.
+
+  - id: airflow3-template-judgment
+    description: Removed template variables that depend on the DAG's timetable (next_ds, prev_ds, ...).
+    match: {plugin: airflow_templates}
+    fix: llm
+    options: *context_keys
+    min_sdk_version: "3.0.0"
+    changelog: https://airflow.apache.org/docs/apache-airflow/2.11.0/templates-ref.html
+    guidance: |
+      Replace removed template variables with Airflow 3 equivalents that render the
+      same value for this DAG's schedule (e.g. {{ data_interval_end | ds }} for
+      next_ds on an interval timetable). Change only the template text.

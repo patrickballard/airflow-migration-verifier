@@ -12,6 +12,7 @@ dependencies = [
     "PyYAML>=6",
     "packaging>=23",
     "anthropic>=0.40",
+    "ruff>=0.13.1",  # AIR3 rules for the Airflow ruleset (Airflow's upgrade guide asks for >= 0.13.1)
 ]
 
 [project.optional-dependencies]

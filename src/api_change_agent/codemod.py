@@ -26,6 +26,7 @@ class Edit:
 class Site:
     line: int
     snippet: str
+    reason: str = ""  # why a human/LLM is needed (plugin judgment sites)
 
 
 _EMPTY = cst.Module(body=[])
