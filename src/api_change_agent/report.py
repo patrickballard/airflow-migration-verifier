@@ -43,6 +43,52 @@ def render_table(rows: list[Row], blob_base: str | None) -> str:
     return "\n".join(out)
 
 
+def logical_date_sites(rows: list[Row]) -> tuple[list[tuple[str, int, str]], list[tuple[str, int, str]]]:
+    """Lines this PR changed to read `logical_date`: (from execution_date, from any other key).
+
+    Paired line by line from each row's before/after, so it lists exactly what changed,
+    whichever rule (or Claude) changed it.
+    """
+    renamed, other = [], []
+    for r in rows:
+        before, after = r.before.splitlines(), r.after.splitlines()
+        pairs = zip(before, after) if len(before) == len(after) else [("\n".join(before), "\n".join(after))]
+        for i, (old, new) in enumerate(pairs):
+            if "logical_date" not in new or "logical_date" in old:
+                continue
+            target = renamed if "execution_date" in old else other
+            target.append((r.path, r.line + i, new.strip()))
+    return renamed, other
+
+
+def _manual_runs_section(rows: list[Row], blob_base: str | None) -> list[str]:
+    renamed, other = logical_date_sites(rows)
+    if not renamed and not other:
+        return []
+
+    def item(path, line, code):
+        loc = f"{path}:{line}"
+        loc = f"[`{loc}`]({blob_base}/{path}#L{line})" if blob_base else f"`{loc}`"
+        return f"- {loc} <code>{html.escape(code[:160], quote=False)}</code>"
+
+    out = ["### ⚠️ Manual runs", "",
+           "In Airflow 3 a manually triggered run can have **no logical date**, and then `logical_date` is `None`. "
+           "Airflow 2 always set `execution_date` (for a manual run, to the time it was triggered). "
+           "Scheduled runs are not affected.", ""]
+    if renamed:
+        out += [f"These {len(renamed)} line(s) now read `logical_date` where they read `execution_date`:", ""]
+        out += [item(*s) for s in renamed] + [""]
+    if other:
+        out += [f"These {len(other)} line(s) now read `logical_date` in place of another removed key:", ""]
+        out += [item(*s) for s in other] + [""]
+    out += ["If your team triggers these DAGs manually without a logical date, fall back to the time the run "
+            "was triggered (`run_after` is always set):", "",
+            "```python", 'context["logical_date"] or context["dag_run"].run_after', "```", "",
+            "Use your own name for the context (`kwargs`, `ctx`, ...). In a Jinja template: "
+            "`{{ logical_date or dag_run.run_after }}`.", ""]
+    return out
+
+
 def _dag_status(outcome, test_id) -> str:
     if outcome is None:
         return "—"
@@ -79,6 +125,8 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
     ]
     if rows:
         parts += [render_table(rows, blob_base), ""]
+    if dag_target:
+        parts += _manual_runs_section(rows, blob_base)
 
     if rules or tools:
         parts.append("### Rules")

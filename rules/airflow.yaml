@@ -59,7 +59,7 @@ rules:
     options: *context_keys
     min_sdk_version: "3.0.0"
     changelog: https://airflow.apache.org/docs/apache-airflow/stable/installation/upgrading_to_airflow3.html
-    note: "Airflow 3 removed this context key; the replacement is the same value"
+    note: "Airflow 3 removed this context key; the replacement is the same value on scheduled runs (see Manual runs)"
 
   - id: airflow3-templates
     description: >-
@@ -71,7 +71,7 @@ rules:
     options: *context_keys
     min_sdk_version: "3.0.0"
     changelog: https://airflow.apache.org/docs/apache-airflow/stable/installation/upgrading_to_airflow3.html
-    note: "Airflow 3 removed this template variable; the replacement renders the same value"
+    note: "Airflow 3 removed this template variable; the replacement renders the same value on scheduled runs (see Manual runs)"
 
   - id: airflow3-context-judgment
     description: >-
