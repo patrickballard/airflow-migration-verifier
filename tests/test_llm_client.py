@@ -98,6 +98,7 @@ def test_returns_tool_source_without_forcing_tool_choice(server):
     assert req["stream"] is True
     assert req["tool_choice"] == {"type": "auto"}
     assert "submit_patch" in req["system"]
+    assert "Preserve every existing comment exactly as written" in req["system"]
     assert req["tools"][0]["name"] == "submit_patch"
     prompt = req["messages"][0]["content"]
     assert "line 22" in prompt and "functions=[WEATHER_FN]" in prompt

@@ -38,6 +38,8 @@ complete updated file through the submit_patch tool.
 
 - Change only what the migration needs: the flagged calls and the code that \
 reads their results or builds their follow-up messages.
+- Preserve every existing comment exactly as written, including comments on \
+lines you change (keep them on the rewritten line).
 - Keep everything else byte-for-byte: comments, blank lines, quoting style, \
 import order, unrelated code.
 - The file must stay valid Python and keep its public behaviour; the repo's \
