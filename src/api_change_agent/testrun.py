@@ -13,6 +13,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 SESSION_ERROR = "<session>"
+DEV_GROUPS = ("dev", "test", "tests", "testing")
+# Lets modules that build an OpenAI() client at import time load in tests;
+# a real request with it just gets a 401.
+DUMMY_OPENAI_KEY = "sk-api-change-agent-dummy-key"
 # Env vars that look like credentials never reach the repo's install or tests.
 SECRET_NAME = re.compile(r"KEY|TOKEN|SECRET|PASSW|CREDENTIAL|AUTH", re.I)
 _PYTEST = re.compile(r"(^|[\s/])(pytest|py\.test)(\s|$)")
@@ -71,11 +75,53 @@ def default_install_command(repo: Path, test_command: str | None) -> str:
     installable = pyproject.exists() and any(
         h in pyproject.read_text(errors="replace") for h in ("[project]", "[build-system]", "[tool.poetry]")
     )
+    extras, groups, poetry_dev = _dev_dependencies(pyproject) if pyproject.exists() else ([], [], [])
     if installable or (repo / "setup.py").exists():
-        steps.append("python -m pip install -q -e .")
+        target = f".[{','.join(extras)}]" if extras else "."
+        steps.append(f"python -m pip install -q -e {shlex.quote(target)}")
+    steps += [f"python -m pip install -q --group {shlex.quote(g)}" for g in groups]
+    if poetry_dev:
+        steps.append("python -m pip install -q " + " ".join(shlex.quote(r) for r in poetry_dev))
     if test_command and _PYTEST.search(test_command):
         steps.append("python -m pip install -q pytest")
     return " && ".join(steps)
+
+
+def _dev_dependencies(pyproject: Path) -> tuple[list[str], list[str], list[str]]:
+    """Test/dev dependencies declared in pyproject.toml.
+
+    Returns (PEP 621 extras, PEP 735 dependency groups, Poetry dev/test group
+    requirements as PEP 440 strings)."""
+    try:
+        import tomllib
+    except ImportError:  # Python 3.10
+        return [], [], []
+    try:
+        data = tomllib.loads(pyproject.read_text(errors="replace"))
+    except tomllib.TOMLDecodeError:
+        return [], [], []
+    extras = [k for k in (data.get("project", {}).get("optional-dependencies") or {}) if k.lower() in DEV_GROUPS]
+    groups = [k for k in (data.get("dependency-groups") or {}) if k.lower() in DEV_GROUPS]
+    poetry = data.get("tool", {}).get("poetry", {})
+    declared = dict(poetry.get("dev-dependencies") or {})
+    for name, body in (poetry.get("group") or {}).items():
+        if name.lower() in DEV_GROUPS:
+            declared.update(body.get("dependencies") or {})
+    from .deps import _poetry_to_pep440
+
+    reqs = []
+    for name, spec in declared.items():
+        if name.lower() == "python":
+            continue
+        if isinstance(spec, dict):
+            if {"path", "git", "url"} & set(spec):
+                continue
+            spec = spec.get("version", "")
+        try:
+            reqs.append(name + (_poetry_to_pep440(spec) if isinstance(spec, str) and spec not in ("", "*") else ""))
+        except (ValueError, IndexError):
+            reqs.append(name)
+    return extras, groups, reqs
 
 
 class TestRunner:
@@ -102,6 +148,7 @@ class TestRunner:
         # Never let repo code reach a real API with our credentials.
         for name in [n for n in env if SECRET_NAME.search(n)]:
             del env[name]
+        env["OPENAI_API_KEY"] = DUMMY_OPENAI_KEY
         return env
 
     def _sh(self, command: str) -> subprocess.CompletedProcess:

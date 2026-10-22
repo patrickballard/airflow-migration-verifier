@@ -30,7 +30,8 @@ def test_secret_like_env_never_reaches_repo_code(tmp_path, monkeypatch):
         monkeypatch.setenv(name, "x")
     monkeypatch.setenv("HARMLESS", "1")
     env = TestRunner(tmp_path, "true")._env()
-    assert not {"OPENAI_API_KEY", "CLAUDE_CODE_MESSAGING_TOKEN", "AWS_SECRET_ACCESS_KEY", "DB_PASSWORD"} & set(env)
+    assert not {"CLAUDE_CODE_MESSAGING_TOKEN", "AWS_SECRET_ACCESS_KEY", "DB_PASSWORD"} & set(env)
+    assert env["OPENAI_API_KEY"] != "x"  # replaced by the dummy key
     assert env["HARMLESS"] == "1" and "PATH" in env
 
 
@@ -41,3 +42,24 @@ def test_venv_python_used(tmp_path):
     r.setup()
     out = subprocess.run(["bash", "-c", r.command], env=r._env(), capture_output=True, text=True).stdout
     assert str(tmp_path / "v") in out
+
+
+def test_dummy_openai_key_replaces_real_one(tmp_path, monkeypatch):
+    from api_change_agent.testrun import DUMMY_OPENAI_KEY
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-real")
+    assert TestRunner(tmp_path, "true")._env()["OPENAI_API_KEY"] == DUMMY_OPENAI_KEY
+
+
+def test_install_command_includes_dev_dependencies(tmp_path):
+    from api_change_agent.testrun import default_install_command
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "x"\n[project.optional-dependencies]\ntest = ["pytest-asyncio"]\ndocs = ["sphinx"]\n'
+        '[dependency-groups]\ndev = ["ruff"]\n'
+        '[tool.poetry.group.dev.dependencies]\nvcrpy = "^6.0"\npytest-mock = {version = "^3.1"}\nlocal = {path = "../x"}\n'
+        '[tool.poetry.dev-dependencies]\nfreezegun = "*"\n'
+    )
+    cmd = default_install_command(tmp_path, "python -m pytest -q")
+    assert "pip install -q -e '.[test]'" in cmd and "docs" not in cmd
+    assert "--group dev" in cmd
+    assert "'vcrpy>=6.0,<7'" in cmd and "'pytest-mock>=3.1,<4'" in cmd and " freezegun" in cmd
+    assert "local" not in cmd

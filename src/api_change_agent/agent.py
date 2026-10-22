@@ -187,8 +187,8 @@ class _Run:
                         continue
                     if sites:
                         hits.setdefault(rule.id, {})[rel] = sites
-        self.log(f"scanned {len(scan.files)} file(s) importing {self.ruleset.package}; "
-                 + ", ".join(f"{rid}: {sum(map(len, f.values()))} site(s)" for rid, f in hits.items()) or "no hits")
+        found = ", ".join(f"{rid}: {sum(map(len, f.values()))} site(s)" for rid, f in hits.items())
+        self.log(f"scanned {len(scan.files)} file(s) importing {self.ruleset.package}; {found or 'no hits'}")
         return hits
 
     def setup_tests(self) -> None:
