@@ -63,3 +63,13 @@ def test_install_command_includes_dev_dependencies(tmp_path):
     assert "--group dev" in cmd
     assert "'vcrpy>=6.0,<7'" in cmd and "'pytest-mock>=3.1,<4'" in cmd and " freezegun" in cmd
     assert "local" not in cmd
+
+
+def test_collection_errors_do_not_stop_the_suite(tmp_path):
+    import sys
+    (tmp_path / "test_ok.py").write_text("def test_a():\n    pass\n\ndef test_b():\n    assert False\n")
+    (tmp_path / "test_broken.py").write_text("import not_a_module_anywhere\n")
+    out = TestRunner(tmp_path, f"{sys.executable} -m pytest -q -p no:cacheprovider").run()
+    assert out.executed == 2  # test_ok ran despite test_broken failing to import
+    assert out.failures == {"::test_broken", "test_ok::test_b"}
+    assert out.summary() == "1 passed, 1 failing, 1 collection error"

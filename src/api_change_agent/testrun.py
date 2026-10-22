@@ -32,13 +32,18 @@ class TestOutcome:
     failures: frozenset[str] = field(default_factory=frozenset)
     has_junit: bool = False
     output: str = ""
+    executed: int | None = None  # tests that actually ran (from junit), None if unknown
 
     def summary(self) -> str:
-        if self.passed:
-            return "passed"
-        if self.failures:
-            return f"{len(self.failures)} failing"
-        return f"failed (exit {self.returncode})"
+        if self.executed is None:
+            if self.passed:
+                return "passed"
+            return f"{len(self.failures)} failing" if self.failures else f"failed (exit {self.returncode})"
+        # collection errors have no class name ("::module"); they never ran
+        collection = sum(1 for f in self.failures if f.startswith("::"))
+        failing = len(self.failures) - collection
+        text = f"{self.executed - failing} passed, {failing} failing"
+        return text + (f", {collection} collection error{'s' * (collection != 1)}" if collection else "")
 
 
 def new_failures(baseline: TestOutcome | None, after: TestOutcome | None) -> set[str]:
@@ -180,7 +185,8 @@ class TestRunner:
             fd, junit = tempfile.mkstemp(suffix=".xml", prefix="aca-junit-")
             os.close(fd)
             os.unlink(junit)
-            command = f"{command} --junitxml={shlex.quote(junit)}"
+            # One module failing to import must not stop every other test from running.
+            command = f"{command} --continue-on-collection-errors --junitxml={shlex.quote(junit)}"
         self.log(f"test: {self.command}")
         try:
             proc = self._sh(command)
@@ -189,9 +195,10 @@ class TestRunner:
             rc, out = -1, f"timed out after {self.timeout}s\n{e.stdout or ''}"
         failures: set[str] = set()
         has_junit = False
+        executed = None
         if junit and os.path.exists(junit):
             try:
-                failures = _junit_failures(junit)
+                failures, executed = _junit_failures(junit)
                 has_junit = True
             except ET.ParseError:
                 pass
@@ -200,12 +207,20 @@ class TestRunner:
         passed = rc in (0, 5)  # 5 = pytest collected nothing
         if not passed and has_junit and not failures:
             failures = {SESSION_ERROR}  # e.g. collection/import error
-        return TestOutcome(self.command, passed, rc, frozenset(failures), has_junit, out[-6000:])
+        return TestOutcome(self.command, passed, rc, frozenset(failures), has_junit, out[-6000:], executed)
 
 
-def _junit_failures(path: str) -> set[str]:
-    failed = set()
+def _junit_failures(path: str) -> tuple[set[str], int]:
+    """(failed test ids, number of tests that actually ran).
+
+    Collection errors appear as testcases with an empty name or a classname
+    but no test function; they count as failures, not as executed tests."""
+    failed, executed = set(), 0
     for case in ET.parse(path).getroot().iter("testcase"):
+        test_id = f"{case.get('classname', '')}::{case.get('name', '')}"
+        is_collection_error = not case.get("classname")
         if case.find("failure") is not None or case.find("error") is not None:
-            failed.add(f"{case.get('classname', '')}::{case.get('name', '')}")
-    return failed
+            failed.add(test_id)
+        if case.find("skipped") is None and not is_collection_error:
+            executed += 1
+    return failed, executed
