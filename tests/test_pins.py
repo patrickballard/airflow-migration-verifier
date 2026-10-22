@@ -51,7 +51,7 @@ def test_bump_poetry_spec(spec, new, status):
 
 def test_requirements_txt_in_place(tmp_path):
     (tmp_path / "requirements.txt").write_text(
-        "# deps\nopenai==1.50.0  # pinned\nlangchain-openai==0.1.0\nopenai-agents>=0.1\n"
+        "# deps\nopenai==1.50.0  # sdk\nlangchain-openai==0.1.0\nopenai-agents>=0.1\n"
         "-r base.txt\n"
     )
     (tmp_path / "requirements").mkdir()
@@ -64,7 +64,7 @@ def test_requirements_txt_in_place(tmp_path):
     ]
     apply_pins(tmp_path, plan)
     assert (tmp_path / "requirements.txt").read_text() == (
-        "# deps\nopenai==1.92.0  # pinned\nlangchain-openai==0.1.0\nopenai-agents>=0.1\n-r base.txt\n"
+        "# deps\nopenai==1.92.0  # sdk\nlangchain-openai==0.1.0\nopenai-agents>=0.1\n-r base.txt\n"
     )
     assert (tmp_path / "requirements" / "dev.in").read_text() == (
         "openai[datalib]>=1.92.0 ; python_version >= '3.9'\n"

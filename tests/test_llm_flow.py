@@ -59,7 +59,7 @@ def test_unparseable_patch_rejected(sample_repo):
 
 
 def test_patch_that_leaves_sites_rejected(sample_repo):
-    unchanged_kwargs = (sample_repo / "app" / "weather.py").read_text().replace("# legacy", "# old")
+    unchanged_kwargs = (sample_repo / "app" / "weather.py").read_text().replace('model="gpt-4o-mini"', 'model="gpt-4o"')
     model = FileModel(unchanged_kwargs)
     result = run(opts(sample_repo, max_llm_attempts=1), model=model)
     assert result.manual and "still" in result.manual[0].reason
@@ -75,7 +75,7 @@ def test_dry_run_leaves_pins_and_reports(sample_repo):
     result = run(opts(sample_repo), model=FileModel(GOOD))
     req = (sample_repo / "requirements.txt").read_text()
     # dry-run still edits the working tree (that's how tests run); it only skips git/PR.
-    assert "openai==1.92.0  # pinned below 1.92.0 on purpose" in req
+    assert "openai==1.92.0  # predates the GA parse/stream API" in req
     assert "langchain-openai==0.1.0" in req
     pin_rows = [r for r in result.rows if r.path == "requirements.txt"]
     assert [(r.line, r.before, r.after) for r in pin_rows] == [(2, "openai==1.50.0", "openai==1.92.0")]

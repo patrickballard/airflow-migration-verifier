@@ -1,7 +1,11 @@
 """libcst-based site finding and deterministic rewrites."""
 from __future__ import annotations
 
+import difflib
+import io
 import re
+import tokenize
+from collections import Counter
 from dataclasses import dataclass
 
 import libcst as cst
@@ -123,3 +127,39 @@ def apply_deterministic(source: str, rule: Rule) -> tuple[str, list[Edit]]:
     new_module = MetadataWrapper(module).visit(transformer)
     edits = sorted(transformer.edits, key=lambda e: e.line)
     return (new_module.code if edits else source), edits
+
+
+def comments_of(source: str) -> list[tuple[int, str]]:
+    """``(line, '# text')`` for every comment token in ``source``."""
+    found = []
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(source).readline):
+            if tok.type == tokenize.COMMENT:
+                found.append((tok.start[0], tok.string.strip()))
+    except (tokenize.TokenError, SyntaxError):
+        pass
+    return found
+
+
+def missing_comments(original: str, patched: str) -> list[tuple[int, str]]:
+    """Comments from ``original`` that ``patched`` lost.
+
+    A comment on a line the patch deleted outright (not replaced) may go
+    with it. Duplicate comments are counted, so dropping one of two
+    identical comments is caught too.
+    """
+    a, b = original.splitlines(), patched.splitlines()
+    deleted: set[int] = set()
+    for tag, i1, i2, _, _ in difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes():
+        if tag == "delete":
+            deleted.update(range(i1 + 1, i2 + 1))
+    remaining = Counter(text for _, text in comments_of(patched))
+    missing = []
+    for line, text in comments_of(original):
+        if line in deleted:
+            continue
+        if remaining[text] > 0:
+            remaining[text] -= 1
+        else:
+            missing.append((line, text))
+    return missing

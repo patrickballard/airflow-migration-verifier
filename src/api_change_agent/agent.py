@@ -10,7 +10,7 @@ import libcst as cst
 from packaging.version import Version
 
 from . import gitops
-from .codemod import Site, apply_deterministic, find_sites
+from .codemod import Site, apply_deterministic, find_sites, missing_comments
 from .llm import PatchModel, PatchRequest
 from .pins import PinPlan, apply_pins, plan_pins
 from .report import Row, render_body
@@ -51,7 +51,8 @@ class ManualItem:
 class RunResult:
     rows: list[Row] = field(default_factory=list)
     manual: list[ManualItem] = field(default_factory=list)
-    skipped: list[str] = field(default_factory=list)
+    skipped_rules: list[str] = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)  # other notes (tests, ...)
     unparsable: list[str] = field(default_factory=list)
     changed_files: list[str] = field(default_factory=list)
     pin_plan: PinPlan | None = None
@@ -115,12 +116,18 @@ class _Run:
         self.current[rel] = new
         self._write(rel, new)
 
-    def _pin_conflicts(self, rule: Rule) -> str | None:
-        conflicts = plan_pins(self.repo, self.ruleset.package, rule.min_sdk_version).conflicts
-        if not conflicts:
-            return None
-        where = ", ".join(f"`{c.path}:{c.line}` `{c.text}`" for c in conflicts)
-        return f"rule `{rule.id}` skipped: {where} can't be raised to >={rule.min_sdk_version} ({conflicts[0].reason})"
+    def _pin_blocker(self, rule: Rule) -> str | None:
+        """Why the pins can't be raised to this rule's minimum, if they can't."""
+        plan = plan_pins(self.repo, self.ruleset.package, rule.min_sdk_version)
+        if plan.holds:
+            where = ", ".join(f"`{h.path}:{h.line}` `{h.text}` (`{h.comment}`)" for h in plan.holds)
+            return (f"`{rule.id}`: needs `{self.ruleset.package}>={rule.min_sdk_version}`, but {where} "
+                    "is marked as intentional, so the pin was left alone and the rule was not applied")
+        if plan.conflicts:
+            where = ", ".join(f"`{c.path}:{c.line}` `{c.text}`" for c in plan.conflicts)
+            return (f"`{rule.id}`: {where} can't be raised to >={rule.min_sdk_version} "
+                    f"({plan.conflicts[0].reason})")
+        return None
 
     def _run_tests(self) -> TestOutcome | None:
         return self.runner.run() if self.runner else None
@@ -173,8 +180,8 @@ class _Run:
         for rule in self.ruleset.rules:
             if rule.fix != "deterministic" or rule.id not in hits:
                 continue
-            if reason := self._pin_conflicts(rule):
-                self.result.skipped.append(reason)
+            if reason := self._pin_blocker(rule):
+                self.result.skipped_rules.append(reason)
                 continue
             for rel in hits[rule.id]:
                 new, edits = apply_deterministic(self.current[rel], rule)
@@ -231,14 +238,14 @@ class _Run:
         for rule in self.ruleset.rules:
             if rule.fix != "llm" or rule.id not in hits:
                 continue
-            if reason := self._pin_conflicts(rule):
-                self.result.skipped.append(reason)
+            if reason := self._pin_blocker(rule):
+                self.result.skipped_rules.append(reason)
                 continue
             why = None
             if self.model is None:
                 why = "no ANTHROPIC_API_KEY, so no LLM patch was attempted"
             elif self.tests_unusable:
-                why = "LLM patch not attempted: the repo's tests can't verify it (see Skipped)"
+                why = "LLM patch not attempted: the repo's tests can't verify it (see Other notes)"
             if why:
                 for rel, sites in hits[rule.id].items():
                     self.result.manual += [ManualItem(rel.as_posix(), s.line, rule.id, why) for s in sites]
@@ -260,6 +267,11 @@ class _Run:
             module = cst.parse_module(proposed)
         except cst.ParserSyntaxError as e:
             return f"patch does not parse: {str(e).splitlines()[0]}"
+        lost = missing_comments(original, proposed)
+        if lost:
+            listed = "; ".join(f"line {line}: `{text}`" for line, text in lost)
+            return (f"patch removed comment(s) from the original: {listed}. Keep every comment "
+                    "(next to the code it describes) unless you delete its whole line.")
         left = find_sites(module, rule)
         if left:
             return f"patch still matches the rule at line(s) {', '.join(str(s.line) for s in left)}"
@@ -322,7 +334,7 @@ class _Run:
             package=self.ruleset.package, rows=rows, rules=self.ruleset.rules,
             pin_minimum=self.pin_minimum if plan and plan.edits else None,
             pin_conflicts=plan.conflicts if plan else [], lock_notes=plan.lock_notes if plan else [],
-            skipped=res.skipped, manual=res.manual, unparsable=res.unparsable,
+            skipped_rules=res.skipped_rules, skipped=res.skipped, manual=res.manual, unparsable=res.unparsable,
             tests_baseline=res.tests_baseline, tests_after=res.tests_after, new_failures=res.new_failures,
             blob_base=blob, rules_path=Path(self.o.rules_path).name,
         )

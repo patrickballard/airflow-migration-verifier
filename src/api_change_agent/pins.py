@@ -44,6 +44,15 @@ class PinConflict:
 
 
 @dataclass(frozen=True)
+class PinHold:
+    """A pin that would need bumping but is marked as intentional."""
+    path: Path
+    line: int
+    text: str
+    comment: str
+
+
+@dataclass(frozen=True)
 class LockNote:
     path: Path
     version: str
@@ -54,6 +63,7 @@ class PinPlan:
     minimum: Version
     edits: list[PinEdit] = field(default_factory=list)
     conflicts: list[PinConflict] = field(default_factory=list)
+    holds: list[PinHold] = field(default_factory=list)
     lock_notes: list[LockNote] = field(default_factory=list)
     files: dict[Path, str] = field(default_factory=dict)  # new contents
 
@@ -173,6 +183,38 @@ def _req_regex(package: str) -> re.Pattern:
     )
 
 
+# A comment on the pin's line, or a comment line right above it, that says the
+# pin is deliberate. Such pins are never bumped.
+INTENT_RE = re.compile(
+    r"\b(on purpose|intentional(?:ly)?|pinned|keep|"
+    r"do\s*n[o']?t\s+(?:upgrade|bump|update|change)|do not (?:upgrade|bump|update|change))\b",
+    re.I,
+)
+
+
+def comment_of(line: str) -> str:
+    """The ``# ...`` part of a line, ignoring ``#`` inside quotes."""
+    quote = None
+    for i, ch in enumerate(line):
+        if quote:
+            if ch == quote:
+                quote = None
+        elif ch in "\"'":
+            quote = ch
+        elif ch == "#" and (i == 0 or line[i - 1].isspace()):
+            return line[i:].strip()
+    return ""
+
+
+def intent_comment(line: str, previous: str | None) -> str | None:
+    own = comment_of(line)
+    if own and INTENT_RE.search(own):
+        return own
+    if previous is not None and previous.lstrip().startswith("#") and INTENT_RE.search(previous):
+        return previous.strip()
+    return None
+
+
 def _is_requirements_file(rel: Path) -> bool:
     name = rel.name.lower()
     if rel.suffix in (".txt", ".in") and (
@@ -195,6 +237,7 @@ class _Planner:
         self.package = package
         self.req = _req_regex(package)
         self.plan = PinPlan(minimum=minimum)
+        self._previous: str | None = None  # line above the one being handled
 
     # Each handler returns the (possibly rewritten) line.
     def _bump_req(self, rel, lineno, line, start, end, spec, req_text, poetry=False):
@@ -203,6 +246,9 @@ class _Planner:
             self.plan.conflicts.append(PinConflict(rel, lineno, req_text.strip(), result.reason))
             return line
         if result.status != "bumped":
+            return line
+        if why := intent_comment(line, self._previous):
+            self.plan.holds.append(PinHold(rel, lineno, req_text.strip(), why))
             return line
         new_line = line[:start] + result.new + line[end:]
         new_req = req_text.replace(spec, result.new, 1) if spec in req_text else req_text
@@ -271,6 +317,7 @@ class _Planner:
             body = raw.rstrip("\r\n")
             nl = raw[len(body):]
             new = body
+            self._previous = lines[i - 1].rstrip("\r\n") if i else None
             for handler in handlers:
                 new = handler(rel, i + 1, new)
             if new != body:

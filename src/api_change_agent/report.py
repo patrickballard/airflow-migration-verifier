@@ -39,7 +39,7 @@ def render_table(rows: list[Row], blob_base: str | None) -> str:
     return "\n".join(out)
 
 
-def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes, skipped, manual,
+def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes, skipped_rules, skipped, manual,
                 unparsable, tests_baseline, tests_after, new_failures, blob_base, rules_path) -> str:
     applied = sorted({r.rule_id for r in rows})
     parts = [
@@ -84,7 +84,7 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
             else:
                 parts.append("- No new test failures.")
         elif rows:
-            parts.append("- After changes: not run, so **these changes are untested** (see Skipped).")
+            parts.append("- After changes: not run, so **these changes are untested** (see Other notes).")
     parts.append("")
 
     if manual:
@@ -93,8 +93,13 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
             parts.append(f"- `{m.path}:{m.line}` (`{m.rule_id}`): {m.reason}")
         parts.append("")
 
+    if skipped_rules:
+        parts.append("### Skipped rules")
+        parts += [f"- {s}" for s in skipped_rules]
+        parts.append("")
+
     if skipped or unparsable:
-        parts.append("### Skipped")
+        parts.append("### Other notes")
         parts += [f"- {s}" for s in skipped]
         parts += [f"- `{p}`: could not be parsed, not scanned" for p in unparsable]
         parts.append("")
