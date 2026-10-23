@@ -90,7 +90,8 @@ class RunResult:
         """JSON-friendly record of the run (what --output writes as result.json)."""
         def tests(t):
             return None if t is None else {"command": t.command, "passed": t.passed, "returncode": t.returncode,
-                                           "failures": sorted(t.failures), "summary": t.summary()}
+                                           "failures": sorted(t.failures), "summary": t.summary(),
+                                           "ids": list(t.ids), "messages": dict(t.messages)}
         return {
             "rules_fired": sorted({r.rule_id for r in self.rows}),
             "rows": [dataclasses.asdict(r) for r in self.rows],
@@ -105,6 +106,7 @@ class RunResult:
             "new_failures": sorted(self.new_failures),
             "llm_usage": self.llm_usage,
             "llm_notes": self.llm_notes,
+            "render": [dataclasses.asdict(r) for r in self.render_results],
         }
 
 
