@@ -98,7 +98,7 @@ python -m api_change_agent --repo . --rules airflow --dry-run --output out --ins
   - 91 of the 144 headline DAGs have no template fields, so for them "renders identically" is vacuous. The DagBag import and the pin and `days_ago` proofs carry them.
 - **Naive `start_date`s.** If the repo doesn't set `default_timezone`, pins assume UTC (Airflow's default) and the PR says so loudly.
 - **ruff marks some operator swaps safe that change keyword arguments** (the AMPATH case above). Only the unverified label caught it.
-- **GitHub Actions coverage.** The Airflow path has been exercised locally on the 10 repos above, but not yet run end to end inside GitHub Actions. The OpenAI path has.
+- **GitHub Actions coverage.** The Airflow path has run end to end in GitHub Actions: a `@v1` dry run on a small fixture repo passed in 2m26s ([run 39992090098](https://github.com/patrickballard/api-change-agent-test/actions/runs/39992090098)). The 10 real repos above were run locally, not in Actions.
 
 ## Also: OpenAI Python SDK rules
 
