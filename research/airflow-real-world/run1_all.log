@@ -1,0 +1,10 @@
+eliasbenaddou/personal_finance_de_project: exit=0 98s spent=$0.000 total=$0.000
+mozilla/telemetry-airflow: exit=0 546s spent=$0.297 total=$0.297
+BasPH/data-pipelines-with-apache-airflow: exit=0 1384s spent=$0.273 total=$0.571
+sanchitvj/sports_betting_analytics_engine: exit=0 115s spent=$0.000 total=$0.571
+anilkulkarni87/airflow-docker: exit=0 31s spent=$0.000 total=$0.571
+astronomer/airflow-data-quality-demo: exit=0 161s spent=$0.000 total=$0.571
+blockchain-etl/bitcoin-etl-airflow: exit=0 142s spent=$0.351 total=$0.922
+DaliGuerfali/big-data: exit=0 255s spent=$0.283 total=$1.205
+AMPATH/etl: exit=0 170s spent=$0.269 total=$1.474
+made-ml-in-prod-2021/airflow-examples: exit=0 321s spent=$0.275 total=$1.749

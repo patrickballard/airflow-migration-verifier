@@ -1,0 +1,52 @@
+execution_date: 100
+templates: 100
+template_files: 100
+sh_files: 100
+pin: 0
+integrity: 100
+328 repos from search
+BasPH/airflow-rocket: dags=12 score=4 eligible=True
+hms-dbmi/bch-pic-sure-airflow-dags: dags=16 score=1 eligible=True
+marcosmarxm/airflow-testing-ci-workflow: dags=1 score=3 eligible=True
+1904labs/example-airflow: dags=3 score=3 eligible=True
+Glo1991/CoderDataEngineering: dags=1 score=3 eligible=True
+alexandraabbas/apache-airflow-course: dags=5 score=4 eligible=True
+anilkulkarni87/airflow-docker: dags=6 score=4 eligible=True
+astronomer/airflow-data-quality-demo: dags=18 score=3 eligible=True
+blockchain-etl/bitcoin-etl-airflow: dags=4 score=2 eligible=True
+dydwnsekd/airflow_example: dags=12 score=3 eligible=True
+eliasbenaddou/personal_finance_de_project: dags=5 score=5 eligible=True
+josephwibowo/MeetBaeArea: dags=1 score=4 eligible=True
+leadwithnav/airflow-training: dags=75 score=5 eligible=True
+made-ml-in-prod-2021/airflow-examples: dags=10 score=4 eligible=True
+mozilla/telemetry-airflow: dags=57 score=5 eligible=True
+rshukla0101/ApacheAirflow: dags=20 score=5 eligible=True
+sanchitvj/sports_betting_analytics_engine: dags=8 score=4 eligible=True
+skhatri/airflow-by-example: dags=9 score=4 eligible=True
+4lcatrust/deso-query: dags=7 score=3 eligible=True
+AKilalours/streaming-canvas-search-ltr: dags=1 score=3 eligible=True
+AMPATH/etl: dags=12 score=2 eligible=True
+AdelanteFinancialHoldings/airflow-dbt-python: dags=7 score=2 eligible=True
+AhmedHamdi0/airflow-guide: dags=12 score=3 eligible=True
+AjayMaan13/ontario-grid-signal: dags=1 score=2 eligible=False
+AurelienEtudiant/tp-airflow: dags=4 score=2 eligible=False
+BSM21/Hybrid-Big-Data-ETL-Pipeline-with-Hadoop-and-AWS: dags=1 score=2 eligible=True
+BasPH/data-pipelines-with-apache-airflow: dags=90 score=5 eligible=True
+BaseerAhmedTahir/gharchive-pipeline: dags=2 score=2 eligible=False
+BayTown/UD-DEND-Capstone-Flight-Data-with-Airflow: dags=2 score=2 eligible=True
+Beyyes/Titan: dags=220 score=4 eligible=True
+BigDataMatrix/DataPipeline: dags=47 score=5 eligible=True
+Boaz-Airflow/boaz-airflow-study: dags=55 score=5 eligible=True
+BobFisher2008/DataWarehouse: dags=3 score=2 eligible=False
+Brian-Kariu/cookiecutter-airflow: dags=1 score=3 eligible=False
+ChickenBenny/Airflow-tutorial: dags=6 score=3 eligible=True
+Chirag-Kathuria-009/DORA-Pipeline: dags=1 score=3 eligible=True
+CityOfPhiladelphia/databridge-airflow: dags=3 score=1 eligible=True
+DEDSEC0708/orchestrated-warehouse: dags=4 score=4 eligible=True
+Dabi-7/realtime-market-predictor: dags=1 score=1 eligible=True
+DaliGuerfali/big-data: dags=3 score=5 eligible=True
+DataWithOjo/CoreTelecoms-Data-Platform: dags=3 score=4 eligible=False
+DatacollectorVN/Airflow-Tutorial: dags=13 score=4 eligible=True
+DaviMacielCavalcante/qualidade-de-vida-urbana: dags=2 score=1 eligible=False
+DhanushPillay/tx-recon: dags=1 score=3 eligible=True
+Diego-Oliveira-SS/airflow: dags=4 score=4 eligible=True

@@ -1,0 +1,11 @@
+# Picked from candidates.json (find_candidates.py) for variety; commits are recorded in scorecard_data.json.
+eliasbenaddou/personal_finance_de_project   cron, Jinja, execution_date, DAG integrity test, pinned 2.x
+mozilla/telemetry-airflow                   production, 57 DAG files, GCP providers, integrity test
+BasPH/data-pipelines-with-apache-airflow    book code: templates, .sql/.sh files, execution_date
+sanchitvj/sports_betting_analytics_engine   cron, Jinja, execution_date, pinned 2.x
+anilkulkarni87/airflow-docker               .sql/.sh template files, integrity test
+astronomer/airflow-data-quality-demo        SQL check operators, template files
+blockchain-etl/bitcoin-etl-airflow          production ETL (BigQuery), cron, Jinja
+DaliGuerfali/big-data                       recent, template files, integrity test
+AMPATH/etl                                  production org, .sql template files
+made-ml-in-prod-2021/airflow-examples       course DAGs: cron, Jinja, execution_date, docker operators
