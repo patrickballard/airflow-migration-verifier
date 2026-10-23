@@ -1,5 +1,7 @@
 # api-change-agent
 
+[![tests](https://github.com/patrickballard/api-change-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/patrickballard/api-change-agent/actions/workflows/tests.yml)
+
 **Airflow 3 silently changes the date your cron DAGs process.**
 
 Take an `@daily` DAG whose task runs `process {{ ds }}`, and the run that fires at 2024-05-02 00:00 UTC:
@@ -11,11 +13,12 @@ Take an `@daily` DAG whose task runs `process {{ ds }}`, and the run that fires 
 
 There is no error and no warning. In Airflow 3 a cron run's logical date is the moment it fires, not the start of the interval it covers. So `{{ ds }}`, `logical_date` and every partition path built from them move by one interval. Both rows were rendered on the real versions.
 
-api-change-agent is a GitHub Action that migrates Airflow 2 DAGs to Airflow 3 in a pull request. It proves each change by rendering your templates on both versions and comparing them run by run. Whatever it can't prove, it labels as unverified.
+api-change-agent is a GitHub Action that migrates Airflow 2 DAGs to Airflow 3 in a pull request. It proves each change by rendering your templates on both versions and comparing them run by run. Whatever it can't prove, it labels as unverified. [See a real PR it opened.](https://github.com/patrickballard/api-change-agent-test/pull/2)
 
 ## What it does
 
 1. **ruff's AIR3 fixes** (`--select AIR3 --preview`): imports, `schedule_interval`, moved operators. Every change ruff makes is credited in the PR table.
+   - When ruff swaps in a different operator class, every call's keyword arguments are checked against that class's signature on Airflow 3. One it no longer accepts (`MySqlOperator(mysql_conn_id=...)` → `SQLExecuteQueryOperator`, which takes `conn_id=`) is listed for a human, because Airflow 3 rejects unknown arguments when it parses the DAG file.
 2. **What ruff misses:**
    - **Timetable pin.** `schedule="@daily"` becomes `CronDataIntervalTimetable("@daily", timezone=...)`, so runs keep their Airflow 2 dates.
      - The zone comes from the DAG's `start_date`, then `default_args`, then the repo's `default_timezone` (`airflow.cfg`, `.env`, docker-compose, Helm, Dockerfile).
@@ -46,7 +49,7 @@ These were dry runs on cloned repos. Nothing was pushed to them.
 - After the agent, **150 of them import on Airflow 3**. Two of those call `DAG.following_schedule`, which Airflow 3 removed; the agent flags them as manual.
 - **56** of the DAGs that import afterwards have template fields. **55 render identically** to Airflow 2 on every sampled run. The 56th still uses `prev_ds`, which has no exact equivalent, so the agent leaves it for a human instead of guessing.
 - **Headline: 144 of 161 (89%)** import, render identically and call no removed method. Rule-based fixes alone reach 143; Claude added one, for $0.60.
-- **Diffs reviewed by hand:** no wrong change in any verified file. One wrong ruff fix keeps `mysql_conn_id=` when it swaps `MySqlOperator` for `SQLExecuteQueryOperator`. It sits in a file that fails on Airflow 3 before and after, and the PR labels it unverified.
+- **Diffs reviewed by hand:** no wrong change in any verified file. One wrong ruff fix keeps `mysql_conn_id=` when it swaps `MySqlOperator` for `SQLExecuteQueryOperator`. It sits in a file that fails on Airflow 3 before and after, and the PR labels it unverified. Since v1.1.0 the kwarg check also flags it directly: 37 rejected `mysql_conn_id=` arguments in 9 files, re-checked on that repo's saved tree.
 
 ## Quickstart
 
@@ -65,6 +68,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4     # keep the Airflow 3 test venv and Airflow 2 render venv between runs
+        with:
+          path: ${{ runner.temp }}/_github_home/aca-venv*
+          key: aca-venvs-v1-airflow-3.3.2-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}
       - uses: patrickballard/api-change-agent@v1
         with:
           rules: airflow
@@ -73,7 +80,7 @@ jobs:
           # dry-run: "true"                                     # report in the step summary only
 ```
 
-You also need to enable *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests*. The action raises your `apache-airflow` pin to 3.3.2. It builds an Airflow 3 venv with the official constraints, plus an Airflow 2 venv at your original pin for the render check. It pushes `api-change-agent/airflow` and opens the PR.
+You also need to enable *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests*. The action raises your `apache-airflow` pin to 3.3.2. It builds an Airflow 3 venv with the official constraints, plus an Airflow 2 venv at your original pin for the render check. It pushes `api-change-agent/airflow` and opens the PR. With the `actions/cache` step, later runs reuse both venvs while your requirements stay the same. On the fixture repo that brought a run down from 2m12s to 1m19s.
 
 To run it locally:
 
@@ -97,8 +104,8 @@ python -m api_change_agent --repo . --rules airflow --dry-run --output out --ins
   - Fields that only resolve inside a running task (XCom) aren't compared.
   - 91 of the 144 headline DAGs have no template fields, so for them "renders identically" is vacuous. The DagBag import and the pin and `days_ago` proofs carry them.
 - **Naive `start_date`s.** If the repo doesn't set `default_timezone`, pins assume UTC (Airflow's default) and the PR says so loudly.
-- **ruff marks some operator swaps safe that change keyword arguments** (the AMPATH case above). Only the unverified label caught it.
-- **GitHub Actions coverage.** The Airflow path has run end to end in GitHub Actions: a `@v1` dry run on a small fixture repo passed in 2m26s ([run 39992090098](https://github.com/patrickballard/api-change-agent-test/actions/runs/39992090098)). The 10 real repos above were run locally, not in Actions.
+- **The kwarg check needs to import the new class.** If its provider isn't installed in the test venv, the PR names the class and says its calls weren't checked.
+- **GitHub Actions coverage.** The Airflow path has run end to end in GitHub Actions on a small fixture repo. A `@v1` dry run takes 2m12s with a cold cache and 1m19s with a warm one ([cold](https://github.com/patrickballard/api-change-agent-test/actions/runs/39999359662), [warm](https://github.com/patrickballard/api-change-agent-test/actions/runs/39999714583)). The [real PR](https://github.com/patrickballard/api-change-agent-test/pull/2) came from a run that wasn't a dry run. The 10 real repos above were run locally, not in Actions.
 
 ## Also: OpenAI Python SDK rules
 
