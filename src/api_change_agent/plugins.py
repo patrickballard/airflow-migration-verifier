@@ -885,5 +885,140 @@ class AirflowRemovedDagMethods:
         return text
 
 
+# --------------------------------------------------------------------------
+# Airflow 3: names airflow modules re-exported from elsewhere
+
+
+class _Reexports(cst.CSTTransformer):
+    """`from airflow.utils.dates import datetime` -> `from datetime import datetime` (the same object)."""
+
+    def __init__(self, table: dict[str, dict[str, list[str]]]):
+        # {airflow module: {real module: [names]}} -> {airflow module: {name: real module}}
+        self.table = {mod: {n: real for real, names in by.items() for n in names} for mod, by in table.items()}
+        self.changed = 0
+
+    def leave_SimpleStatementLine(self, original, updated):
+        if len(updated.body) != 1 or not isinstance(updated.body[0], cst.ImportFrom):
+            return updated
+        node = updated.body[0]
+        if node.module is None or isinstance(node.names, cst.ImportStar):
+            return updated
+        names = self.table.get(_EMPTY.code_for_node(node.module))
+        if not names:
+            return updated
+        keep, moved = [], {}
+        for a in node.names:
+            real = names.get(_EMPTY.code_for_node(a.name))
+            (moved.setdefault(real, []) if real else keep).append(a)
+        if not moved:
+            return updated
+        self.changed += 1
+        out = []
+        if keep:
+            keep[-1] = keep[-1].with_changes(comma=cst.MaybeSentinel.DEFAULT)
+            out.append(updated.with_changes(body=[node.with_changes(names=keep)]))
+        for real, aliases in moved.items():
+            aliases[-1] = aliases[-1].with_changes(comma=cst.MaybeSentinel.DEFAULT)
+            stmt = cst.SimpleStatementLine(body=[cst.ImportFrom(
+                module=cst.parse_expression(real), names=[a.with_changes(comma=cst.MaybeSentinel.DEFAULT) if i == len(aliases) - 1
+                                                         else a for i, a in enumerate(aliases)])])
+            out.append(stmt.with_changes(leading_lines=updated.leading_lines) if not out else stmt)
+        return cst.FlattenSentinel(out)
+
+
+class AirflowReexports:
+    """Imports of names an airflow module only re-exported, from the module that defines them."""
+
+    name = "airflow_reexports"
+    file_globs: tuple[str, ...] = ()
+
+    def _run(self, text: str, options: dict):
+        t = _Reexports(options)
+        return cst.parse_module(text).visit(t).code, t
+
+    def find(self, path: Path, text: str, options: dict, mode: str) -> list[Site]:
+        if path.suffix != ".py" or mode != "deterministic" or not any(m in text for m in options):
+            return []
+        new, t = self._run(text, options)
+        return [Site(1, "", "")] if t.changed else []
+
+    def apply(self, path: Path, text: str, options: dict) -> str:
+        if path.suffix != ".py" or not any(m in text for m in options):
+            return text
+        return self._run(text, options)[0]
+
+
+# --------------------------------------------------------------------------
+# Airflow 3: operator keyword arguments that were removed or renamed
+
+
+class _OperatorKwargs(cst.CSTTransformer):
+    METADATA_DEPENDENCIES = (PositionProvider,)
+
+    def __init__(self, options: dict, rewrite: bool):
+        self.drop = options.get("drop", {})                    # kwarg -> why it's safe to drop
+        self.rename = options.get("rename", {})                # kwarg -> new name, any operator
+        self.rename_for = options.get("rename_for", {})        # class -> {kwarg -> new name}
+        self.rewrite = rewrite
+        self.det: list[Site] = []
+        self.llm: list[Site] = []
+
+    def leave_Call(self, original: cst.Call, updated: cst.Call):
+        keywords = {a.keyword.value for a in original.args if a.keyword is not None}
+        if "task_id" not in keywords:
+            return updated  # not an operator
+        cls = _callee(original).split(".")[-1]
+        renames = {**self.rename, **self.rename_for.get(cls, {})}
+        line = self.get_metadata(PositionProvider, original).start.line
+        args, changed = [], False
+        for a in updated.args:
+            kw = a.keyword.value if a.keyword is not None else None
+            if kw in self.drop:
+                self.det.append(Site(line, kw, self.drop[kw]))
+                changed = True
+                continue
+            if kw in renames:
+                new = renames[kw]
+                if new in keywords:
+                    self.llm.append(Site(line, kw, f"`{kw}=` was renamed `{new}=` in Airflow 3, and this call passes "
+                                                   "both; keep the one you mean"))
+                else:
+                    self.det.append(Site(line, kw, f"renamed `{new}=`"))
+                    a = a.with_changes(keyword=cst.Name(new))
+                    changed = True
+            args.append(a)
+        if not (changed and self.rewrite):
+            return updated
+        if args and updated.args and updated.args[-1].comma == cst.MaybeSentinel.DEFAULT:
+            args[-1] = args[-1].with_changes(comma=cst.MaybeSentinel.DEFAULT)  # no trailing comma where none was
+        return updated.with_changes(args=args)
+
+
+class AirflowOperatorKwargs:
+    """Operator kwargs Airflow 3 dropped (no-ops before) or renamed, in calls that pass `task_id=`."""
+
+    name = "airflow_operator_kwargs"
+    file_globs: tuple[str, ...] = ()
+
+    def _keys(self, options: dict) -> set[str]:
+        return set(options.get("drop", {})) | set(options.get("rename", {})) | {
+            k for by in options.get("rename_for", {}).values() for k in by}
+
+    def _run(self, text: str, options: dict, rewrite: bool):
+        t = _OperatorKwargs(options, rewrite)
+        return MetadataWrapper(cst.parse_module(text)).visit(t).code, t
+
+    def find(self, path: Path, text: str, options: dict, mode: str) -> list[Site]:
+        if path.suffix != ".py" or not any(k in text for k in self._keys(options)):
+            return []
+        _, t = self._run(text, options, rewrite=False)
+        return t.det if mode == "deterministic" else t.llm
+
+    def apply(self, path: Path, text: str, options: dict) -> str:
+        if path.suffix != ".py" or not any(k in text for k in self._keys(options)):
+            return text
+        return self._run(text, options, rewrite=True)[0]
+
+
 PLUGINS = {p.name: p for p in (AirflowContextKeys(), AirflowTemplates(), AirflowCronPin(), AirflowDaysAgo(),
-                               AirflowRemovedDagMethods())}
+                               AirflowRemovedDagMethods(), AirflowReexports(), AirflowOperatorKwargs())}

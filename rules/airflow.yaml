@@ -76,6 +76,47 @@ rules:
       (import pendulum), which is the same moment computed the same way. Never use a fixed date:
       that changes scheduling and catchup.
 
+  - id: airflow3-reexports
+    description: >-
+      Airflow 2's airflow.utils.dates re-exported datetime, timedelta and relativedelta;
+      Airflow 3 dropped them. Imports them from the modules that define them (the same
+      objects, checked on Airflow 2).
+    match: {plugin: airflow_reexports}
+    fix: deterministic
+    transform: {plugin: airflow_reexports}
+    min_sdk_version: "3.0.0"
+    changelog: https://airflow.apache.org/docs/apache-airflow/stable/installation/upgrading_to_airflow3.html
+    note: "the same object, imported from the module that defines it"
+    options:
+      airflow.utils.dates:            # module -> {defining module: [names]}
+        datetime: [datetime, timedelta]
+        dateutil.relativedelta: [relativedelta]
+
+  - id: airflow3-operator-kwargs
+    description: >-
+      Operator keyword arguments Airflow 3 rejects: provide_context (a no-op since
+      Airflow 2.0, when every callable started getting the context) is dropped.
+      Calls that pass task_id= only.
+    match: {plugin: airflow_operator_kwargs}
+    fix: deterministic
+    transform: {plugin: airflow_operator_kwargs}
+    min_sdk_version: "3.0.0"
+    changelog: https://airflow.apache.org/docs/apache-airflow/stable/installation/upgrading_to_airflow3.html
+    note: "a keyword Airflow 3 rejects when it parses the DAG file"
+    options:
+      drop:
+        provide_context: "a no-op since Airflow 2.0 (callables always get the context); Airflow 3 rejects it"
+
+  - id: airflow3-operator-kwargs-judgment
+    description: Renamed operator kwargs passed under both names.
+    match: {plugin: airflow_operator_kwargs}
+    fix: llm
+    min_sdk_version: "3.0.0"
+    changelog: https://airflow.apache.org/docs/apache-airflow/stable/installation/upgrading_to_airflow3.html
+    options:
+      drop:
+        provide_context: "a no-op since Airflow 2.0 (callables always get the context); Airflow 3 rejects it"
+
   - id: airflow3-cron-timetable-pin
     description: >-
       Airflow 3 schedules cron DAGs on CronTriggerTimetable by default, where a
