@@ -95,17 +95,23 @@ rules:
   - id: airflow3-operator-kwargs
     description: >-
       Operator keyword arguments Airflow 3 rejects: provide_context (a no-op since
-      Airflow 2.0, when every callable started getting the context) is dropped.
-      Calls that pass task_id= only.
+      Airflow 2.0, when every callable started getting the context) is dropped;
+      task_concurrency (max_active_tis_per_dag's alias since 2.2) and
+      ExternalTaskMarker's execution_date (now logical_date) are renamed. Calls that
+      pass task_id= only.
     match: {plugin: airflow_operator_kwargs}
     fix: deterministic
     transform: {plugin: airflow_operator_kwargs}
     min_sdk_version: "3.0.0"
     changelog: https://airflow.apache.org/docs/apache-airflow/stable/installation/upgrading_to_airflow3.html
     note: "a keyword Airflow 3 rejects when it parses the DAG file"
-    options:
+    options: &operator_kwargs
       drop:
         provide_context: "a no-op since Airflow 2.0 (callables always get the context); Airflow 3 rejects it"
+      rename:                       # any operator: BaseOperator's alias since Airflow 2.2, removed in 3.0
+        task_concurrency: max_active_tis_per_dag
+      rename_for:                   # per class, as documented in the Airflow 3 upgrade notes
+        ExternalTaskMarker: {execution_date: logical_date}
 
   - id: airflow3-operator-kwargs-judgment
     description: Renamed operator kwargs passed under both names.
@@ -113,9 +119,7 @@ rules:
     fix: llm
     min_sdk_version: "3.0.0"
     changelog: https://airflow.apache.org/docs/apache-airflow/stable/installation/upgrading_to_airflow3.html
-    options:
-      drop:
-        provide_context: "a no-op since Airflow 2.0 (callables always get the context); Airflow 3 rejects it"
+    options: *operator_kwargs
 
   - id: airflow3-cron-timetable-pin
     description: >-
