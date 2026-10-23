@@ -60,7 +60,9 @@ class _FunctionScope:
         self.star_kwargs = star.name.value if isinstance(star, cst.Param) else None
         self.from_current_context: set[str] = set()
         for stmt in node.body.body if isinstance(node.body, cst.IndentedBlock) else ():
-            for small in getattr(stmt, "body", ()):
+            if not isinstance(stmt, cst.SimpleStatementLine):
+                continue  # if/for/with/...: their body is a block, not statements
+            for small in stmt.body:
                 if isinstance(small, cst.Assign) and isinstance(small.value, cst.Call):
                     callee = _EMPTY.code_for_node(small.value.func)
                     if callee.endswith("get_current_context"):

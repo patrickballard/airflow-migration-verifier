@@ -86,6 +86,14 @@ def test_judgment_sites_left_alone_with_reason(src, reason_has):
     assert CTX.apply(path, src, OPTS) == src
 
 
+def test_functions_with_compound_statements():
+    # regression: an `if`/`for`/`with` block in a function body crashed the scan (real repo, 2026-10-23)
+    src = ('from airflow.operators.python import get_current_context\n'
+           'def f():\n    if True:\n        pass\n    for x in []:\n        pass\n'
+           '    ctx = get_current_context()\n    return ctx["execution_date"]\n')
+    assert CTX.apply(Path("d.py"), src, OPTS) == src.replace('ctx["execution_date"]', 'ctx["logical_date"]')
+
+
 def test_unrelated_lookups_untouched():
     src = 'def f(**context):\n    return context["ds"], context["logical_date"], d["other"]\n'
     assert CTX.find(Path("dag.py"), src, OPTS, "deterministic") == [] and CTX.apply(Path("dag.py"), src, OPTS) == src
