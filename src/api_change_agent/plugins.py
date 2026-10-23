@@ -802,4 +802,88 @@ class AirflowDaysAgo:
         return self._run(text, rewrite=True)[0]
 
 
-PLUGINS = {p.name: p for p in (AirflowContextKeys(), AirflowTemplates(), AirflowCronPin(), AirflowDaysAgo())}
+# --------------------------------------------------------------------------
+# Airflow 3: DAG methods that were removed (check only)
+
+
+class _DagNames(cst.CSTVisitor):
+    """Names bound to a DAG in this file: `x = DAG(...)`, `with DAG(...) as x`."""
+
+    def __init__(self):
+        self.names = {"dag"}
+
+    def visit_Assign(self, node: cst.Assign):
+        if isinstance(node.value, cst.Call) and _callee(node.value).split(".")[-1] == "DAG":
+            self.names |= {t.target.value for t in node.targets if isinstance(t.target, cst.Name)}
+
+    def visit_WithItem(self, node: cst.WithItem):
+        if (isinstance(node.item, cst.Call) and _callee(node.item).split(".")[-1] == "DAG"
+                and node.asname is not None and isinstance(node.asname.name, cst.Name)):
+            self.names.add(node.asname.name.value)
+
+
+class _RemovedDagMethods(cst.CSTVisitor):
+    METADATA_DEPENDENCIES = (PositionProvider,)
+
+    def __init__(self, options: dict):
+        self.methods = set(options.get("methods", ()))
+        self.any_receiver = set(options.get("any_receiver", ()))
+        self.hints = options.get("hints", {})
+        self.sites: list[Site] = []
+        self.dag_names: set[str] = {"dag"}
+
+    def visit_Module(self, node: cst.Module):
+        names = _DagNames()
+        node.visit(names)
+        self.dag_names = names.names
+
+    def visit_Import(self, node):
+        return False
+
+    def visit_ImportFrom(self, node):
+        return False
+
+    def _is_dag(self, expr) -> bool:
+        if isinstance(expr, cst.Name):
+            return expr.value in self.dag_names
+        if isinstance(expr, cst.Attribute):
+            return expr.attr.value == "dag"                                   # task.dag, self.dag
+        if isinstance(expr, cst.Subscript):
+            return _subscript_key(expr) == "dag"                             # context["dag"]
+        if isinstance(expr, cst.Call):
+            f = expr.func
+            if isinstance(f, cst.Attribute) and f.attr.value == "get" and expr.args:
+                return _string_key(expr.args[0].value) == "dag"              # kwargs.get("dag")
+            return _callee(expr).split(".")[-1] == "DAG"
+        return False
+
+    def visit_Attribute(self, node: cst.Attribute):
+        name = node.attr.value
+        if name not in self.methods or not (name in self.any_receiver or self._is_dag(node.value)):
+            return
+        hint = self.hints.get(name)
+        reason = (f"DAG.{name}() was removed in Airflow 3 (task code can no longer reach the scheduler's "
+                  f"database); {hint or 'there is no direct replacement'}. The file still imports, so only a "
+                  "run of this code fails")
+        self.sites.append(Site(self.get_metadata(PositionProvider, node).start.line, _EMPTY.code_for_node(node), reason))
+
+
+class AirflowRemovedDagMethods:
+    """Uses of DAG methods Airflow 3 removed. Check only: every site is for a human."""
+
+    name = "airflow_removed_dag_methods"
+    file_globs: tuple[str, ...] = ()
+
+    def find(self, path: Path, text: str, options: dict, mode: str) -> list[Site]:
+        if path.suffix != ".py" or mode == "deterministic":
+            return []
+        v = _RemovedDagMethods(options)
+        MetadataWrapper(cst.parse_module(text)).visit(v)
+        return v.sites
+
+    def apply(self, path: Path, text: str, options: dict) -> str:
+        return text
+
+
+PLUGINS = {p.name: p for p in (AirflowContextKeys(), AirflowTemplates(), AirflowCronPin(), AirflowDaysAgo(),
+                               AirflowRemovedDagMethods())}

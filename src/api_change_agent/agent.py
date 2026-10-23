@@ -850,6 +850,16 @@ class _Run:
                                if s.reason else f"no patch: {self.UNVERIFIED}")
                     for s in self._sites(self.current[rel], rule, rel)]
 
+    def checks(self, hits) -> None:
+        """`fix: manual` rules: report every site, on the final text, for a human. Never patched."""
+        for rule in self.ruleset.rules:
+            if rule.fix != "manual" or rule.id not in hits:
+                continue
+            for rel in hits[rule.id]:
+                text = self.current.get(rel, (self.repo / rel).read_text())
+                self.result.manual += [ManualItem(rel.as_posix(), s.line, rule.id, s.reason or rule.description)
+                                       for s in self._sites(text, rule, rel)]
+
     def unpinned_schedules(self) -> list[dict]:
         """Schedules still on Airflow 3's new default timetables, with the render check's evidence."""
         rule = next((r for r in self.ruleset.rules if r.match.plugin == "airflow_cron_pin"), None)
@@ -1024,6 +1034,7 @@ def run(options: Options, model: PatchModel | None = None, github=None) -> RunRe
     r.deterministic(hits)
     r.llm(hits)
     r.unverified_pass()
+    r.checks(hits)
     r.dependencies(hits)
     r.render_annotate()
     result = r.finish()

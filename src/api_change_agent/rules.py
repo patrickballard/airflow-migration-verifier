@@ -13,7 +13,7 @@ from packaging.version import InvalidVersion, Version
 
 from .patterns import ChainPattern
 
-FIX_TYPES = ("deterministic", "llm")
+FIX_TYPES = ("deterministic", "llm", "manual")  # manual: check only, listed for a human
 TRANSFORMS = ("drop_attribute", "add_dependency", "plugin")
 TOOLS = ("ruff",)
 _MODULE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)*$")
@@ -47,7 +47,7 @@ class Match:
 class Rule:
     id: str
     match: Match
-    fix: Literal["deterministic", "llm"]
+    fix: Literal["deterministic", "llm", "manual"]
     min_sdk_version: Version
     changelog: str
     description: str = ""

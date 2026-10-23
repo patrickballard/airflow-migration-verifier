@@ -103,6 +103,83 @@ rules:
       schedule=CronDataIntervalTimetable("<cron>", timezone="<the DAG's timezone>") or
       schedule=DeltaDataIntervalTimetable(<timedelta>), imported from airflow.sdk.
 
+  - id: airflow3-removed-dag-methods
+    description: >-
+      DAG methods Airflow 3 removed (most needed the scheduler's database, which task
+      code can no longer reach). A file that calls one still imports, so the DAG
+      check passes; the DAG fails when the call runs. Listed for a human, never patched.
+    match: {plugin: airflow_removed_dag_methods}
+    fix: manual
+    min_sdk_version: "3.0.0"
+    changelog: https://airflow.apache.org/docs/apache-airflow/stable/installation/upgrading_to_airflow3.html
+    options:
+      # Public methods of an Airflow 2.11.2 DAG that an Airflow 3.3.2 airflow.sdk.DAG doesn't have;
+      # tests/test_removed_dag_methods.py re-derives this list from both versions.
+      methods:
+        - bulk_sync_to_db
+        - bulk_write_to_db
+        - clear
+        - clear_dags
+        - create_dagrun
+        - date_range
+        - deactivate_stale_dags
+        - deactivate_unknown_dags
+        - execute_callback
+        - fetch_callback
+        - fetch_dagrun
+        - following_schedule
+        - get_active_runs
+        - get_concurrency_reached
+        - get_dagrun
+        - get_dagruns_between
+        - get_default_view
+        - get_doc_md
+        - get_is_active
+        - get_is_paused
+        - get_last_dagrun
+        - get_latest_execution_date
+        - get_next_data_interval
+        - get_num_active_runs
+        - get_num_task_instances
+        - get_run_data_interval
+        - get_run_dates
+        - get_task_instances
+        - get_task_instances_before
+        - get_tree_view
+        - handle_callback
+        - has_dag_runs
+        - infer_automated_data_interval
+        - is_fixed_time_schedule
+        - iter_dagrun_infos_between
+        - iter_invalid_owner_links
+        - logger
+        - next_dagrun_after_date
+        - next_dagrun_info
+        - normalize_schedule
+        - pickle
+        - pickle_info
+        - previous_schedule
+        - run
+        - set_dag_runs_state
+        - set_task_group_state
+        - set_task_instance_state
+        - sub_dag
+        - sync_to_db
+        - tree_view
+        - validate_executor_field
+        - validate_schedule_and_params
+      any_receiver: [following_schedule, previous_schedule]   # distinctive: flag on any object
+      hints:
+        following_schedule: "the run's next date is data_interval_end in the task context (pinned DAGs); for an arbitrary date use dag.timetable"
+        previous_schedule: "the run's interval start is data_interval_start; the last successful run's is prev_data_interval_start_success"
+        get_run_dates: "iterate dag.timetable instead"
+        date_range: "iterate dag.timetable instead"
+        create_dagrun: "trigger runs with TriggerDagRunOperator or the REST API"
+        clear: "clear with the REST API or the CLI"
+        get_dagrun: "read runs through the REST API; inside a task use context['dag_run']"
+        get_last_dagrun: "read runs through the REST API"
+        get_task_instances: "read task instances through the REST API"
+
   - id: airflow3-context-keys
     description: >-
       Airflow 3 removed 14 task-context keys (execution_date, yesterday_ds, ...).
