@@ -13,6 +13,7 @@ dependencies = [
     "packaging>=23",
     "anthropic>=0.40",
     "ruff>=0.13.1",  # AIR3 rules for the Airflow ruleset (Airflow's upgrade guide asks for >= 0.13.1)
+    "tomli>=1.1; python_version < '3.11'",  # tomllib before 3.11: reading a repo's dev dependencies
 ]
 
 [project.optional-dependencies]

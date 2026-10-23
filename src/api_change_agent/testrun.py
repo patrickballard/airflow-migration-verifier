@@ -135,7 +135,7 @@ def _dev_dependencies(pyproject: Path) -> tuple[list[str], list[str], list[str]]
     try:
         import tomllib
     except ImportError:  # Python 3.10
-        return [], [], []
+        import tomli as tomllib
     try:
         data = tomllib.loads(pyproject.read_text(errors="replace"))
     except tomllib.TOMLDecodeError:
