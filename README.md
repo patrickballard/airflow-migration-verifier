@@ -1,118 +1,117 @@
 # api-change-agent
 
-A Docker GitHub Action that migrates deprecated **openai Python SDK** usage and
-opens a PR with a `file:line | before → after | changelog` table. It never
-pushes to `main`/`master`, the default branch, or the PR base.
+**Airflow 3 silently changes the date your cron DAGs process.**
 
-Rules live in [`rules/openai.yaml`](rules/openai.yaml) (default) and [`rules/airflow.yaml`](rules/airflow.yaml). Each rule has a match
-pattern, a fix type (`deterministic` or `llm`), a min SDK version and a
-changelog URL:
+Take an `@daily` DAG whose task runs `process {{ ds }}`, and the run that fires at 2024-05-02 00:00 UTC:
 
-| Rule | Fix | Min openai | What it does |
-|---|---|---|---|
-| `beta-chat-completions-to-ga` | deterministic (libcst) | 1.92.0 | `client.beta.chat.completions.{parse,stream}` → `client.chat.completions.{parse,stream}` |
-| `functions-to-tools` | llm (Claude) | 1.1.0 | `functions=`/`function_call=` → `tools=`/`tool_choice=`, plus the response handling |
-| `declare-httpx` | deterministic | (no bump) | openai 3.0 stopped installing `httpx`: if any `.py` file imports `httpx`, the openai pin allows `>=3.0.0` (after this run's bumps), and `httpx` isn't declared, add `httpx>=0.23.0,<1` next to the openai pin, in that file's format |
+| | Default timetable | The task runs |
+|---|---|---|
+| Airflow 2.11.2 | `CronDataIntervalTimetable` | `process 2024-05-01` |
+| Airflow 3.3.2 | `CronTriggerTimetable` | `process 2024-05-02` |
 
-If the repo pins openai below a rule's minimum, the pin is raised in the same
-PR. Supported files: `requirements*.txt`/`.in`, PEP 621 and Poetry
-`pyproject.toml`, `setup.cfg`, `setup.py`. A pin whose upper bound excludes
-the minimum (`openai<1.80`) skips that rule and the PR says so. Lock files are
-flagged, not rewritten.
+There is no error and no warning. In Airflow 3 a cron run's logical date is the moment it fires, not the start of the interval it covers. So `{{ ds }}`, `logical_date` and every partition path built from them move by one interval. Both rows were rendered on the real versions.
 
-Only `.py` files that import `openai` are scanned, except by `import:` rules (like `declare-httpx`), which look at every `.py` file. Rewrites go through
-**libcst**, so comments and formatting survive.
+api-change-agent is a GitHub Action that migrates Airflow 2 DAGs to Airflow 3 in a pull request. It proves each change by rendering your templates on both versions and comparing them run by run. Whatever it can't prove, it labels as unverified.
 
-## Airflow 2 → 3 (`rules: airflow`)
+## What it does
 
-Built from [`research/target-pick`](research/target-pick/REPORT.md). Airflow 2 reached end of life on
-2026-04-22. A run:
+1. **ruff's AIR3 fixes** (`--select AIR3 --preview`): imports, `schedule_interval`, moved operators. Every change ruff makes is credited in the PR table.
+2. **What ruff misses:**
+   - **Timetable pin.** `schedule="@daily"` becomes `CronDataIntervalTimetable("@daily", timezone=...)`, so runs keep their Airflow 2 dates.
+     - The zone comes from the DAG's `start_date`, then `default_args`, then the repo's `default_timezone` (`airflow.cfg`, `.env`, docker-compose, Helm, Dockerfile).
+     - The PR also names the global alternative, `[scheduler] create_cron_data_intervals = True`.
+   - **`days_ago(N)`** becomes `pendulum.today("UTC").add(days=-N)`. That's the same moment, still computed at parse time. A fixed date would change scheduling and catchup.
+   - **Removed context keys,** in Python (`context["execution_date"]`) and in Jinja (operator strings, `.sql` / `.sh` / `.j2` files). They're rewritten only where Airflow's docs say the replacement is the same value: `execution_date` → `logical_date`, `yesterday_ds` → `macros.ds_add(ds, -1)`, …
+   - **Removed DAG methods** (`following_schedule`, `previous_schedule` and 50 others, checked against both versions) are flagged. A DAG that calls one still imports, then fails when the call runs.
+   - **Judgment sites** (`next_ds`, `prev_ds`, computed schedules) go to Claude when you give it a key, with a hard spend cap. Otherwise they're listed for a human.
+3. **A render check that proves each change.**
+   - Every template field of every affected DAG is rendered with the old code on Airflow 2.11.2 and the new code on 3.3.2.
+   - The two sides are compared for runs paired by the moment they fire: 23:00, 00:00, month and year end, leap day, both DST switches and about 20 ordinary runs.
+   - A rule-based change that renders differently is reverted and listed with the mismatching runs. A Claude patch gets the mismatch as feedback and another try.
+4. **DAG checks.** Each DAG file gets a `DagBag` import and each DAG a `dag.test()`, before and after, on Airflow 3.
+5. **Nothing unproven is presented as done.**
+   - A file that fails on Airflow 3 both before and after gets no unsafe fixes and no Claude patches, and is listed under *Unverified files* with its error.
+   - A cron DAG left unpinned is listed under *Run dates will shift*, with the render mismatch as evidence.
 
-1. **Raises the pin.** `apache-airflow` goes to 3.3.2 first, so the baseline
-   is the old code on Airflow 3.
-2. **Builds the test venv** with Airflow's official constraints file.
-3. **Runs ruff** `--select AIR3 --preview --unsafe-fixes`. This fixes imports,
-   `schedule_interval` and moved operators. Every change ruff makes is
-   credited in the PR table ("fixed by ruff AIR301: …"), and whatever it
-   can't fix is listed for a human.
-4. **Applies our rules** for what ruff leaves: the 14 task-context keys
-   Airflow 3 removed, in Python (`context["execution_date"]`,
-   `kwargs.get(...)`, `get_current_context()`) and in Jinja (operator
-   strings, `.sql`, `.sh`, `.hql`, `.j2` files).
-   - **Rewritten:** only keys Airflow's own docs call the *same* value:
-     `execution_date` → `logical_date`, `yesterday_ds` / `tomorrow_ds`
-     (with `_nodash`) → `macros.ds_add(...)`, `dag_run.execution_date`, and
-     `triggering_dataset_events`.
-   - **Needs judgment** (Claude, or manual without a key): timetable-dependent
-     keys (`next_ds`, `prev_*`, `next_execution_date`, `conf`), a context
-     passed around indirectly, or a callable taking `execution_date` as a
-     parameter.
-5. **Verifies.** For every DAG file it does a `DagBag` import and runs
-   `dag.test()`, before and after, on Airflow 3. The PR shows a per-DAG table
-   (`❌ not reached: file failed to import` → `✅`). A check that only became
-   reachable because an import was fixed doesn't count as a regression.
+## Proof: 10 public repos
+
+These were dry runs on cloned repos. Nothing was pushed to them.
+- [mozilla/telemetry-airflow](https://github.com/mozilla/telemetry-airflow)
+- the *Data Pipelines with Apache Airflow* book code
+- 8 others
+
+[research/airflow-real-world/SCORECARD.md](research/airflow-real-world/SCORECARD.md) has the per-repo table, the diffs' verdicts and the scripts.
+
+- **161 DAGs** load on Airflow 2.11.2 and fail to import on Airflow 3.3.2 as written.
+- After the agent, **150 of them import on Airflow 3**. Two of those call `DAG.following_schedule`, which Airflow 3 removed; the agent flags them as manual.
+- **56** of the DAGs that import afterwards have template fields. **55 render identically** to Airflow 2 on every sampled run. The 56th still uses `prev_ds`, which has no exact equivalent, so the agent leaves it for a human instead of guessing.
+- **Headline: 144 of 161 (89%)** import, render identically and call no removed method. Rule-based fixes alone reach 143; Claude added one, for $0.60.
+- **Diffs reviewed by hand:** no wrong change in any verified file. One wrong ruff fix keeps `mysql_conn_id=` when it swaps `MySqlOperator` for `SQLExecuteQueryOperator`. It sits in a file that fails on Airflow 3 before and after, and the PR labels it unverified.
+
+## Quickstart
+
+In your repo, add `.github/workflows/airflow-3.yml`:
 
 ```yaml
-- uses: patrickballard/api-change-agent@main
-  with:
-    rules: airflow
-    anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}   # optional: judgment sites
+name: airflow-3-migration
+on: workflow_dispatch
+
+permissions:
+  contents: write        # push the bot branch (never your default branch)
+  pull-requests: write   # open / update the PR
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: patrickballard/api-change-agent@v1
+        with:
+          rules: airflow
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}   # optional: judgment sites
+          max-llm-usd: "1"                                      # hard cap on Claude spend
+          # dry-run: "true"                                     # report in the step summary only
 ```
 
-Locally: `python -m api_change_agent --repo . --rules airflow --dry-run --output out --install-command auto --venv /tmp/af3`.
+You also need to enable *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests*. The action raises your `apache-airflow` pin to 3.3.2. It builds an Airflow 3 venv with the official constraints, plus an Airflow 2 venv at your original pin for the render check. It pushes `api-change-agent/airflow` and opens the PR.
 
-## Probe result: is the beta path broken?
+To run it locally:
 
-No. On openai **3.36.1** (latest, 2026-10-22),
-`client.beta.chat.completions.parse` / `.stream` work with **no warning**
-(sync and async). `Beta.chat` returns the same `Chat` resource as
-`client.chat`. The GA methods first appear in **1.92.0**: 1.91.0 has only the
-beta path. So Rule 1 is forward-compat cleanup, and the PR text says so.
-`functions=` / `function_call=` are also still accepted; they're deprecated
-in docstrings only. Reproduce with `python scripts/probe_beta_path.py`.
+```bash
+python -m api_change_agent --repo . --rules airflow --dry-run --output out --install-command auto --venv /tmp/af3
+```
 
-## How a run works
+## Limitations
 
-1. Run the repo's tests once as a baseline. They run in their own venv,
-   which `install-command` sets up; secrets are stripped from the test
-   environment.
-2. Apply deterministic rules, bump pins, reinstall, and re-test. A
-   regression reverts the stage.
-3. For each LLM file, Claude returns the full file through a forced tool
-   call. The patch must parse, must leave no flagged site, and must not add
-   **new** test failures compared with the baseline (pytest junit, per test
-   ID). Failures are fed back for another attempt; after
-   `max-llm-attempts` the file is reverted and listed under "Needs manual
-   migration".
-4. Commit as `github-actions[bot]` onto `api-change-agent/openai` and push
-   with an explicit refspec and `--force-with-lease`. Then open the PR, or
-   update the existing one. If the tree is unchanged, nothing is pushed.
+- **Python context reads aren't render-checked.** `context["execution_date"]` → `context["logical_date"]` is the documented equivalent, but only templates are rendered and compared. In Airflow 3 a manually triggered run can have no logical date; the PR lists each such site with a one-line fallback.
+- **Some things are always manual:**
+  - operators removed from their providers (`PostgresOperator`, `SnowflakeOperator`, `SubDagOperator`, …);
+  - `prev_ds` / `next_ds` without a key;
+  - schedules computed at runtime;
+  - removed DAG methods.
+- **Verification is only as good as what it can reach locally.**
+  - A DAG that needs a connection, variable or private package just to import ends up unverified, and nothing in its file is checked.
+  - `dag.test()` failing on connections or credentials, on both versions, isn't treated as a signal.
+- **The render check samples runs; it doesn't cover every run.**
+  - About 30 runs per DAG.
+  - Fields that only resolve inside a running task (XCom) aren't compared.
+  - 91 of the 144 headline DAGs have no template fields, so for them "renders identically" is vacuous. The DagBag import and the pin and `days_ago` proofs carry them.
+- **Naive `start_date`s.** If the repo doesn't set `default_timezone`, pins assume UTC (Airflow's default) and the PR says so loudly.
+- **ruff marks some operator swaps safe that change keyword arguments** (the AMPATH case above). Only the unverified label caught it.
+- **GitHub Actions coverage.** The Airflow path has been exercised locally on the 10 repos above, but not yet run end to end inside GitHub Actions. The OpenAI path has.
 
-Usage: [`examples/workflow.yml`](examples/workflow.yml). `dry-run: true`
-prints the report to the step summary without touching git.
+## Also: OpenAI Python SDK rules
 
-## Limits
+`rules: openai` (the action's default) migrates deprecated `openai` SDK usage the same way. There are three rules:
+- `client.beta.chat.completions.parse/stream` → GA, deterministic;
+- `functions=` → `tools=`, with Claude;
+- declaring `httpx` once openai 3.x stops installing it.
 
-- Aliased chains aren't followed (`c = client.beta.chat.completions; c.parse()`).
-- Files that use a client without importing `openai` are skipped, per the
-  scan rule.
-- LLM patches are only as safe as the repo's tests. If the baseline test run
-  fails without per-test results, the LLM rule is skipped and the PR is
-  marked untested.
-- The branch is cut from the checked-out ref. Run the action on the default
-  branch (`schedule` / `workflow_dispatch`).
-
-## Research
-
-[`research/openai-breaks/`](research/openai-breaks/) has the harness that proved which 1.x → 3.x changes really break: per-version venvs, a mock API server, one snippet per candidate, and the GitHub code-search estimates. See its README.
+Each comes with a pin bump and a test gate. See [`rules/openai.yaml`](rules/openai.yaml), [`research/openai-breaks/`](research/openai-breaks/) and [`research/real-world/SCORECARD.md`](research/real-world/SCORECARD.md).
 
 ## Development
 
 ```bash
 pip install -e '.[test]' && pytest
+ACA_AIRFLOW2_VENV=.../airflow-2 ACA_AIRFLOW3_VENV=.../airflow-3 pytest   # + real-Airflow integration tests
 ```
-
-`tests/fixtures/sample_repo` is a small app with its own pytest suite, a fake
-client and `openai==1.50.0`. The agent's tests run that suite in a
-subprocess, so the test gate is exercised for real. `tests/fixtures/llm`
-holds a good and a bad canned Claude patch.

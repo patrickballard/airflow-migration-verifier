@@ -16,7 +16,7 @@ Five things changed since the previous scorecard:
 **dag.test():** 66 DAGs both run locally on Airflow 2 and import on Airflow 3 after the migration. 58 of them also pass `dag.test()` on Airflow 3. Of the other 8:
 - 4 are BasPH's rocket-launch DAGs, which call a live external API (`KeyError: 'results'`). Not ours.
 - 2 read a removed context key the agent listed as manual: `next_execution_date`, and a callable parameter named `execution_date`. Claude's budget ran out before them.
-- 2 call `DAG.following_schedule`, which Airflow 3 removed. **Neither ruff nor our rules flag it.** Those DAGs import and render identically, so they count in the headline, but they would fail at run time.
+- 2 call `DAG.following_schedule`, which Airflow 3 removed. Nothing flagged it at the time of the run. The agent now does (`a8ff74b`), and those DAGs are excluded from the headline.
 
 `dag.test()` failing on connections or credentials on both versions isn't counted against us.
 
@@ -29,7 +29,7 @@ Five things changed since the previous scorecard:
 | 3 | `prev_ds` / `next_ds` with no exact equivalent | BasPH 2 fields | Claude's patch was rejected; stays manual. |
 | 4 | `days_ago(n, h)` with a positional `hour` | made-ml 1 | Goes to judgment; Claude got it right. A small rule extension. |
 | 5 | Computed schedules (`schedule=export_schedule_interval`) | blockchain-etl 3 | Listed under "Run dates will shift". |
-| 6 | `DAG.following_schedule()` (removed in Airflow 3) isn't detected | BasPH 2 | **Unflagged**: the DAGs import and render, but fail at run time. Needs a rule (judgment: `dag.timetable.next_dagrun_info` or `data_interval_end`). |
+| 6 | `DAG.following_schedule()` (removed in Airflow 3) | BasPH 2 | Now flagged as manual (`a8ff74b`), with the 50 other DAG methods Airflow 3 removed. Their DAGs are excluded from the headline at every stage. |
 
 ## Runs and spend
 

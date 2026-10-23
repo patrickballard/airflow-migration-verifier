@@ -21,8 +21,29 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 BASE = Path.home() / "SDK" / "real-world-airflow"
-RESULTS, SCAN = BASE / "_results", BASE / "_scan"
+RESULTS, SCAN, MIGRATED = BASE / "_results", BASE / "_scan", BASE / "_migrated"
 PIN = "airflow3-cron-timetable-pin"
+
+
+def removed_method_files(name: str) -> dict[str, list[str]]:
+    """DAG files of the migrated tree that call a DAG method Airflow 3 removed (the agent's own check)."""
+    import sys
+    sys.path.insert(0, str(HERE.parents[1] / "src"))
+    from api_change_agent.plugins import PLUGINS
+    from api_change_agent.rules import load_rules
+
+    rule = next(r for r in load_rules(HERE.parents[1] / "rules" / "airflow.yaml").rules
+                if r.id == "airflow3-removed-dag-methods")
+    out = {}
+    root = MIGRATED / name
+    for f in root.rglob("*.py") if root.exists() else ():
+        try:
+            sites = PLUGINS["airflow_removed_dag_methods"].find(f, f.read_text(errors="replace"), rule.options, "llm")
+        except Exception:  # noqa: BLE001 - unparsable file: nothing to report
+            continue
+        if sites:
+            out[f.relative_to(root).as_posix()] = sorted({s.snippet for s in sites})
+    return out
 
 
 def load(path: Path):
@@ -85,6 +106,8 @@ def repo_record(repo: str) -> dict:
     rec["af2_failed_files"] = {i.split("::")[0]: base2["messages"].get(i, "")[:160]
                                for i in base2.get("failures", []) if i.endswith("::import")}
     dags = dags_in(base2)
+    removed = removed_method_files(name)
+    rec["removed_methods"] = removed
     fields: dict[str, list] = {}
     for f in full.get("fields", []):
         fields.setdefault(f"{f['file']}::{f['dag_id']}", []).append(f)
@@ -98,6 +121,7 @@ def repo_record(repo: str) -> dict:
             "render_ok": rendered and not any(f["n_mismatches"] for f in fs),
             "dag_test_af2": key.replace("::", "::dag:", 1) not in base2.get("failures", []),
             "dag_test_after": after is not None and key.replace("::", "::dag:", 1) not in after.get("failures", []),
+            "removed_method": key.split("::")[0] in removed,
         }
     rec["dag_files"] = len(af2_files)
     rec["dags"] = per_dag
@@ -119,16 +143,19 @@ def repo_record(repo: str) -> dict:
     return rec
 
 
-def headline(recs):
+def headline(recs, removed=None):
+    """`removed`: repo -> files calling a removed DAG method (the repos' own code, so it applies to any stage)."""
     tot = fixed = already = still_ok = 0
     for r in recs:
-        for d in (r.get("dags") or {}).values():
+        for key, d in (r.get("dags") or {}).items():
+            if removed is not None:
+                d = dict(d, removed_method=key.split("::")[0] in removed.get(r["repo"], {}))
             if d["before"]:
                 already += 1
-                still_ok += d["after"] and d["render_ok"]
+                still_ok += d["after"] and d["render_ok"] and not d.get("removed_method")
                 continue
             tot += 1
-            fixed += d["after"] and d["render_ok"]
+            fixed += d["after"] and d["render_ok"] and not d.get("removed_method")
     return tot, fixed, already, still_ok
 
 
@@ -141,12 +168,13 @@ def main():
     recs = [repo_record(r) for r in repos]
     verdicts = load(HERE / "verdicts.json") or {}
     (HERE / "scorecard_data.json").write_text(json.dumps(recs, indent=1, default=dict))
-    tot, fixed, already, still_ok = headline(recs)
+    removed = {r["repo"]: r.get("removed_methods") or {} for r in recs}
+    tot, fixed, already, still_ok = headline(recs, removed)
     stages = []  # earlier snapshots of scorecard_data.json, oldest first
     for label, f in (("before this round (previous scorecard)", "scorecard_before.json"),
                      ("deterministic rules only, no Claude", "scorecard_det.json")):
         if (HERE / f).exists():
-            t, x, _, _ = headline(json.loads((HERE / f).read_text()))
+            t, x, _, _ = headline(json.loads((HERE / f).read_text()), removed)
             stages.append(f"- {label}: {x} of {t} ({100 * x / t:.0f}%)" if t else f"- {label}: —")
     done = sum(r["ran"] for r in recs)
     spend = sum(r.get("usd") or 0 for r in recs)
@@ -162,7 +190,7 @@ def main():
         "plus each repo's declared and imported providers. Nothing was pushed and no PRs were opened. "
         "Scripts: `find_candidates.py`, `run_repo.py`, `run_all.py`, `scorecard.py`.", "",
         f"**Headline: {fixed} of {tot} DAGs ({100 * fixed / tot:.0f}%) went from failing on Airflow 3 to importing on "
-        f"Airflow 3 with templates rendering identically to Airflow 2.**" if tot else "**Headline: no DAGs scored yet.**",
+        f"Airflow 3 with templates rendering identically to Airflow 2, and call no DAG method Airflow 3 removed.**" if tot else "**Headline: no DAGs scored yet.**",
         "",
         *(["Same measure at earlier stages:", *stages, ""] if stages else []),
         f"Counted over DAGs that load on Airflow 2.11.2. {already} more already imported on Airflow 3 before the "
@@ -204,6 +232,10 @@ def main():
     for r in recs:
         for f, why in (r.get("af2_failed_files") or {}).items():
             lines.append(f"- `{r['repo']}` `{f}`: {why}")
+    lines += ["", "## Excluded from the headline: DAG files calling a DAG method Airflow 3 removed", ""]
+    for r in recs:
+        for f, uses in (r.get("removed_methods") or {}).items():
+            lines.append(f"- `{r['repo']}` `{f}`: " + ", ".join(f"`{u}`" for u in uses))
     lines += ["", "## Unverified files (fail on Airflow 3 before and after; no unsafe fixes applied)", ""]
     for r in recs:
         for u in r.get("unverified") or []:

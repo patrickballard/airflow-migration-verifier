@@ -2,11 +2,11 @@
 
 10 public repos with Airflow 2 DAGs, cloned locally (`~/SDK/real-world-airflow`, not committed). Each ran `--dry-run` with the render check on: Airflow 2.11.2 vs 3.3.2, Python 3.12, official constraints plus each repo's declared and imported providers. Nothing was pushed and no PRs were opened. Scripts: `find_candidates.py`, `run_repo.py`, `run_all.py`, `scorecard.py`.
 
-**Headline: 146 of 161 DAGs (91%) went from failing on Airflow 3 to importing on Airflow 3 with templates rendering identically to Airflow 2.**
+**Headline: 144 of 161 DAGs (89%) went from failing on Airflow 3 to importing on Airflow 3 with templates rendering identically to Airflow 2, and call no DAG method Airflow 3 removed.**
 
 Same measure at earlier stages:
 - before this round (previous scorecard): 60 of 161 (37%)
-- deterministic rules only, no Claude: 145 of 161 (90%)
+- deterministic rules only, no Claude: 143 of 161 (89%)
 
 Counted over DAGs that load on Airflow 2.11.2. 3 more already imported on Airflow 3 before the migration; 2 of them still import and render identically after it. Claude spend: $0.60 for the runs in this table; $4.70 in all, counting the runs they replaced (see Runs below), within the $5.00 limit.
 
@@ -43,7 +43,7 @@ Five things changed since the previous scorecard:
 **dag.test():** 66 DAGs both run locally on Airflow 2 and import on Airflow 3 after the migration. 58 of them also pass `dag.test()` on Airflow 3. Of the other 8:
 - 4 are BasPH's rocket-launch DAGs, which call a live external API (`KeyError: 'results'`). Not ours.
 - 2 read a removed context key the agent listed as manual: `next_execution_date`, and a callable parameter named `execution_date`. Claude's budget ran out before them.
-- 2 call `DAG.following_schedule`, which Airflow 3 removed. **Neither ruff nor our rules flag it.** Those DAGs import and render identically, so they count in the headline, but they would fail at run time.
+- 2 call `DAG.following_schedule`, which Airflow 3 removed. Nothing flagged it at the time of the run. The agent now does (`a8ff74b`), and those DAGs are excluded from the headline.
 
 `dag.test()` failing on connections or credentials on both versions isn't counted against us.
 
@@ -56,7 +56,7 @@ Five things changed since the previous scorecard:
 | 3 | `prev_ds` / `next_ds` with no exact equivalent | BasPH 2 fields | Claude's patch was rejected; stays manual. |
 | 4 | `days_ago(n, h)` with a positional `hour` | made-ml 1 | Goes to judgment; Claude got it right. A small rule extension. |
 | 5 | Computed schedules (`schedule=export_schedule_interval`) | blockchain-etl 3 | Listed under "Run dates will shift". |
-| 6 | `DAG.following_schedule()` (removed in Airflow 3) isn't detected | BasPH 2 | **Unflagged**: the DAGs import and render, but fail at run time. Needs a rule (judgment: `dag.timetable.next_dagrun_info` or `data_interval_end`). |
+| 6 | `DAG.following_schedule()` (removed in Airflow 3) | BasPH 2 | Now flagged as manual (`a8ff74b`), with the 50 other DAG methods Airflow 3 removed. Their DAGs are excluded from the headline at every stage. |
 
 ## Runs and spend
 
@@ -136,6 +136,13 @@ Five things changed since the previous scorecard:
 - `AMPATH/etl` `airflow/dags/surge_daily.py`: ImportError: Could not import `airflow.providers.mysql.operators.mysql.MySqlOperator` while trying to import `airflow.operators.mysql_operator.MySqlOperator`.
 - `AMPATH/etl` `airflow/dags/sync_hiv_summary_only.py`: ImportError: Could not import `airflow.providers.mysql.operators.mysql.MySqlOperator` while trying to import `airflow.operators.mysql_operator.MySqlOperator`.
 - `AMPATH/etl` `airflow/dags/test_new_etl_scripts.py`: ImportError: Could not import `airflow.providers.mysql.operators.mysql.MySqlOperator` while trying to import `airflow.operators.mysql_operator.MySqlOperator`.
+
+## Excluded from the headline: DAG files calling a DAG method Airflow 3 removed
+
+- `BasPH/data-pipelines-with-apache-airflow` `chapter09/tests/conftest.py`: `dag.clear`
+- `BasPH/data-pipelines-with-apache-airflow` `chapter09/tests/airflowbook/operators/test_movielens_operator.py`: `dag.clear`
+- `BasPH/data-pipelines-with-apache-airflow` `chapter05/dags/06_condition_dag.py`: `context["dag"].following_schedule`
+- `BasPH/data-pipelines-with-apache-airflow` `chapter05/dags/05_condition_task.py`: `context["dag"].following_schedule`
 
 ## Unverified files (fail on Airflow 3 before and after; no unsafe fixes applied)
 

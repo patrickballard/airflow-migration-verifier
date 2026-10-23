@@ -1,5 +1,5 @@
 name: api-change-agent
-description: Find deprecated openai Python SDK usage, fix it (libcst or Claude), run your tests, and open a PR.
+description: Migrate Airflow 2 DAGs to Airflow 3 (or openai SDK usage) in a PR, each change proven by a render check.
 author: api-change-agent
 branding:
   icon: git-pull-request

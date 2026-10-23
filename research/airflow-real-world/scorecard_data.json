@@ -10,6 +10,7 @@
   "af2_failed_files": {
    "dags/monzo_dq_checks.py": "ModuleNotFoundError: No module named 'great_expectations_provider.operators.great_expectations'"
   },
+  "removed_methods": {},
   "dag_files": 5,
   "dags": {
    "dags/monzo_pot_budget_allocation.py::monzo_pot_budget_allocation": {
@@ -19,7 +20,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/monzo_transactions.py::monzo_transactions": {
     "before": false,
@@ -28,7 +30,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/monzo_transactions_history.py::monzo_transactions_history": {
     "before": false,
@@ -37,7 +40,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/monzo_weekly_notification.py::monzo_weekly_notification": {
     "before": false,
@@ -46,7 +50,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    }
   },
   "pins": 3,
@@ -94,6 +99,7 @@
    "dags/merino_jobs.py": "airflow.exceptions.AirflowNotFoundException: The conn_id `merino_elasticsearch_prod` isn't defined",
    "dags/probe_scraper.py": "KeyError: 'Variable glean_dictionary_netlify_build_webhook_id does not exist'"
   },
+  "removed_methods": {},
   "dag_files": 58,
   "dags": {
    "dags/ads_incrementality.py::ads_incrementality": {
@@ -103,7 +109,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/ads_newtab_attribution.py::ads_newtab_attribution": {
     "before": false,
@@ -112,7 +119,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/backfill.py::backfill": {
     "before": false,
@@ -121,7 +129,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/bhr_collection.py::bhr_collection": {
     "before": false,
@@ -130,7 +139,8 @@
     "mismatched_fields": 0,
     "render_ok": false,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "dags/bhr_collection.py::bhr_collection.bhr_collection": {
     "before": false,
@@ -139,7 +149,8 @@
     "mismatched_fields": 0,
     "render_ok": false,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "dags/bhr_collection.py::bhr_collection.bhr_collection_child": {
     "before": false,
@@ -148,7 +159,8 @@
     "mismatched_fields": 0,
     "render_ok": false,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "dags/bqetl_artifact_deployment.py::bqetl_artifact_deployment": {
     "before": false,
@@ -157,7 +169,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/bqetl_artifact_initialize.py::bqetl_artifact_initialize": {
     "before": false,
@@ -166,7 +179,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/bqetl_backfill.py::bqetl_backfill": {
     "before": false,
@@ -175,7 +189,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/bqetl_backfill_complete.py::bqetl_backfill_complete": {
     "before": false,
@@ -184,7 +199,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/bqetl_backfill_initiate.py::bqetl_backfill_initiate": {
     "before": false,
@@ -193,7 +209,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/bqetl_dryrun.py::bqetl_dryrun": {
     "before": false,
@@ -202,7 +219,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/broken_site_report_ml.py::broken_site_report_ml": {
     "before": false,
@@ -211,7 +229,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/bugzilla.py::bugzilla": {
     "before": false,
@@ -220,7 +239,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/catalyst.py::catalyst": {
     "before": false,
@@ -229,7 +249,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/clean_gke_pods.py::clean-gke-pods": {
     "before": false,
@@ -238,7 +259,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/contextual_services_import.py::contextual_services_import": {
     "before": false,
@@ -247,7 +269,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/copy_deduplicate.py::copy_deduplicate": {
     "before": false,
@@ -256,7 +279,8 @@
     "mismatched_fields": 0,
     "render_ok": false,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "dags/crash_symbolication.py::crash_symbolication": {
     "before": false,
@@ -265,7 +289,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/dap_collector.py::dap_collector": {
     "before": false,
@@ -274,7 +299,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/dap_collector_ppa_dev.py::dap_collector_ppa_dev": {
     "before": false,
@@ -283,7 +309,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/dap_collector_ppa_prod.py::dap_collector_ppa_prod": {
     "before": false,
@@ -292,7 +319,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/data_classification.py::data_classification": {
     "before": true,
@@ -301,7 +329,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/eam_gmail_panopto_integration.py::eam-gmail-panopto-integration": {
     "before": false,
@@ -310,7 +339,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/eam_slack_channels.py::eam-slack-channels-integration": {
     "before": false,
@@ -319,7 +349,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/eam_workday_everfi_integration.py::eam-workday-everfi-integration": {
     "before": false,
@@ -328,7 +359,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/eam_workday_netsuite.py::eam-workday-netsuite-integration": {
     "before": false,
@@ -337,7 +369,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/extensions.py::extensions": {
     "before": false,
@@ -346,7 +379,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/firefox_public_data_report.py::firefox_public_data_report": {
     "before": false,
@@ -355,7 +389,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/fivetran_netsuite.py::fivetran_netsuite": {
     "before": false,
@@ -364,7 +399,8 @@
     "mismatched_fields": 0,
     "render_ok": false,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "dags/fxci_metric_export.py::fxci_metric_export": {
     "before": false,
@@ -373,7 +409,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/fxci_pulse_export.py::fxci_pulse_export": {
     "before": false,
@@ -382,7 +419,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/glam_fenix.py::glam_fenix": {
     "before": false,
@@ -391,7 +429,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/glam_fenix_release.py::glam_fenix_release": {
     "before": false,
@@ -400,7 +439,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/glam_fog.py::glam_fog": {
     "before": false,
@@ -409,7 +449,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/glam_fog_release.py::glam_fog_release": {
     "before": false,
@@ -418,7 +459,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/graphics_telemetry.py::graphics_telemetry": {
     "before": false,
@@ -427,7 +469,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/highwind.py::highwind": {
     "before": false,
@@ -436,7 +479,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/jetstream.py::jetstream": {
     "before": false,
@@ -445,7 +489,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/jetstream_rerun.py::jetstream_rerun": {
     "before": false,
@@ -454,7 +499,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/kpi_forecasting.py::kpi_forecasting": {
     "before": false,
@@ -463,7 +509,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/looker_usage_analysis.py::looker_usage_analysis": {
     "before": false,
@@ -472,7 +519,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/microsoft_store.py::microsoft_store": {
     "before": false,
@@ -481,7 +529,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/operational_monitoring.py::operational_monitoring": {
     "before": false,
@@ -490,7 +539,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/play_store_export.py::play_store_export": {
     "before": false,
@@ -499,7 +549,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/search_forecasting.py::search_forecasting": {
     "before": false,
@@ -508,7 +559,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/shredder.py::shredder": {
     "before": true,
@@ -517,7 +569,8 @@
     "mismatched_fields": 0,
     "render_ok": false,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/shredder_backfill.py::shredder_backfill": {
     "before": true,
@@ -526,7 +579,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/update_orphaning_dashboard_etl.py::update_orphaning_dashboard_etl": {
     "before": false,
@@ -535,7 +589,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/web_scraping.py::web_scraping": {
     "before": false,
@@ -544,7 +599,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/webcompat_kb.py::webcompat_kb": {
     "before": false,
@@ -553,7 +609,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    }
   },
   "pins": 46,
@@ -655,6 +712,20 @@
    "chapter17/dags/01_azure_usecase.py": "Reason: tried: '/opt/homebrew/opt/unixodbc/lib/libodbc.2.dylib' (no such file), '/System/Volumes/Preboot/Cryptexes/OS/opt/homebrew/opt/unixodbc/lib/libodbc.2.dy",
    "chapter18/dags/gcp.py": "ImportError: cannot import name 'BigQueryExecuteQueryOperator' from 'airflow.providers.google.cloud.operators.bigquery' (/Users/paddy/SDK/real-world-airflow/.ve"
   },
+  "removed_methods": {
+   "chapter09/tests/conftest.py": [
+    "dag.clear"
+   ],
+   "chapter09/tests/airflowbook/operators/test_movielens_operator.py": [
+    "dag.clear"
+   ],
+   "chapter05/dags/06_condition_dag.py": [
+    "context[\"dag\"].following_schedule"
+   ],
+   "chapter05/dags/05_condition_task.py": [
+    "context[\"dag\"].following_schedule"
+   ]
+  },
   "dag_files": 87,
   "dags": {
    "chapter01/dags/01_umbrella.py::01_umbrella": {
@@ -664,7 +735,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter02/dags/download_rocket_launches.py::download_rocket_launches": {
     "before": false,
@@ -673,7 +745,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter02/dags/listing_2_10.py::listing_2_10": {
     "before": false,
@@ -682,7 +755,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter02/dags/listing_2_2.py::listing_2_02": {
     "before": false,
@@ -691,7 +765,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter02/dags/listing_2_3.py::listing_2_03": {
     "before": false,
@@ -700,7 +775,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter02/dags/listing_2_4.py::listing_2_04": {
     "before": false,
@@ -709,7 +785,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter02/dags/listing_2_6.py::listing_2_06": {
     "before": false,
@@ -718,7 +795,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter03/dags/01_unscheduled.py::01_unscheduled": {
     "before": false,
@@ -727,7 +805,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter03/dags/02_daily_schedule.py::02_daily_schedule": {
     "before": false,
@@ -736,7 +815,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter03/dags/03_with_end_date.py::03_with_end_date": {
     "before": false,
@@ -745,7 +825,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter03/dags/04_time_delta.py::04_time_delta": {
     "before": false,
@@ -754,7 +835,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter03/dags/05_query_with_dates.py::05_query_with_dates": {
     "before": false,
@@ -763,7 +845,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter03/dags/06_templated_query.py::06_templated_query": {
     "before": false,
@@ -772,7 +855,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter03/dags/07_templated_query_ds.py::07_templated_query_ds": {
     "before": false,
@@ -781,7 +865,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter03/dags/08_templated_path.py::08_templated_path": {
     "before": false,
@@ -790,7 +875,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter03/dags/09_no_catchup.py::09_no_catchup": {
     "before": false,
@@ -799,7 +885,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter03/dags/10_non_atomic_send.py::10_non_atomic_send": {
     "before": false,
@@ -808,7 +895,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter03/dags/11_atomic_send.py::11_atomic_send": {
     "before": false,
@@ -817,7 +905,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter04/dags/listing_4_1.py::listing_4_01": {
     "before": false,
@@ -826,7 +915,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter04/dags/listing_4_13.py::listing_4_13": {
     "before": false,
@@ -835,7 +925,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter04/dags/listing_4_15.py::listing_4_15": {
     "before": false,
@@ -844,7 +935,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter04/dags/listing_4_18.py::listing_4_18": {
     "before": false,
@@ -853,7 +945,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter04/dags/listing_4_3.py::listing_4_03": {
     "before": false,
@@ -862,7 +955,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter04/dags/listing_4_5.py::listing_4_05": {
     "before": false,
@@ -871,7 +965,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter04/dags/listing_4_7.py::listing_4_07": {
     "before": false,
@@ -880,7 +975,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter04/dags/listing_4_8.py::listing_4_08": {
     "before": false,
@@ -889,7 +985,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter05/dags/01_start.py::01_start": {
     "before": false,
@@ -898,7 +995,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter05/dags/02_branch_function.py::02_branch_function": {
     "before": false,
@@ -907,7 +1005,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter05/dags/02_branch_task.py::02_branch_function": {
     "before": false,
@@ -916,7 +1015,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter05/dags/03_branch_dag.py::03_branch_dag": {
     "before": false,
@@ -925,7 +1025,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter05/dags/04_branch_dag_join.py::04_branch_dag_join": {
     "before": false,
@@ -934,7 +1035,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter05/dags/05_condition_task.py::05_condition_function": {
     "before": false,
@@ -943,7 +1045,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": true
    },
    "chapter05/dags/06_condition_dag.py::06_condition_dag": {
     "before": false,
@@ -952,7 +1055,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": true
    },
    "chapter05/dags/07_condition_dag_op.py::07_condition_dag_op": {
     "before": false,
@@ -961,7 +1065,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter05/dags/08_trigger_rules.py::08_trigger_rules": {
     "before": false,
@@ -970,7 +1075,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter05/dags/09_xcoms.py::10_xcoms": {
     "before": false,
@@ -979,7 +1085,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter05/dags/10_xcoms_template.py::10_xcoms_template": {
     "before": false,
@@ -988,7 +1095,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter05/dags/11_xcoms_return.py::11_xcoms_return": {
     "before": false,
@@ -997,7 +1105,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter05/dags/12_taskflow.py::12_taskflow": {
     "before": false,
@@ -1006,7 +1115,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter05/dags/13_taskflow_full.py::13_taskflow_full": {
     "before": false,
@@ -1015,7 +1125,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_1.py::figure_6_01": {
     "before": false,
@@ -1024,7 +1135,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_11.py::figure_6_11": {
     "before": false,
@@ -1033,7 +1145,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_12.py::figure_6_12": {
     "before": false,
@@ -1042,7 +1155,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_1_dag_1": {
     "before": false,
@@ -1051,7 +1165,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_1_dag_2": {
     "before": false,
@@ -1060,7 +1175,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_2_dag_1": {
     "before": false,
@@ -1069,7 +1185,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_2_dag_2": {
     "before": false,
@@ -1078,7 +1195,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_2_dag_3": {
     "before": false,
@@ -1087,7 +1205,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_2_dag_4": {
     "before": false,
@@ -1096,7 +1215,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_3_dag_1": {
     "before": false,
@@ -1105,7 +1225,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_3_dag_2": {
     "before": false,
@@ -1114,7 +1235,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_3_dag_3": {
     "before": false,
@@ -1123,7 +1245,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_3_dag_4": {
     "before": false,
@@ -1132,7 +1255,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_19.py::figure_6_19_dag_1": {
     "before": false,
@@ -1141,7 +1265,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_19.py::figure_6_19_dag_2": {
     "before": false,
@@ -1150,7 +1275,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_19.py::figure_6_19_dag_3": {
     "before": false,
@@ -1159,7 +1285,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_19.py::figure_6_19_dag_4": {
     "before": false,
@@ -1168,7 +1295,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_20.py::figure_6_20_dag_1": {
     "before": false,
@@ -1177,7 +1305,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_20.py::figure_6_20_dag_2": {
     "before": false,
@@ -1186,7 +1315,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_5.py::figure_6_05": {
     "before": false,
@@ -1195,7 +1325,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_6.py::figure_6_06": {
     "before": false,
@@ -1204,7 +1335,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_8.py::figure_6_08": {
     "before": false,
@@ -1213,7 +1345,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter06/dags/figure_6_9.py::figure_6_09": {
     "before": false,
@@ -1222,7 +1355,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter06/dags/listing_6_1.py::listing_6_01": {
     "before": false,
@@ -1231,7 +1365,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter06/dags/listing_6_2.py::listing_6_02": {
     "before": false,
@@ -1240,7 +1375,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter06/dags/listing_6_3.py::listing_6_03": {
     "before": false,
@@ -1249,7 +1385,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter06/dags/listing_6_4.py::listing_6_04_dag01": {
     "before": false,
@@ -1258,7 +1395,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter06/dags/listing_6_4.py::listing_6_04_dag02": {
     "before": false,
@@ -1267,7 +1405,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter06/dags/listing_6_8.py::listing_6_08": {
     "before": false,
@@ -1276,7 +1415,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter07/insideairbnb/dags/chapter7_insideairbnb_pythonoperator.py::chapter7_insideairbnb": {
     "before": false,
@@ -1285,7 +1425,8 @@
     "mismatched_fields": 2,
     "render_ok": false,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter08/dags/02_hook.py::02_hook": {
     "before": false,
@@ -1294,7 +1435,8 @@
     "mismatched_fields": 0,
     "render_ok": false,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter08/dags/03_operator.py::03_operator": {
     "before": false,
@@ -1303,7 +1445,8 @@
     "mismatched_fields": 0,
     "render_ok": false,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter08/dags/04_sensor.py::04_sensor": {
     "before": false,
@@ -1312,7 +1455,8 @@
     "mismatched_fields": 0,
     "render_ok": false,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter11/dags/01_task_factory.py::01_task_factory": {
     "before": false,
@@ -1321,7 +1465,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter11/dags/02_dag_factory.py::02_dag_factory_customers": {
     "before": false,
@@ -1330,7 +1475,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter11/dags/02_dag_factory.py::02_dag_factory_sales": {
     "before": false,
@@ -1339,7 +1485,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter11/dags/03_task_groups.py::04_task_groups": {
     "before": false,
@@ -1348,7 +1495,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter11/dags/04_task_groups_umbrella.py::05_task_groups_umbrella": {
     "before": false,
@@ -1357,7 +1505,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter11/dags/05_sla_misses.py::03_sla_misses": {
     "before": false,
@@ -1366,7 +1515,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter12/dags/dag_failure_callback.py::chapter12_dag_failure_callback": {
     "before": false,
@@ -1375,7 +1525,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter12/dags/dag_puller_dag.py::dag_puller_dag": {
     "before": false,
@@ -1384,7 +1535,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter12/dags/task_failure_callback.py::chapter12_task_failure_callback": {
     "before": false,
@@ -1393,7 +1545,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter12/dags/task_failure_email.py::chapter12_task_failure_email": {
     "before": false,
@@ -1402,7 +1555,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "chapter12/dags/task_sla.py::chapter12_task_sla": {
     "before": false,
@@ -1411,7 +1565,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter13/ldap/dags/hello_airflow.py::hello_airflow": {
     "before": false,
@@ -1420,7 +1575,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter13/rbac/dags/hello_airflow.py::hello_airflow": {
     "before": false,
@@ -1429,7 +1585,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "chapter13/webserver_theme/dags/hello_airflow.py::hello_airflow": {
     "before": false,
@@ -1438,7 +1595,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    }
   },
   "pins": 77,
@@ -1563,6 +1721,7 @@
    "dags/sports_ingestion_backup.py": "ImportError: cannot import name 'NoBrokersAvailable' from 'kafka.errors' (/Users/paddy/SDK/real-world-airflow/.venvs/sanchitvj__sports_betting_analytics_engine-",
    "dags/sports_ingestion_dqc.py": "ImportError: cannot import name 'NoBrokersAvailable' from 'kafka.errors' (/Users/paddy/SDK/real-world-airflow/.venvs/sanchitvj__sports_betting_analytics_engine-"
   },
+  "removed_methods": {},
   "dag_files": 8,
   "dags": {
    "dags/parent_controller.py::sports_betting_pipeline": {
@@ -1572,7 +1731,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    }
   },
   "pins": 3,
@@ -1646,6 +1806,7 @@
    "dags/covidNyInitial.py": "airflow.exceptions.AirflowNotFoundException: The conn_id `postgres_new` isn't defined",
    "dags/test_minio_local.py": "ImportError: Could not import `airflow.providers.amazon.aws.hooks.s3.S3Hook` while trying to import `airflow.hooks.S3_hook.S3Hook`."
   },
+  "removed_methods": {},
   "dag_files": 6,
   "dags": {
    "dags/TD_create_table.py::TEST_TD_OPERATOR": {
@@ -1655,7 +1816,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/testBackfill.py::TEST_BACKFILL_DAG": {
     "before": false,
@@ -1664,7 +1826,8 @@
     "mismatched_fields": 0,
     "render_ok": false,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "dags/test_postgres.py::PostgreOperatorTest_Dag": {
     "before": false,
@@ -1673,7 +1836,8 @@
     "mismatched_fields": 0,
     "render_ok": false,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    }
   },
   "pins": 0,
@@ -1753,6 +1917,7 @@
    "dags/snowflake_examples/taxi_snowflake.py": "ImportError: cannot import name 'SnowflakeOperator' from 'airflow.providers.snowflake.operators.snowflake' (/Users/paddy/SDK/real-world-airflow/.venvs/astronome",
    "dags/sql_examples/sql_check_redshift_etl.py": "ModuleNotFoundError: No module named 'airflow.providers.postgres.operators'"
   },
+  "removed_methods": {},
   "dag_files": 19,
   "dags": {
    "dags/redshift_examples/simple_redshift_1.py::simple_redshift_1": {
@@ -1762,7 +1927,8 @@
     "mismatched_fields": 0,
     "render_ok": false,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "dags/sql_examples/sql_check.py::sql_data_quality": {
     "before": false,
@@ -1771,7 +1937,8 @@
     "mismatched_fields": 0,
     "render_ok": false,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    }
   },
   "pins": 0,
@@ -1887,6 +2054,7 @@
    "dags/bitcoinetl/build_load_dag.py": "ImportError: Could not import `airflow.providers.google.cloud.operators.bigquery.BigQueryExecuteQueryOperator` while trying to import `airflow.contrib.operators",
    "dags/bitcoinetl/build_verify_streaming_dag.py": "ImportError: Could not import `airflow.providers.google.cloud.operators.bigquery.BigQueryExecuteQueryOperator` while trying to import `airflow.contrib.operators"
   },
+  "removed_methods": {},
   "dag_files": 4,
   "dags": {
    "dags/liveness_dag.py::liveness_dag": {
@@ -1896,7 +2064,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    }
   },
   "pins": 0,
@@ -1973,6 +2142,7 @@
   "usd": 0.0893,
   "llm_calls": 1,
   "af2_failed_files": {},
+  "removed_methods": {},
   "dag_files": 3,
   "dags": {
    "airflow/dags/satellite_daily_pipeline.py::satellite_daily_pipeline": {
@@ -1982,7 +2152,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "airflow/dags/satellite_monitoring.py::satellite_monitoring": {
     "before": false,
@@ -1991,7 +2162,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "airflow/dags/satellite_weekly_pipeline.py::satellite_weekly_pipeline": {
     "before": false,
@@ -2000,7 +2172,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    }
   },
   "pins": 3,
@@ -2050,6 +2223,7 @@
    "airflow/dags/sync_hiv_summary_only.py": "ImportError: Could not import `airflow.providers.mysql.operators.mysql.MySqlOperator` while trying to import `airflow.operators.mysql_operator.MySqlOperator`.",
    "airflow/dags/test_new_etl_scripts.py": "ImportError: Could not import `airflow.providers.mysql.operators.mysql.MySqlOperator` while trying to import `airflow.operators.mysql_operator.MySqlOperator`."
   },
+  "removed_methods": {},
   "dag_files": 12,
   "dags": {
    "airflow/dags/branch_dag.py::check_dag": {
@@ -2059,7 +2233,8 @@
     "mismatched_fields": 0,
     "render_ok": false,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    }
   },
   "pins": 3,
@@ -2169,6 +2344,7 @@
   "usd": 0.0832,
   "llm_calls": 3,
   "af2_failed_files": {},
+  "removed_methods": {},
   "dag_files": 10,
   "dags": {
    "dags/01_bash_operator.py::01_bash_operator": {
@@ -2178,7 +2354,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/02_python_operator.py::02_python_operator_try_change_name": {
     "before": false,
@@ -2187,7 +2364,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/03_branching.py::03_branching": {
     "before": false,
@@ -2196,7 +2374,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/04_branching_1.py::04_branching": {
     "before": false,
@@ -2205,7 +2384,8 @@
     "mismatched_fields": 0,
     "render_ok": false,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "dags/06_xcom.py::06_xcom": {
     "before": false,
@@ -2214,7 +2394,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "dags/07_templating.py::07_templating": {
     "before": false,
@@ -2223,7 +2404,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/08_sensor.py::08_sensor": {
     "before": false,
@@ -2232,7 +2414,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/09_dag_factory.py::dag_factory_dataset_1": {
     "before": false,
@@ -2241,7 +2424,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "dags/09_dag_factory.py::dag_factory_dataset_2": {
     "before": false,
@@ -2250,7 +2434,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": true,
+    "removed_method": false
    },
    "dags/10_docker.py::10_docker": {
     "before": false,
@@ -2259,7 +2444,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    },
    "dags/11_docker.py::11_docker": {
     "before": false,
@@ -2268,7 +2454,8 @@
     "mismatched_fields": 0,
     "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": false
+    "dag_test_after": false,
+    "removed_method": false
    }
   },
   "pins": 7,
