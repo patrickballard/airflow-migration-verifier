@@ -24,8 +24,11 @@ inputs:
     description: "Run inside the test venv before tests and after pin bumps. 'auto' installs requirements*.txt / the project + pytest."
     default: auto
   venv-dir:
-    description: Where the test venv is created (kept separate from the action's own dependencies).
-    default: /tmp/aca-venv
+    description: >-
+      Where the test venv is created (kept separate from the action's own dependencies). The default is
+      under /github/home, which is $RUNNER_TEMP/_github_home on the runner, so actions/cache can keep it
+      (and the Airflow 2 render venv next to it, aca-venv-airflow2) between runs; see the README.
+    default: /github/home/aca-venv
   branch:
     description: "Bot branch to push (default: api-change-agent/<package>). Pushing to main/master/the default or base branch is refused."
   base-branch:
