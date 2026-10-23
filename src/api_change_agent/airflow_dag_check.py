@@ -86,9 +86,10 @@ def child(file: str, dag_id: str | None) -> None:
 
 
 def python_path(repo: Path, file: Path) -> list[str]:
-    """What a deployment puts on sys.path: the dags folder, plugins/ and (in most images) the repo root."""
+    """What a deployment puts on sys.path: the dags folder, plugins/ (beside it: AIRFLOW_HOME, or at the
+    repo root) and, in most images, the repo root."""
     dags = next((p for p in file.parents if p.name == "dags" and repo in p.parents), file.parent)
-    out = [dags, repo / "plugins", repo]
+    out = [dags, dags.parent / "plugins", repo / "plugins", repo]
     return list(dict.fromkeys(str(p) for p in out if p.is_dir()))
 
 

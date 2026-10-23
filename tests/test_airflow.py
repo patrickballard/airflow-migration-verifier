@@ -278,6 +278,12 @@ def test_python_path_matches_a_deployment(tmp_path):
     repo = deployment_like_repo(tmp_path / "r")
     path = airflow_dag_check.python_path(repo, repo / "dags" / "shared.py")
     assert path[:3] == [str(repo / "dags"), str(repo / "plugins"), str(repo)]
+    # AIRFLOW_HOME in a subfolder: airflow/dags + airflow/plugins
+    home = repo / "airflow"
+    (home / "dags").mkdir(parents=True)
+    (home / "plugins").mkdir()
+    path = airflow_dag_check.python_path(repo, home / "dags" / "x.py")
+    assert path[:2] == [str(home / "dags"), str(home / "plugins")] and str(repo) in path
 
 
 @needs_af2
