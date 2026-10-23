@@ -156,6 +156,28 @@ def test_ruff_changes_are_credited_and_unfixable_ones_left(tmp_path):
     assert "days_ago" in " ".join(d.message for d in res.left)
 
 
+def test_ruff_fixes_drop_the_airflow_imports_they_leave_unused(tmp_path):
+    # regression (real repos, 2026-10-23): ruff rewrote DummyOperator -> EmptyOperator but kept
+    # `from airflow.operators.dummy import DummyOperator`, which fails to import on Airflow 3
+    repo = tmp_path / "repo"
+    (repo / "dags").mkdir(parents=True)
+    (repo / "dags" / "d.py").write_text(code('''
+        import os
+        from airflow.models import Variable
+        from airflow.operators.dummy import DummyOperator
+        from airflow.operators.dummy_operator import DummyOperator as Old
+
+        DummyOperator(task_id="a")
+        Old(task_id="b")
+    '''))
+    res = ruff_layer.run(repo, ["dags/d.py"], RULESET.tools[0])
+    text = (repo / "dags" / "d.py").read_text()
+    assert "airflow.operators.dummy" not in text and text.count("EmptyOperator(") == 2
+    assert "import os\n" in text and "from airflow.models import Variable" in text  # unused before: not ours to remove
+    removed = [c for c in res.changes if "airflow.operators.dummy" in c.before]
+    assert removed and all(c.codes for c in removed)  # credited to the fix that made them unused
+
+
 # --- gate: progress that uncovers the next failure is not a regression -------------
 
 def outcome(ids, failures):
