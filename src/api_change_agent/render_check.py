@@ -50,6 +50,7 @@ class FieldResult:
     mismatches: list[Mismatch] = field(default_factory=list)
     dst: str = ""
     timetable: str = ""  # the migrated DAG's, as Airflow 3's scheduler sees it
+    unpaired: str = ""  # why nothing was compared: no run fires at the same moment on both versions
 
     @property
     def unpinned(self) -> bool:
@@ -119,6 +120,13 @@ def compare(old: dict, new: dict, changed: set, whole_dags: set[str] = frozenset
                     continue  # nothing to render (an unset cwd, env, ...)
                 if of.get("unrenderable") or nf.get("unrenderable"):
                     continue  # e.g. an XComArg: its value only exists while the DAG runs
+                if not pairs:  # say so: an empty comparison must never read as "identical"
+                    why = ("the DAG has no schedule, so there are no runs to sample"
+                           if not odag["runs"] and not ndag["runs"] else
+                           "no run fires at the same moment on both versions")
+                    results.append(FieldResult(ndag["file"], ndag["dag_id"], task_id, name, 0, dst=ndag.get("dst", ""),
+                                               timetable=ndag.get("timetable", ""), unpaired=why))
+                    continue
                 usable = [(r, oi, ni) for r, oi, ni in pairs if _comparable(of["rendered"][oi], nf["rendered"][ni])]
                 if not usable:
                     continue
@@ -134,6 +142,8 @@ def compare(old: dict, new: dict, changed: set, whole_dags: set[str] = frozenset
 
 
 def summary(res: FieldResult) -> str:
+    if res.unpaired or not res.runs:
+        return f"not render-checked: {res.unpaired or 'no run fires at the same moment on both versions'}"
     if res.mismatches:
         m = res.mismatches[0]
         return (f"render mismatch on {len(res.mismatches)} of {res.runs} runs, e.g. the run firing {_when(m.fires)} "

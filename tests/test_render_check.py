@@ -363,3 +363,27 @@ def test_dag_folders_with_same_named_packages_render_in_one_call(tmp_path):
         assert out["errors"] == {}, out["errors"]
         raws = {k: d["tasks"]["t"]["fields"]["bash_command"]["raw"] for k, d in out["dags"].items()}
         assert raws == {"ch1/dags/d.py::ch1": "echo one {{ ds }}", "ch2/dags/d.py::ch2": "echo two {{ ds }}"}
+
+
+def test_dags_whose_runs_never_pair_are_not_counted_as_identical():
+    # real repo (mozilla): Airflow 2 sampled one year, Airflow 3 another, so no run paired and every
+    # field was silently dropped, which read as "identical"
+    old = side("2", [("a", "2024-01-15T23:00:00+00:00")], {"cmd": {"raw": '"x"', "rendered": ["A"]}})
+    new = side("3", [("a", "2020-01-15T23:00:00+00:00")], {"cmd": {"raw": '"x"', "rendered": ["A"]}})
+    (res,) = render_check.compare(old, new, changed=set(), whole_dags={"d.py::d"})
+    assert res.runs == 0 and res.unpaired
+    assert render_check.summary(res).startswith("not render-checked: no run fires at the same moment")
+
+
+@needs_both
+def test_start_date_from_default_args_samples_the_same_runs_on_both_versions(tmp_path):
+    repo = tmp_path / "r"
+    (repo / "dags").mkdir(parents=True)
+    (repo / "dags" / "d.py").write_text(
+        "import datetime\nfrom airflow import DAG\nfrom airflow.operators.bash import BashOperator\n"
+        "with DAG('d', schedule='0 1 * * *', default_args={'start_date': datetime.datetime(2019, 7, 25)}):\n"
+        "    BashOperator(task_id='t', bash_command='echo {{ ds }}')\n")
+    old = render_check.render(Path(AF2) / "bin" / "python", repo, ["dags/d.py"])
+    new = render_check.render(Path(AF3) / "bin" / "python", repo, ["dags/d.py"])
+    fires = [{r["fires"] for r in out["dags"]["dags/d.py::d"]["runs"]} for out in (old, new)]
+    assert fires[0] and fires[0] == fires[1]

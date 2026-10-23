@@ -197,7 +197,10 @@ def render_file(repo: Path, rel: str) -> dict:
     for dag_id, dag in sorted(bag.dags.items()):
         tt = _scheduler_timetable(dag)
         tz = getattr(dag.timezone, "name", None) or str(dag.timezone)
-        start = dag.start_date or dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc)
+        # The same sample years on both versions: Airflow 3 copies default_args' start_date onto the DAG,
+        # Airflow 2 doesn't, but both give it to every task.
+        start = (dag.start_date or min((t.start_date for t in dag.tasks if getattr(t, "start_date", None)), default=None)
+                 or dt.datetime(2024, 1, 1, tzinfo=dt.timezone.utc))
         runs, infos = [], []
         for label, t in targets(tz, start, dag.end_date):
             info = _snap(tt, t)
