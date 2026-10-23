@@ -85,11 +85,24 @@ def child(file: str, dag_id: str | None) -> None:
     print(json.dumps({"ok": state == "success", "error": "" if state == "success" else f"dag run state: {state}"}))
 
 
-def run_child(args: list[str], env: dict[str, str], timeout: int) -> tuple[dict, str]:
+def python_path(repo: Path, file: Path) -> list[str]:
+    """What a deployment puts on sys.path: the dags folder, plugins/ and (in most images) the repo root."""
+    dags = next((p for p in file.parents if p.name == "dags" and repo in p.parents), file.parent)
+    out = [dags, repo / "plugins", repo]
+    return list(dict.fromkeys(str(p) for p in out if p.is_dir()))
+
+
+def run_child(args: list[str], env: dict[str, str], timeout: int, repo: Path | None = None) -> tuple[dict, str]:
     # The DAG's own folder is the dags folder (and, on Airflow 3, the bundle root) for this run.
     env = dict(env, AIRFLOW__CORE__DAGS_FOLDER=str(Path(args[0]).parent))
-    proc = subprocess.run([sys.executable, __file__, "--child", *args], capture_output=True, text=True,
-                          env=env, timeout=timeout)
+    if repo is not None:
+        env["PYTHONPATH"] = os.pathsep.join([*python_path(repo, Path(args[0])), env.get("PYTHONPATH", "")]).rstrip(os.pathsep)
+    try:
+        proc = subprocess.run([sys.executable, __file__, "--child", *args], capture_output=True, text=True,
+                              env=env, timeout=timeout)
+    except subprocess.TimeoutExpired as e:  # one hanging DAG (a sensor, a sleep) must not sink the whole check
+        out = (e.stdout or b"").decode(errors="replace") if isinstance(e.stdout, bytes) else (e.stdout or "")
+        return {"ok": False, "error": f"timed out after {timeout}s"}, out
     output = proc.stdout + proc.stderr
     for line in reversed(proc.stdout.splitlines()):
         if line.startswith("{"):
@@ -133,14 +146,15 @@ def main(argv=None) -> int:
     cases: list[dict] = []
     for f in dag_files(repo):
         rel = f.relative_to(repo).as_posix()
-        res, out = run_child([str(f)], env, a.timeout)
+        res, out = run_child([str(f)], env, a.timeout, repo)
         cases.append({"id": f"{rel}::import", "ok": res["ok"], "error": res.get("error") or first_cause(out, "import failed")})
         if not res["ok"]:
             continue
         for dag_id in res["dags"]:
-            r, out = run_child([str(f), dag_id], env, a.timeout)
+            r, out = run_child([str(f), dag_id], env, a.timeout, repo)
+            why = r.get("error", "")
             cases.append({"id": f"{rel}::dag:{dag_id}", "ok": r["ok"],
-                          "error": "" if r["ok"] else first_cause(out, r.get("error", ""))})
+                          "error": "" if r["ok"] else why if why.startswith("timed out") else first_cause(out, why)})
 
     for c in cases:
         print(f"{'PASS' if c['ok'] else 'FAIL'} {c['id']}" + ("" if c["ok"] else f"  -- {c['error']}"))

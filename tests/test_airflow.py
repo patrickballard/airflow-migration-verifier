@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from api_change_agent import ruff_layer
+from api_change_agent import airflow_dag_check, ruff_layer
 from api_change_agent.agent import Options, run
 from api_change_agent.plugins import PLUGINS
 from api_change_agent.report import _dag_table
@@ -229,6 +229,45 @@ def dag_check(venv, repo):
     out = subprocess.run([str(Path(venv) / "bin" / "python"), "-I", str(CHECK), "--repo", str(repo)],
                          capture_output=True, text=True, env=env, timeout=1800).stdout
     return {line.split()[1]: line.split()[0] for line in out.splitlines() if line.startswith(("PASS", "FAIL"))}
+
+
+def deployment_like_repo(root: Path) -> Path:
+    """Shared code at the repo root and in plugins/, as Airflow images put them on sys.path; one DAG hangs."""
+    (root / "dags").mkdir(parents=True)
+    (root / "utils").mkdir()
+    (root / "utils" / "__init__.py").write_text("")
+    (root / "utils" / "names.py").write_text("OWNER = 'data'\n")
+    (root / "plugins" / "operators").mkdir(parents=True)
+    (root / "plugins" / "operators" / "__init__.py").write_text("")
+    (root / "plugins" / "operators" / "noop.py").write_text("from airflow.operators.empty import EmptyOperator as Noop\n")
+    head = "import datetime\nfrom airflow import DAG\n"
+    (root / "dags" / "shared.py").write_text(
+        head + "from utils.names import OWNER\nfrom operators.noop import Noop\n"
+        "with DAG('shared', schedule=None, start_date=datetime.datetime(2024, 1, 1), default_args={'owner': OWNER}):\n"
+        "    Noop(task_id='t')\n")
+    (root / "dags" / "hangs.py").write_text(
+        head + "from airflow.operators.bash import BashOperator\n"
+        "with DAG('hangs', schedule=None, start_date=datetime.datetime(2024, 1, 1)):\n"
+        "    BashOperator(task_id='t', bash_command='sleep 600')\n")
+    return root
+
+
+def test_python_path_matches_a_deployment(tmp_path):
+    repo = deployment_like_repo(tmp_path / "r")
+    path = airflow_dag_check.python_path(repo, repo / "dags" / "shared.py")
+    assert path[:3] == [str(repo / "dags"), str(repo / "plugins"), str(repo)]
+
+
+@needs_af2
+def test_checker_finds_shared_code_and_survives_a_hanging_dag(tmp_path):
+    repo = deployment_like_repo(tmp_path / "r")
+    env = {k: v for k, v in os.environ.items() if k != "AIRFLOW_HOME"}
+    out = subprocess.run([str(Path(AF2) / "bin" / "python"), "-I", str(CHECK), "--repo", str(repo), "--timeout", "20"],
+                         capture_output=True, text=True, env=env, timeout=600).stdout
+    got = {line.split()[1]: line for line in out.splitlines() if line.startswith(("PASS", "FAIL"))}
+    assert got["dags/shared.py::import"].startswith("PASS") and got["dags/shared.py::dag:shared"].startswith("PASS")
+    assert got["dags/hangs.py::import"].startswith("PASS")
+    assert got["dags/hangs.py::dag:hangs"].startswith("FAIL") and "timed out after 20s" in got["dags/hangs.py::dag:hangs"]
 
 
 @needs_af2

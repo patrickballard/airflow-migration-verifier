@@ -247,10 +247,16 @@ def main(argv=None) -> int:
                 print(db.stderr[-2000:], file=sys.stderr)
                 return 3
         return subprocess.run([sys.executable, __file__, *(argv or sys.argv[1:])], env=env).returncode
+    repo = Path(a.repo).resolve()
+    for rel in reversed(a.files):  # what a deployment puts on sys.path: dags folder, plugins/, repo root
+        f = repo / rel
+        dags = next((p for p in f.parents if p.name == "dags" and repo in p.parents), f.parent)
+        for p in (repo, repo / "plugins", dags):
+            if p.is_dir() and str(p) not in sys.path:
+                sys.path.insert(0, str(p))
     import airflow
 
     result = {"version": airflow.__version__, "dags": {}, "errors": {}}
-    repo = Path(a.repo).resolve()
     for rel in a.files:
         try:
             dags, errors = render_file(repo, rel)
