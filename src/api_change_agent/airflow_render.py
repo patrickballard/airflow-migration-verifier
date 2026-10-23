@@ -240,7 +240,8 @@ def main(argv=None) -> int:
         # Fresh AIRFLOW_HOME (+ SQLite DB on Airflow 2, whose template context reads it), then re-exec.
         home = Path(tempfile.mkdtemp(prefix="aca-render-"))
         env = dict(os.environ, ACA_RENDER_CHILD="1", AIRFLOW_HOME=str(home), AIRFLOW__CORE__LOAD_EXAMPLES="False",
-                   AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=f"sqlite:///{home / 'airflow.db'}", PYTHONWARNINGS="ignore")
+                   AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=f"sqlite:///{home / 'airflow.db'}", PYTHONWARNINGS="ignore",
+                   PYTHONHASHSEED="0")  # sets of str print in the same order on both versions
         if importlib.util.find_spec("airflow.sdk") is None:
             db = subprocess.run([sys.executable, "-m", "airflow", "db", "migrate"], env=env, capture_output=True, text=True)
             if db.returncode:

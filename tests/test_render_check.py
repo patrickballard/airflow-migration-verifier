@@ -96,6 +96,19 @@ def test_renamed_fields_are_compared_across_the_rename():
     assert res.field == "logical_date" and res.mismatches
 
 
+def test_an_unset_trigger_logical_date_is_the_same_on_both_versions():
+    # real repo: TriggerDagRunOperator without execution_date: Airflow 2 stores None, Airflow 3 its
+    # NOTSET sentinel; both trigger the run "now"
+    runs = [("a", "2024-01-15T23:00:00+00:00")]
+    old = side("2", runs, {"execution_date": {"raw": "null", "rendered": ["null"]}})
+    new = side("3", runs, {"logical_date": {"raw": '"NOTSET"', "rendered": ['"NOTSET"']}})
+    (res,) = render_check.compare(old, new, changed=set(), whole_dags={"d.py::d"})
+    assert res.mismatches == []
+    other = side("3", runs, {"logical_date": {"raw": '"x"', "rendered": ['"NOTSET"']}})
+    old2 = side("2", runs, {"execution_date": {"raw": '"x"', "rendered": ['"2024-01-15"']}})
+    assert render_check.compare(old2, other, changed=set(), whole_dags={"d.py::d"})[0].mismatches  # only for unset
+
+
 def test_mismatch_names_the_sample_not_the_fire_time():
     runs = [("23:00", "2024-01-16T09:00:00+00:00")]
     old = side("2", runs, {"cmd": {"raw": '"x"', "rendered": ["A"]}})
@@ -308,3 +321,22 @@ def test_agent_retries_claude_with_the_mismatch(tmp_path):
     assert RUN1 in (repo / "dags" / "partitions.py").read_text()
     row = next(r for r in result.rows if r.rule_id == "airflow3-template-judgment")
     assert "render-checked: identical across" in row.note
+
+
+@needs_both
+def test_sets_render_in_the_same_order_on_both_versions(tmp_path):
+    # real repo: op_kwargs={"pagenames": {"Microsoft", "Apple", ...}} printed in a per-process order
+    repo = tmp_path / "r"
+    (repo / "dags").mkdir(parents=True)
+    (repo / "dags" / "s.py").write_text(
+        "import datetime\nfrom airflow import DAG\nfrom airflow.operators.python import PythonOperator\n"
+        "with DAG('s', schedule=None, start_date=datetime.datetime(2024, 1, 1)):\n"
+        "    PythonOperator(task_id='t', python_callable=print,\n"
+        "                   op_kwargs={'names': {'Microsoft', 'Apple', 'Google', 'Facebook', 'Amazon', 'Netflix'}})\n")
+    old = render_check.render(Path(AF2) / "bin" / "python", repo, ["dags/s.py"])
+    new = render_check.render(Path(AF3) / "bin" / "python", repo, ["dags/s.py"])
+    for _ in range(2):  # a second render must agree too
+        assert render_check.render(Path(AF2) / "bin" / "python", repo, ["dags/s.py"])["dags"] == old["dags"]
+    old_kw = old["dags"]["dags/s.py::s"]["tasks"]["t"]["fields"]["op_kwargs"]["raw"]
+    new_kw = new["dags"]["dags/s.py::s"]["tasks"]["t"]["fields"]["op_kwargs"]["raw"]
+    assert old_kw == new_kw

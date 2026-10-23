@@ -20,6 +20,7 @@ SCRIPT = Path(__file__).with_name("airflow_render.py")
 EMPTY = {"null", "", "[]", "{}"}
 TRIGGER = {"CronTriggerTimetable", "DeltaTriggerTimetable"}  # Airflow 3's defaults for cron / timedelta
 RENAMED = {"logical_date": "execution_date"}  # new field -> Airflow 2 name (TriggerDagRunOperator)
+UNSET_SAME = {"logical_date": ("null", '"NOTSET"')}  # unset on Airflow 2 (None) and 3 (NOTSET): both mean "now"
 NEEDS_RUNNER = ("SUPERVISOR_COMMS",)  # Airflow 3 resolves XCom/Variables/Connections through the task runner
 
 
@@ -125,7 +126,8 @@ def compare(old: dict, new: dict, changed: set, whole_dags: set[str] = frozenset
                                   [r["label"] for r, _, _ in usable], dst=ndag.get("dst", ""),
                                   timetable=ndag.get("timetable", ""))
                 for run, oi, ni in usable:
-                    if of["rendered"][oi] != nf["rendered"][ni]:
+                    o, n = of["rendered"][oi], nf["rendered"][ni]
+                    if o != n and UNSET_SAME.get(name) != (o, n):
                         res.mismatches.append(Mismatch(run["label"], run["fires"], of["rendered"][oi], nf["rendered"][ni]))
                 results.append(res)
     return results
