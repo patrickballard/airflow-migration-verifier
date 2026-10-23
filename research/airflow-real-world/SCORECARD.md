@@ -2,26 +2,27 @@
 
 10 public repos with Airflow 2 DAGs, cloned locally (`~/SDK/real-world-airflow`, not committed). Each ran `--dry-run` with the render check on: Airflow 2.11.2 vs 3.3.2, Python 3.12, official constraints plus each repo's declared and imported providers. Nothing was pushed and no PRs were opened. Scripts: `find_candidates.py`, `run_repo.py`, `run_all.py`, `scorecard.py`.
 
-**Headline: 144 of 161 DAGs (89%) went from failing on Airflow 3 to importing on Airflow 3 with templates rendering identically to Airflow 2, and call no DAG method Airflow 3 removed.**
+**Headline: 121 of 161 DAGs (75%) went from failing on Airflow 3 to importing on Airflow 3 with templates rendering identically to Airflow 2, and call no DAG method Airflow 3 removed.**
 
 Same measure at earlier stages:
-- before this round (previous scorecard): 60 of 161 (37%)
-- deterministic rules only, no Claude: 143 of 161 (89%)
+- earlier scorecards, measured with the render check before 2bffb77 / 7f0c8c3 (it counted unscheduled and unpaired DAGs as identical): first round: 60 of 161 (37%)
+- same old measurement, after the 2026-10-23 gap fixes: 144 of 161 (89%)
+- the same migrated trees re-measured with the fixed render check, before fixing gap categories 1, 3 and 5: 118 of 161 (73%)
 
-Counted over DAGs that load on Airflow 2.11.2. 3 more already imported on Airflow 3 before the migration; 2 of them still import and render identically after it. Claude spend: $0.60 for the runs in this table; $4.70 in all, counting the runs they replaced (see Runs below), within the $5.00 limit.
+Counted over DAGs that load on Airflow 2.11.2. 3 more already imported on Airflow 3 before the migration; 0 of them still import and render identically after it. Claude spend: $0.60 for the runs in this table; $4.70 in all, counting the runs they replaced (see Runs below), within the $5.00 limit.
 
 | Repo | DAGs | AF3 import before → after | Pins | Render check | Unpinned / unverified | Manual items | Time | Claude | Verdict |
 |---|---|---|---|---|---|---|---|---|---|
-| [eliasbenaddou/personal_finance_de_project](https://github.com/eliasbenaddou/personal_finance_de_project/tree/e34718b) | 4 (+1 files excluded) | 0/4 → 4/4 | 3 | 4/4 DAGs identical (4 fields) | 0 / 1 | 1: ruff AIR311: unsafe fix withheld (unverified file) ×1 | 1m31s | $0.00 | **clean** pins proven identical; TriggerDagRun execution_date -> logical_date render-checked; UTC assumption flagged |
-| [mozilla/telemetry-airflow](https://github.com/mozilla/telemetry-airflow/tree/cf609dd) | 51 (+5 files excluded) | 3/51 → 46/51 | 46 + 2 by Claude | 45/46 DAGs identical (708 fields) | 0 / 8 | 66: ruff AIR312: unsafe fix withheld (unverified file) ×21; ruff AIR311: unsafe fix withheld (unverified file) ×16; ruff AIR321: unsafe fix withheld (unverified file) ×13; ruff AIR301: no automatic fix ×7 | 24m43s | $0.09 | **clean** default_args start dates now pin (46 pins, 2 by Claude); 45/46 identical, shredder didn't render on one side; SubDagOperator etc. manual |
-| [BasPH/data-pipelines-with-apache-airflow](https://github.com/BasPH/data-pipelines-with-apache-airflow/tree/d5b18a7) | 87 (+15 files excluded) | 0/87 → 87/87 | 77 + 3 by Claude | 83/87 DAGs identical (113 fields, 2 mismatched) | 0 / 15 | 61: needs Claude (budget) ×20; ruff AIR311: unsafe fix withheld (unverified file) ×15; ruff AIR312: unsafe fix withheld (unverified file) ×14; judgment, not attempted (unverified file) ×5 | 97m04s | $0.18 | **needs tweak** 152 days_ago rewrites + 77 pins, 87/87 import; but 2 DAGs call the removed DAG.following_schedule, which nothing flags |
+| [eliasbenaddou/personal_finance_de_project](https://github.com/eliasbenaddou/personal_finance_de_project/tree/e34718b) | 4 (+1 files excluded) | 0/4 → 4/4 | 3 | 3/4 DAGs identical (8 fields) | 0 / 1 | 1: ruff AIR311: unsafe fix withheld (unverified file) ×1 | 1m31s | $0.00 | **clean** pins proven identical; TriggerDagRun execution_date -> logical_date render-checked; UTC assumption flagged |
+| [mozilla/telemetry-airflow](https://github.com/mozilla/telemetry-airflow/tree/cf609dd) | 51 (+5 files excluded) | 3/51 → 48/51 | 46 + 2 by Claude | 38/48 DAGs identical (3505 fields, 12 mismatched) | 0 / 8 | 66: ruff AIR312: unsafe fix withheld (unverified file) ×21; ruff AIR311: unsafe fix withheld (unverified file) ×16; ruff AIR321: unsafe fix withheld (unverified file) ×13; ruff AIR301: no automatic fix ×7 | 24m43s | $0.09 | **clean** default_args start dates now pin (46 pins, 2 by Claude); 45/46 identical, shredder didn't render on one side; SubDagOperator etc. manual |
+| [BasPH/data-pipelines-with-apache-airflow](https://github.com/BasPH/data-pipelines-with-apache-airflow/tree/d5b18a7) | 87 (+15 files excluded) | 0/87 → 87/87 | 77 + 3 by Claude | 66/87 DAGs identical (162 fields, 2 mismatched) | 0 / 15 | 61: needs Claude (budget) ×20; ruff AIR311: unsafe fix withheld (unverified file) ×15; ruff AIR312: unsafe fix withheld (unverified file) ×14; judgment, not attempted (unverified file) ×5 | 97m04s | $0.18 | **needs tweak** 152 days_ago rewrites + 77 pins, 87/87 import; but 2 DAGs call the removed DAG.following_schedule, which nothing flags |
 | [sanchitvj/sports_betting_analytics_engine](https://github.com/sanchitvj/sports_betting_analytics_engine/tree/855a744) | 1 (+7 files excluded) | 0/1 → 1/1 | 3 | 1/1 DAGs identical (20 fields) | 0 / 7 | 50: ruff AIR312: unsafe fix withheld (unverified file) ×23; ruff AIR311: unsafe fix withheld (unverified file) ×10; ruff AIR301: no automatic fix ×10; ruff AIR321: unsafe fix withheld (unverified file) ×7 | 1m00s | $0.00 | **clean** 20 fields identical incl. 5 TriggerDagRun execution_date -> logical_date |
 | [anilkulkarni87/airflow-docker](https://github.com/anilkulkarni87/airflow-docker/tree/8b87bef) | 3 (+3 files excluded) | 0/3 → 1/3 | 0 | 1/1 DAGs identical (0 fields) | 0 / 5 | 12: ruff AIR311: unsafe fix withheld (unverified file) ×6; ruff AIR302: unsafe fix withheld (unverified file) ×2; ruff AIR301: unsafe fix withheld (unverified file) ×1; ruff AIR321: unsafe fix withheld (unverified file) ×1 | 2m10s | $0.00 | **clean** partial: the other 2 DAGs use PostgresOperator, removed from the provider |
-| [astronomer/airflow-data-quality-demo](https://github.com/astronomer/airflow-data-quality-demo/tree/8847b1c) | 2 (+16 files excluded) | 0/2 → 0/2 | 0 | 0/0 DAGs identical (0 fields) | 0 / 18 | 91: ruff AIR311: unsafe fix withheld (unverified file) ×53; ruff AIR312: unsafe fix withheld (unverified file) ×13; ruff AIR321: unsafe fix withheld (unverified file) ×12; ruff AIR302: unsafe fix withheld (unverified file) ×12 | 2m13s | $0.00 | **clean** neither DAG imports (removed provider operators); every such file now listed as unverified, nothing presented as done |
-| [blockchain-etl/bitcoin-etl-airflow](https://github.com/blockchain-etl/bitcoin-etl-airflow/tree/72a88b0) | 1 (+2 files excluded) | 0/1 → 1/1 | 0 + 1 by Claude | 1/1 DAGs identical (0 fields) | 3 / 3 | 17: ruff AIR301: no automatic fix ×6; ruff AIR302: unsafe fix withheld (unverified file) ×4; ruff AIR311: unsafe fix withheld (unverified file) ×3; judgment, not attempted (unverified file) ×3 | 1m51s | $0.11 | **clean** 1/1 imports; 3 computed schedules in build_export_dag now flagged under Run dates will shift |
+| [astronomer/airflow-data-quality-demo](https://github.com/astronomer/airflow-data-quality-demo/tree/8847b1c) | 2 (+16 files excluded) | 0/2 → 2/2 | 0 | 0/2 DAGs identical (33 fields) | 0 / 18 | 91: ruff AIR311: unsafe fix withheld (unverified file) ×53; ruff AIR312: unsafe fix withheld (unverified file) ×13; ruff AIR321: unsafe fix withheld (unverified file) ×12; ruff AIR302: unsafe fix withheld (unverified file) ×12 | 2m13s | $0.00 | **clean** neither DAG imports (removed provider operators); every such file now listed as unverified, nothing presented as done |
+| [blockchain-etl/bitcoin-etl-airflow](https://github.com/blockchain-etl/bitcoin-etl-airflow/tree/72a88b0) | 1 (+2 files excluded) | 0/1 → 1/1 | 0 + 1 by Claude | 1/1 DAGs identical (1 fields) | 3 / 3 | 17: ruff AIR301: no automatic fix ×6; ruff AIR302: unsafe fix withheld (unverified file) ×4; ruff AIR311: unsafe fix withheld (unverified file) ×3; judgment, not attempted (unverified file) ×3 | 1m51s | $0.11 | **clean** 1/1 imports; 3 computed schedules in build_export_dag now flagged under Run dates will shift |
 | [DaliGuerfali/big-data](https://github.com/DaliGuerfali/big-data/tree/df84c1f) | 3 | 0/3 → 3/3 | 3 | 3/3 DAGs identical (8 fields) | 0 / 0 | 3: needs Claude (budget) ×3 | 3m09s | $0.09 | **clean** 3/3 import, 8 fields identical; Claude judged the 3 context sites false positives and left them |
 | [AMPATH/etl](https://github.com/AMPATH/etl/tree/f932b01) | 1 (+11 files excluded) | 0/1 → 0/1 | 3 | 0/0 DAGs identical (0 fields) | 3 / 12 | 46: ruff AIR302: unsafe fix withheld (unverified file) ×27; ruff AIR311: unsafe fix withheld (unverified file) ×12; ruff AIR301: no automatic fix ×4; judgment, not attempted (unverified file) ×3 | 1m43s | $0.04 | **needs tweak** ruff's MySqlOperator -> SQLExecuteQueryOperator swap (ruff marks it safe) still keeps mysql_conn_id=, but the file is now labeled unverified with its error |
-| [made-ml-in-prod-2021/airflow-examples](https://github.com/made-ml-in-prod-2021/airflow-examples/tree/96aaf7b) | 11 | 0/11 → 10/11 | 7 + 2 by Claude | 10/10 DAGs identical (13 fields) | 0 / 1 | 5: needs Claude (budget) ×2; ruff AIR311: unsafe fix withheld (unverified file) ×1; ruff AIR302: unsafe fix withheld (unverified file) ×1; ruff AIR301: no automatic fix ×1 | 19m52s | $0.08 | **clean** 10/11 import, all identical; Claude handled days_ago(0, 2) (positional hour) correctly |
+| [made-ml-in-prod-2021/airflow-examples](https://github.com/made-ml-in-prod-2021/airflow-examples/tree/96aaf7b) | 11 | 0/11 → 11/11 | 7 + 2 by Claude | 10/11 DAGs identical (20 fields) | 0 / 1 | 5: needs Claude (budget) ×2; ruff AIR311: unsafe fix withheld (unverified file) ×1; ruff AIR302: unsafe fix withheld (unverified file) ×1; ruff AIR301: no automatic fix ×1 | 19m52s | $0.08 | **clean** 10/11 import, all identical; Claude handled days_ago(0, 2) (positional hour) correctly |
 
 Pins: cron/delta schedules pinned to Airflow 2's timetable, deterministic + by Claude. Render check: DAGs that import after the migration, every template field compared. Time is wall-clock for the whole repo (venvs, Airflow 2 baseline, agent, full render); Claude is that repo's spend.
 
@@ -90,6 +91,37 @@ Ranked by DAG count. "Mechanical" means a value-preserving rewrite, or a tool fi
 | 8 | Harness: `pytz` missing from the Airflow 3 venv (installed transitively on 2.x, never declared) | 1 | AMPATH `branch_dag.py` | Not an agent gap. The repo should declare `pytz` |
 
 10 of the 17 are mechanically fixable (#1, #3, #4, #5). 6 need judgment or a refactor (#2, #6, #7), and 1 is a harness or dependency issue (#8).
+
+## Gap categories 1, 3 and 5 fixed (2026-10-24), and a measurement correction
+
+**Fixes, each in its own commit with tests:**
+- `2bffb77`: render folder by folder (category 3).
+- `cbd9e19`: `airflow.utils.dates` re-exports and `provide_context` (category 1).
+- `bc1f2ae`: `task_concurrency` and `ExternalTaskMarker(execution_date=)` (category 5).
+
+**Re-checks:** only from the saved trees.
+- `recheck_files.py` runs the fixed agent on a mini copy of the saved original clone that holds just the affected DAG files.
+- `run_repo.py --steps render` redoes the full render comparison of saved original vs saved migrated for all 10 repos.
+- No repo was rerun, and Claude spend was $0.
+
+**Two more bugs, found by these re-checks and fixed in separate commits:**
+- `7f0c8c3`: for DAGs whose `start_date` is only in `default_args`, the two versions sampled different years. No run paired, and the DAG read as "identical" with nothing compared. In mozilla, compared fields go from 708 to 3,095 with the fix. A field whose runs don't pair, or whose DAG has no schedule, is now "not render-checked".
+- `4f79b07`: a template built by concatenation (`"{{ execution_date.replace(" + h + ")... }}"`) kept `execution_date` after the kwarg rename. It would have failed at run time.
+
+**The headline is lower, and now right:**
+- 144 was measured with the flawed render check.
+- The same agent output, re-measured correctly: **118**.
+- After the three fixes: **121 of 161 (75%)**.
+
+The drop comes from 28 DAGs with `schedule=None`: they have template fields but no scheduled runs to compare, so they are no longer counted as identical. The fixed check also found 1 real break the old one hid: mozilla's `update_orphaning_dashboard_etl` uses `{{ dag_run.external_trigger }}`, which Airflow 3's DagRun doesn't have. That's judgment, since `run_type == "manual"` is close but not the same.
+
+| | Before the fixes (corrected measurement) | After |
+|---|---|---|
+| Import on Airflow 3 (of 161) | 150 | 155 |
+| …and call no removed DAG method | 148 | 153 |
+| Have template fields | | 105: 75 render-checked (73 identical, 2 real breaks), 30 unscheduled (not render-checked) |
+| No template fields | | 48 |
+| **Headline** | **118** | **121** |
 
 ## Excluded: DAG files that don't load on Airflow 2.11.2
 
@@ -236,5 +268,13 @@ Ranked by DAG count. "Mechanical" means a value-preserving rewrite, or a tool fi
 
 ## Render mismatches (full comparison)
 
+- `mozilla/telemetry-airflow` update_orphaning_dashboard_etl.update_orphaning_dashboard_etl.namespace: render mismatch on 19 of 19 runs, e.g. the run firing 2020-01-27 02:00 UTC (from the 23:00 sample): Airflow 2 rendered 'default', the new template renders "RENDER ERROR UndefinedError: 'airflow.sdk.api.datamodels._generated.Dag
+- `mozilla/telemetry-airflow` update_orphaning_dashboard_etl.update_orphaning_dashboard_etl.location: render mismatch on 19 of 19 runs, e.g. the run firing 2020-01-27 02:00 UTC (from the 23:00 sample): Airflow 2 rendered 'us-west1', the new template renders "RENDER ERROR UndefinedError: 'airflow.sdk.api.datamodels._generated.Dag
+- `mozilla/telemetry-airflow` update_orphaning_dashboard_etl.update_orphaning_dashboard_etl.use_dns_endpoint: render mismatch on 19 of 19 runs, e.g. the run firing 2020-01-27 02:00 UTC (from the 23:00 sample): Airflow 2 rendered 'false', the new template renders "RENDER ERROR UndefinedError: 'airflow.sdk.api.datamodels._generate
+- `mozilla/telemetry-airflow` update_orphaning_dashboard_etl.update_orphaning_dashboard_etl.image: render mismatch on 19 of 19 runs, e.g. the run firing 2020-01-27 02:00 UTC (from the 23:00 sample): Airflow 2 rendered 'us-docker.pkg.dev/moz-fx-data-artifacts-prod/docker-etl/update-orphaning-dashboard:latest', the new template re
+- `mozilla/telemetry-airflow` update_orphaning_dashboard_etl.update_orphaning_dashboard_etl.project_id: render mismatch on 19 of 19 runs, e.g. the run firing 2020-01-27 02:00 UTC (from the 23:00 sample): Airflow 2 rendered 'moz-fx-data-airflow-gke-prod', the new template renders "RENDER ERROR UndefinedError: 'airflow.sdk.api.dat
+- `mozilla/telemetry-airflow` update_orphaning_dashboard_etl.update_orphaning_dashboard_etl.base_container_name: render mismatch on 19 of 19 runs, e.g. the run firing 2020-01-27 02:00 UTC (from the 23:00 sample): Airflow 2 rendered 'base', the new template renders "RENDER ERROR UndefinedError: 'airflow.sdk.api.datamodels._genera
+- `mozilla/telemetry-airflow` update_orphaning_dashboard_etl.update_orphaning_dashboard_etl.arguments: render mismatch on 19 of 19 runs, e.g. the run firing 2020-01-27 02:00 UTC (from the 23:00 sample): Airflow 2 rendered '["--run-date", "20200126", "--output-bucket", "moz-fx-data-static-websit-8565-analysis-output", "--output-p
+- `mozilla/telemetry-airflow` update_orphaning_dashboard_etl.update_orphaning_dashboard_etl.gcp_conn_id: render mismatch on 19 of 19 runs, e.g. the run firing 2020-01-27 02:00 UTC (from the 23:00 sample): Airflow 2 rendered 'google_cloud_airflow_gke', the new template renders "RENDER ERROR UndefinedError: 'airflow.sdk.api.datamo
 - `BasPH/data-pipelines-with-apache-airflow` chapter7_insideairbnb.download_from_postgres._query: render mismatch on 10 of 10 runs, e.g. the run firing 2016-03-01 00:00 UTC (from the 23:00 sample): Airflow 2 rendered "SELECT * FROM listings WHERE download_date BETWEEN '2016-01-01' AND '2016-02-01'", the new template renders "RENDER ERROR Undef
 - `BasPH/data-pipelines-with-apache-airflow` chapter7_insideairbnb.download_from_postgres._s3_key: render mismatch on 10 of 10 runs, e.g. the run firing 2016-03-01 00:00 UTC (from the 23:00 sample): Airflow 2 rendered 'listing-2016-02-01.csv', the new template renders "RENDER ERROR UndefinedError: 'prev_ds' is undefined"

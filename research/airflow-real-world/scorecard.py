@@ -14,6 +14,7 @@ Per DAG (a DAG id that loads on Airflow 2.11.2 with the original code):
 Headline = DAGs with not before, after and render  /  DAGs with not before.
 """
 import json
+import os
 import re
 import subprocess
 from collections import Counter
@@ -118,11 +119,22 @@ def repo_record(repo: str) -> dict:
         per_dag[key] = {
             "before": imports(before, key), "after": imports(after, key),
             "fields": len(fs), "mismatched_fields": sum(1 for f in fs if f["n_mismatches"]),
-            "render_ok": rendered and not any(f["n_mismatches"] for f in fs),
+            "render_ok": rendered and not any(f["n_mismatches"] or not f["runs"] for f in fs),
+            "unpaired_fields": sum(1 for f in fs if not f["runs"]),
             "dag_test_af2": key.replace("::", "::dag:", 1) not in base2.get("failures", []),
             "dag_test_after": after is not None and key.replace("::", "::dag:", 1) not in after.get("failures", []),
             "removed_method": key.split("::")[0] in removed,
         }
+    recheck = None if os.environ.get("ACA_NO_RECHECK") else load(out / "recheck.json")  # recheck_files.py
+    if recheck:
+        for key, d in recheck["dags"].items():
+            if key in per_dag:
+                per_dag[key].update(after=d["after"], fields=d["fields"], mismatched_fields=d["mismatched_fields"],
+                                    unpaired_fields=d.get("unpaired_fields", 0),
+                                    render_ok=d["after"] and d["rendered"] and not d["mismatched_fields"]
+                                    and not d.get("unpaired_fields"),
+                                    rechecked=True)
+        rec["rechecked"] = sorted(recheck["dags"])
     rec["dag_files"] = len(af2_files)
     rec["dags"] = per_dag
     rec["pins"] = sum(1 for r in res["rows"] if r["rule_id"] == PIN and "CronDataIntervalTimetable(" in r["after"])
@@ -171,8 +183,11 @@ def main():
     removed = {r["repo"]: r.get("removed_methods") or {} for r in recs}
     tot, fixed, already, still_ok = headline(recs, removed)
     stages = []  # earlier snapshots of scorecard_data.json, oldest first
-    for label, f in (("before this round (previous scorecard)", "scorecard_before.json"),
-                     ("deterministic rules only, no Claude", "scorecard_det.json")):
+    for label, f in (("earlier scorecards, measured with the render check before 2bffb77 / 7f0c8c3 (it counted "
+                      "unscheduled and unpaired DAGs as identical): first round", "scorecard_before.json"),
+                     ("same old measurement, after the 2026-10-23 gap fixes", "scorecard_before_gapfix.json"),
+                     ("the same migrated trees re-measured with the fixed render check, before fixing gap "
+                      "categories 1, 3 and 5", "scorecard_corrected_before.json")):
         if (HERE / f).exists():
             t, x, _, _ = headline(json.loads((HERE / f).read_text()), removed)
             stages.append(f"- {label}: {x} of {t} ({100 * x / t:.0f}%)" if t else f"- {label}: —")

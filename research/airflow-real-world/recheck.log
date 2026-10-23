@@ -1,0 +1,72 @@
+{
+ "agent_exit": 0,
+ "agent_s": 24,
+ "dags": {
+  "dags/redshift_examples/simple_redshift_1.py::simple_redshift_1": {
+   "before": false,
+   "after": true,
+   "fields": 3,
+   "mismatched_fields": 0,
+   "unpaired_fields": 3,
+   "rendered": true,
+   "import_error": ""
+  },
+  "dags/sql_examples/sql_check.py::sql_data_quality": {
+   "before": false,
+   "after": true,
+   "fields": 30,
+   "mismatched_fields": 0,
+   "unpaired_fields": 30,
+   "rendered": true,
+   "import_error": ""
+  }
+ },
+ "unverified": [],
+ "llm_usage": {},
+ "render_errors": {}
+}
+{
+ "agent_exit": 0,
+ "agent_s": 57,
+ "dags": {
+  "dags/04_branching_1.py::04_branching": {
+   "before": false,
+   "after": true,
+   "fields": 0,
+   "mismatched_fields": 0,
+   "unpaired_fields": 0,
+   "rendered": true,
+   "import_error": ""
+  }
+ },
+ "unverified": [],
+ "llm_usage": {},
+ "render_errors": {}
+}
+{
+ "agent_exit": 0,
+ "agent_s": 140,
+ "dags": {
+  "dags/copy_deduplicate.py::copy_deduplicate": {
+   "before": false,
+   "after": true,
+   "fields": 154,
+   "mismatched_fields": 0,
+   "unpaired_fields": 0,
+   "rendered": true,
+   "import_error": ""
+  },
+  "dags/fivetran_netsuite.py::fivetran_netsuite": {
+   "before": false,
+   "after": true,
+   "fields": 15,
+   "mismatched_fields": 0,
+   "unpaired_fields": 0,
+   "rendered": true,
+   "import_error": ""
+  }
+ },
+ "unverified": [],
+ "llm_usage": {},
+ "render_errors": {}
+}

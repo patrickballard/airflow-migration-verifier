@@ -63,3 +63,34 @@ Ranked by DAG count. "Mechanical" means a value-preserving rewrite, or a tool fi
 | 8 | Harness: `pytz` missing from the Airflow 3 venv (installed transitively on 2.x, never declared) | 1 | AMPATH `branch_dag.py` | Not an agent gap. The repo should declare `pytz` |
 
 10 of the 17 are mechanically fixable (#1, #3, #4, #5). 6 need judgment or a refactor (#2, #6, #7), and 1 is a harness or dependency issue (#8).
+
+## Gap categories 1, 3 and 5 fixed (2026-10-24), and a measurement correction
+
+**Fixes, each in its own commit with tests:**
+- `2bffb77`: render folder by folder (category 3).
+- `cbd9e19`: `airflow.utils.dates` re-exports and `provide_context` (category 1).
+- `bc1f2ae`: `task_concurrency` and `ExternalTaskMarker(execution_date=)` (category 5).
+
+**Re-checks:** only from the saved trees.
+- `recheck_files.py` runs the fixed agent on a mini copy of the saved original clone that holds just the affected DAG files.
+- `run_repo.py --steps render` redoes the full render comparison of saved original vs saved migrated for all 10 repos.
+- No repo was rerun, and Claude spend was $0.
+
+**Two more bugs, found by these re-checks and fixed in separate commits:**
+- `7f0c8c3`: for DAGs whose `start_date` is only in `default_args`, the two versions sampled different years. No run paired, and the DAG read as "identical" with nothing compared. In mozilla, compared fields go from 708 to 3,095 with the fix. A field whose runs don't pair, or whose DAG has no schedule, is now "not render-checked".
+- `4f79b07`: a template built by concatenation (`"{{ execution_date.replace(" + h + ")... }}"`) kept `execution_date` after the kwarg rename. It would have failed at run time.
+
+**The headline is lower, and now right:**
+- 144 was measured with the flawed render check.
+- The same agent output, re-measured correctly: **118**.
+- After the three fixes: **121 of 161 (75%)**.
+
+The drop comes from 28 DAGs with `schedule=None`: they have template fields but no scheduled runs to compare, so they are no longer counted as identical. The fixed check also found 1 real break the old one hid: mozilla's `update_orphaning_dashboard_etl` uses `{{ dag_run.external_trigger }}`, which Airflow 3's DagRun doesn't have. That's judgment, since `run_type == "manual"` is close but not the same.
+
+| | Before the fixes (corrected measurement) | After |
+|---|---|---|
+| Import on Airflow 3 (of 161) | 150 | 155 |
+| …and call no removed DAG method | 148 | 153 |
+| Have template fields | | 105: 75 render-checked (73 identical, 2 real breaks), 30 unscheduled (not render-checked) |
+| No template fields | | 48 |
+| **Headline** | **118** | **121** |

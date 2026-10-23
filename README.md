@@ -46,9 +46,11 @@ These were dry runs on cloned repos. Nothing was pushed to them.
 [research/airflow-real-world/SCORECARD.md](research/airflow-real-world/SCORECARD.md) has the per-repo table, the diffs' verdicts and the scripts.
 
 - **161 DAGs** load on Airflow 2.11.2 and fail to import on Airflow 3.3.2 as written.
-- After the agent, **150 of them import on Airflow 3**. Two of those call `DAG.following_schedule`, which Airflow 3 removed; the agent flags them as manual.
-- **56** of the DAGs that import afterwards have template fields. **55 render identically** to Airflow 2 on every sampled run. The 56th still uses `prev_ds`, which has no exact equivalent, so the agent leaves it for a human instead of guessing.
-- **Headline: 144 of 161 (89%)** import, render identically and call no removed method. Rule-based fixes alone reach 143; Claude added one, for $0.60.
+- After the agent, **155 of them import on Airflow 3**. Two of those call `DAG.following_schedule`, which Airflow 3 removed; the agent flags them as manual.
+- **105** of the other 153 have template fields. **75** of those run on a schedule and were render-checked. **73 render identically** to Airflow 2 on every sampled run. The other 2 are real breaks the agent reports instead of guessing: one uses `prev_ds`, which has no exact equivalent, and one uses `dag_run.external_trigger`, which Airflow 3 removed.
+- **30** have no schedule (`schedule=None`), so there are no runs to compare. They're reported as not render-checked and aren't counted as proven.
+- **Headline: 121 of 161 (75%)** import, render identically and call no removed method. Claude's patches in it cost $0.60; the rest are rule-based.
+- An earlier version of this page said 144. That was measured with a render check that counted unscheduled DAGs, and DAGs whose sampled runs never lined up, as identical. Both are fixed; see [findings](research/airflow-real-world/findings.md).
 - **Diffs reviewed by hand:** no wrong change in any verified file. One wrong ruff fix keeps `mysql_conn_id=` when it swaps `MySqlOperator` for `SQLExecuteQueryOperator`. It sits in a file that fails on Airflow 3 before and after, and the PR labels it unverified. Since v1.1.0 the kwarg check also flags it directly: 37 rejected `mysql_conn_id=` arguments in 9 files, re-checked on that repo's saved tree.
 
 ## Quickstart
@@ -102,7 +104,8 @@ python -m api_change_agent --repo . --rules airflow --dry-run --output out --ins
 - **The render check samples runs; it doesn't cover every run.**
   - About 30 runs per DAG.
   - Fields that only resolve inside a running task (XCom) aren't compared.
-  - 91 of the 144 headline DAGs have no template fields, so for them "renders identically" is vacuous. The DagBag import and the pin and `days_ago` proofs carry them.
+  - 48 of the 121 headline DAGs have no template fields, so for them "renders identically" is vacuous. The DagBag import and the pin and `days_ago` proofs carry them.
+  - DAGs with no schedule can't be render-checked: there are no scheduled runs to compare. They're reported as not render-checked.
 - **Naive `start_date`s.** If the repo doesn't set `default_timezone`, pins assume UTC (Airflow's default) and the PR says so loudly.
 - **The kwarg check needs to import the new class.** If its provider isn't installed in the test venv, the PR names the class and says its calls weren't checked.
 - **GitHub Actions coverage.** The Airflow path has run end to end in GitHub Actions on a small fixture repo. A `@v1` dry run takes 2m12s with a cold cache and 1m19s with a warm one ([cold](https://github.com/patrickballard/api-change-agent-test/actions/runs/39999359662), [warm](https://github.com/patrickballard/api-change-agent-test/actions/runs/39999714583)). The [real PR](https://github.com/patrickballard/api-change-agent-test/pull/2) came from a run that wasn't a dry run. The 10 real repos above were run locally, not in Actions.
