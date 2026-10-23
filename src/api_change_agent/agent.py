@@ -175,6 +175,7 @@ class _Run:
         self.pin_minimum: Version | None = None
         self.inserted: list[tuple[Path, int]] = []  # (file, line) of whole lines added by dependency rules
         self.tz = find_default_timezone(self.repo) if self.ruleset.verify == "airflow-dags" else None
+        self.render_reverted: dict[Path, set[str]] = {}  # rule ids the render check took back, per file
 
     # -- helpers ------------------------------------------------------------
     def _write(self, rel: Path, text: str) -> None:
@@ -531,6 +532,7 @@ class _Run:
                     continue
                 lines[i:i + len(after)] = [ln + "\n" for ln in before]
                 self.rows[rel] = [x for x in self.rows[rel] if x is not r]
+                self.render_reverted.setdefault(rel, set()).add(r.rule_id)
                 self.result.manual.append(ManualItem(path, r.line, r.rule_id, reasons[id(r)]))
             new = "".join(lines)
             self.current[rel] = new
@@ -783,6 +785,7 @@ class _Run:
             self._rebuild_safe(rel, safe)
         self.state_outcome = self._run_tests()
         self.tested_after_changes = True
+        self.render_gate()  # the rebuilt files' kept changes must render identically too
         for rel in bad:
             key = f"{rel.as_posix()}::import"
             if key not in self.state_outcome.failures:
@@ -796,7 +799,8 @@ class _Run:
         original = self.originals[rel]
         (self.repo / rel).write_text(original)
         self.current[rel], self.rows[rel] = original, []
-        self.result.manual = [m for m in self.result.manual if m.path != rel.as_posix()]
+        reverted = self.render_reverted.get(rel, set())
+        self.result.manual = [m for m in self.result.manual if m.path != rel.as_posix() or m.rule_id in reverted]
         self.result.llm_notes = [n for n in self.result.llm_notes if n.get("path") != rel.as_posix()]
         unsafe = (lambda d: f"ruff {d.code}: unsafe fix not applied ({self.UNVERIFIED}): {d.message}"
                   if d.edit_lines else None)
@@ -805,7 +809,7 @@ class _Run:
         for rule in self.ruleset.rules:
             if "add_dependency" in rule.transform:
                 continue
-            if rule.fix == "deterministic" and rule in self.applied_rules:
+            if rule.fix == "deterministic" and rule in self.applied_rules and rule.id not in reverted:
                 if rule.match.plugin:
                     new = PLUGINS[rule.match.plugin].apply(rel, self.current[rel], self._options(rule))
                     rows = _rows(rel, self.current[rel], new, rule.id, rule.changelog, rule.note)

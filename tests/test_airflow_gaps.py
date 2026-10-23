@@ -256,3 +256,26 @@ def test_file_failing_before_and_after_is_unverified_and_gets_no_unsafe_fixes(tm
     assert "`dags/broken.py`" in section and "not_installed_xyz" in section
     assert any(m.path == "dags/broken.py" and "unsafe fix not applied" in m.reason for m in result.manual)
     assert "dags/etl_daily.py::import" not in result.tests_after.failures  # verified files keep their fixes
+
+
+@needs_both
+def test_rebuilding_an_unverified_file_keeps_the_render_checks_reverts(tmp_path, monkeypatch):
+    # real repo: the gate reverted a days_ago rewrite + pin that rendered differently; the file then failed
+    # on Airflow 3 before and after, and rebuilding it re-applied exactly what the gate had reverted
+    from api_change_agent import render_check
+    real = render_check.compare
+
+    def compare(old, new, changed, whole_dags=frozenset()):
+        out = real(old, new, changed, whole_dags)
+        for r in out:
+            if r.dag_id == "relative" and r.field == "bash_command":
+                r.mismatches.append(render_check.Mismatch("23:00", "2028-01-15T23:00:00+00:00", "a", "b"))
+        return out
+
+    monkeypatch.setattr(render_check, "compare", compare)
+    repo, result = agent(tmp_path, {"dags/relative.py": RELATIVE}, venvs=True)
+    text = (repo / "dags" / "relative.py").read_text()
+    assert "days_ago" in text and "CronDataIntervalTimetable" not in text  # stays reverted
+    assert not [r for r in result.rows if r.path == "dags/relative.py" and r.rule_id in
+                ("airflow3-days-ago", "airflow3-cron-timetable-pin")]
+    assert any(m.path == "dags/relative.py" and "render mismatch" in m.reason for m in result.manual)
