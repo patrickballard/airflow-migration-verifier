@@ -46,3 +46,20 @@ Five things changed since the previous scorecard:
 - Provider versions come from the repo's era (its Airflow pin, else its image tag, else its last-commit date).
 - 60 DAG files that don't load on Airflow 2.11.2 are excluded from the score and listed below.
 - Repo code ran locally with a throwaway HOME and no credentials in its environment.
+
+## The 17 DAGs not in the headline (2026-10-24, not fixed yet)
+
+Ranked by DAG count. "Mechanical" means a value-preserving rewrite, or a tool fix, that needs no judgment.
+
+| # | Why the DAG isn't counted | DAGs | Example | Mechanical? |
+|---|---|---|---|---|
+| 1 | Renamed or removed things that sit behind a **second** error. The file fails before and after, so the unverified rule withholds ruff's unsafe fixes | 3 | astronomer `sql_check.py`: `from airflow.utils.dates import datetime` blocks ruff's `airflow.operators.sql` move. made-ml `04_branching_1.py`: `provide_context=True` | **Yes.** `airflow.utils.dates.datetime` is a re-export of the standard library's `datetime`, so the import can be switched; `provide_context` has been a no-op since 2.0. Once the root error is fixed, the withheld fixes are allowed |
+| 2 | `SubDagOperator` removed | 3 | mozilla `bhr_collection.py` (the DAG plus its 2 subdags) | **No.** Needs a TaskGroup refactor |
+| 3 | The render check couldn't load the DAG, which imports fine: several `dags/custom` packages collide in one render process | 3 | BasPH `chapter08/dags/02_hook.py`: `No module named 'custom.hooks'` | **Yes, a tool bug.** Render each DAG folder in its own process, as the DAG check already does per file |
+| 4 | `PostgresOperator` removed from its provider | 2 | anilkulkarni87 `test_postgres.py` | **Mostly.** Swap to `SQLExecuteQueryOperator` and rename `postgres_conn_id=` to `conn_id=`; the kwarg check and render check verify it |
+| 5 | Operator kwargs renamed in Airflow 3 that ruff doesn't rewrite | 2 | mozilla: `ExternalTaskMarker(execution_date=...)` → `logical_date=`; `task_concurrency=` → `max_active_tis_per_dag=` | **Yes.** Documented renames; the template field is render-checkable. The kwarg check now flags the `ExternalTaskMarker` one when ruff moved the class |
+| 6 | Calls a removed DAG method | 2 | BasPH `05_condition_task.py`: `context["dag"].following_schedule(...)` | **Partly.** On a pinned DAG, `following_schedule(logical_date)` is the run's `data_interval_end`, but that's a Python read, so it can't be render-checked. Judgment |
+| 7 | `prev_ds` with no exact equivalent | 1 | BasPH `chapter7_insideairbnb_pythonoperator.py` | **No.** Judgment |
+| 8 | Harness: `pytz` missing from the Airflow 3 venv (installed transitively on 2.x, never declared) | 1 | AMPATH `branch_dag.py` | Not an agent gap. The repo should declare `pytz` |
+
+10 of the 17 are mechanically fixable (#1, #3, #4, #5). 6 need judgment or a refactor (#2, #6, #7), and 1 is a harness or dependency issue (#8).
