@@ -1,12 +1,42 @@
 {
- "eliasbenaddou/personal_finance_de_project": {"verdict": "clean", "why": "pins proven identical; TriggerDagRun execution_date -> logical_date render-checked; UTC assumption flagged"},
- "mozilla/telemetry-airflow": {"verdict": "needs tweak", "why": "46/51 import, but 5 cron DAGs left unpinned (start_date in default_args) shift dates by one interval, and the PR doesn't say so"},
- "BasPH/data-pipelines-with-apache-airflow": {"verdict": "needs tweak", "why": "no wrong changes found; 60 DAGs still blocked on days_ago (no fix); 2 fields still use prev_ds (Claude budget)"},
- "sanchitvj/sports_betting_analytics_engine": {"verdict": "clean", "why": "20 fields identical incl. 5 TriggerDagRun execution_date -> logical_date"},
- "anilkulkarni87/airflow-docker": {"verdict": "clean", "why": "partial: the other 2 DAGs use PostgresOperator, removed from the provider (no automatic fix)"},
- "astronomer/airflow-data-quality-demo": {"verdict": "clean", "why": "nothing wrong, but neither DAG imports: SnowflakeOperator / PostgresOperator removed from their providers, and the PR doesn't list them as manual"},
- "blockchain-etl/bitcoin-etl-airflow": {"verdict": "needs tweak", "why": "module-style `from airflow.operators import bash_operator` kept (ruff can't fix it); Claude's schedule helper is sound but unverified"},
- "DaliGuerfali/big-data": {"verdict": "clean", "why": "3/3 import, 8 fields identical; Claude's pins assume UTC without the UTC warning"},
- "AMPATH/etl": {"verdict": "wrong", "why": "ruff's unsafe AIR302 fix turns MySqlOperator into SQLExecuteQueryOperator but keeps mysql_conn_id=, which Airflow 3 rejects"},
- "made-ml-in-prod-2021/airflow-examples": {"verdict": "needs tweak", "why": "0/11: all blocked on days_ago / provide_context (no fix); Claude's pins are reasonable"}
+ "eliasbenaddou/personal_finance_de_project": {
+  "verdict": "clean",
+  "why": "pins proven identical; TriggerDagRun execution_date -> logical_date render-checked; UTC assumption flagged"
+ },
+ "mozilla/telemetry-airflow": {
+  "verdict": "clean",
+  "why": "default_args start dates now pin (46 pins, 2 by Claude); 45/46 identical, shredder didn't render on one side; SubDagOperator etc. manual"
+ },
+ "BasPH/data-pipelines-with-apache-airflow": {
+  "verdict": "needs tweak",
+  "why": "152 days_ago rewrites + 77 pins, 87/87 import; but 2 DAGs call the removed DAG.following_schedule, which nothing flags"
+ },
+ "sanchitvj/sports_betting_analytics_engine": {
+  "verdict": "clean",
+  "why": "20 fields identical incl. 5 TriggerDagRun execution_date -> logical_date"
+ },
+ "anilkulkarni87/airflow-docker": {
+  "verdict": "clean",
+  "why": "partial: the other 2 DAGs use PostgresOperator, removed from the provider"
+ },
+ "astronomer/airflow-data-quality-demo": {
+  "verdict": "clean",
+  "why": "neither DAG imports (removed provider operators); every such file now listed as unverified, nothing presented as done"
+ },
+ "blockchain-etl/bitcoin-etl-airflow": {
+  "verdict": "clean",
+  "why": "1/1 imports; 3 computed schedules in build_export_dag now flagged under Run dates will shift"
+ },
+ "DaliGuerfali/big-data": {
+  "verdict": "clean",
+  "why": "3/3 import, 8 fields identical; Claude judged the 3 context sites false positives and left them"
+ },
+ "AMPATH/etl": {
+  "verdict": "needs tweak",
+  "why": "ruff's MySqlOperator -> SQLExecuteQueryOperator swap (ruff marks it safe) still keeps mysql_conn_id=, but the file is now labeled unverified with its error"
+ },
+ "made-ml-in-prod-2021/airflow-examples": {
+  "verdict": "clean",
+  "why": "10/11 import, all identical; Claude handled days_ago(0, 2) (positional hour) correctly"
+ }
 }

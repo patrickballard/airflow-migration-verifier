@@ -1,0 +1,2 @@
+made-ml-in-prod-2021/airflow-examples: exit=0 1192s spent=$0.083 total=$0.083
+blockchain-etl/bitcoin-etl-airflow: exit=0 111s spent=$0.106 total=$0.189

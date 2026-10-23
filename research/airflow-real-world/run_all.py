@@ -29,16 +29,19 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--budget", type=float, default=2.0)
     ap.add_argument("--only", nargs="*")
+    ap.add_argument("--per-repo", type=float, default=PER_REPO)
+    ap.add_argument("--steps", default="venvs,baseline,agent,render")
+    ap.add_argument("--log", default="run_all.log", help="appended: repo, exit, time, spend")
     a = ap.parse_args()
     repos = [ln.split()[0] for ln in (HERE / "repos.txt").read_text().splitlines() if ln.strip() and not ln.startswith("#")]
     todo = a.only or repos
     used = sum(spent(r.replace("/", "__")) for r in repos if r not in todo)
     for repo in todo:
         name = repo.replace("/", "__")
-        cap = round(max(0.0, min(PER_REPO, a.budget - used)), 2)
+        cap = round(max(0.0, min(a.per_repo, a.budget - used)), 2)
         t = time.time()
-        r = subprocess.run([sys.executable, str(HERE / "run_repo.py"), repo, "--max-llm-usd", str(cap)],
-                           capture_output=True, text=True)
+        r = subprocess.run([sys.executable, str(HERE / "run_repo.py"), repo, "--max-llm-usd", str(cap),
+                            "--steps", a.steps], capture_output=True, text=True)
         wall = round(time.time() - t)
         timing = RESULTS / name / "timing.json"
         data = json.loads(timing.read_text()) if timing.exists() else {}
@@ -48,7 +51,10 @@ def main():
         timing.parent.mkdir(parents=True, exist_ok=True)
         timing.write_text(json.dumps(data, indent=1))
         used += spent(name)
-        print(f"{repo}: exit={r.returncode} {wall}s spent=${spent(name):.3f} total=${used:.3f}", flush=True)
+        line = f"{repo}: exit={r.returncode} {wall}s spent=${spent(name):.3f} total=${used:.3f}"
+        print(line, flush=True)
+        with open(HERE / a.log, "a") as f:
+            f.write(line + "\n")
         subprocess.run([sys.executable, str(HERE / "scorecard.py")], capture_output=True)
 
 

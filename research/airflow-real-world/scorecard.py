@@ -48,6 +48,10 @@ def imports(outcome, key) -> bool:
 
 def reason_kind(m: dict) -> str:
     r = m["reason"]
+    if "unsafe fix not applied" in r:
+        return f"{m['rule_id']}: unsafe fix withheld (unverified file)"
+    if "no patch: this file fails" in r:
+        return "judgment, not attempted (unverified file)"
     if m["rule_id"].startswith("ruff "):
         return f"{m['rule_id']}: no automatic fix"
     if "render mismatch" in r:
@@ -109,6 +113,8 @@ def repo_record(repo: str) -> dict:
                          for f in full.get("fields", []) if f["n_mismatches"]][:8]
     rec["timezone"] = full.get("timezone")
     rec["new_failures"] = res.get("new_failures", [])
+    rec["unverified"] = res.get("unverified", [])
+    rec["unpinned"] = res.get("unpinned", [])
     rec["render_error"] = full.get("error")
     return rec
 
@@ -136,6 +142,12 @@ def main():
     verdicts = load(HERE / "verdicts.json") or {}
     (HERE / "scorecard_data.json").write_text(json.dumps(recs, indent=1, default=dict))
     tot, fixed, already, still_ok = headline(recs)
+    stages = []  # earlier snapshots of scorecard_data.json, oldest first
+    for label, f in (("before this round (previous scorecard)", "scorecard_before.json"),
+                     ("deterministic rules only, no Claude", "scorecard_det.json")):
+        if (HERE / f).exists():
+            t, x, _, _ = headline(json.loads((HERE / f).read_text()))
+            stages.append(f"- {label}: {x} of {t} ({100 * x / t:.0f}%)" if t else f"- {label}: —")
     done = sum(r["ran"] for r in recs)
     spend = sum(r.get("usd") or 0 for r in recs)
     # every run that ever spent, including passes whose results were replaced (run*.log lines: "spent=$x")
@@ -152,17 +164,18 @@ def main():
         f"**Headline: {fixed} of {tot} DAGs ({100 * fixed / tot:.0f}%) went from failing on Airflow 3 to importing on "
         f"Airflow 3 with templates rendering identically to Airflow 2.**" if tot else "**Headline: no DAGs scored yet.**",
         "",
+        *(["Same measure at earlier stages:", *stages, ""] if stages else []),
         f"Counted over DAGs that load on Airflow 2.11.2. {already} more already imported on Airflow 3 before the "
         f"migration; {still_ok} of them still import and render identically after it. "
         f"Claude spend: ${spend:.2f} for the runs in this table; ${all_spend:.2f} in all, counting the runs they "
         "replaced (see Runs below), within the $5.00 limit.", "",
-        "| Repo | DAGs | AF3 import before → after | Pins | Render check | Manual items | Time | Claude | Verdict |",
-        "|---|---|---|---|---|---|---|---|---|",
+        "| Repo | DAGs | AF3 import before → after | Pins | Render check | Unpinned / unverified | Manual items | Time | Claude | Verdict |",
+        "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for r in recs:
         v = verdicts.get(r["repo"], {})
         if not r["ran"]:
-            lines.append(f"| {r['repo']} | — | not run | | | | {fmt_s(r.get('wall_s'))} | | {v.get('verdict', '—')} |")
+            lines.append(f"| {r['repo']} | — | not run | | | | | {fmt_s(r.get('wall_s'))} | | {v.get('verdict', '—')} |")
             continue
         d = r["dags"].values()
         n = len(r["dags"])
@@ -177,7 +190,8 @@ def main():
         pins = (f"{r['pins']}" + (f" + {r['claude_pins']} by Claude" if r.get("claude_pins") else "")
                 + (f" ({r['pin_reverted']} reverted)" if r["pin_reverted"] else ""))
         lines.append(f"| [{r['repo']}](https://github.com/{r['repo']}/tree/{r['commit']}) | {n}{excl} | {b}/{n} → {a}/{n} "
-                     f"| {pins} | {render} | {man} | {fmt_s(r['wall_s'])} | ${r['usd']:.2f} | "
+                     f"| {pins} | {render} | {len(r.get('unpinned') or [])} / {len(r.get('unverified') or [])} "
+                     f"| {man} | {fmt_s(r['wall_s'])} | ${r['usd']:.2f} | "
                      f"**{v.get('verdict', 'not reviewed')}** {v.get('why', '')} |")
     lines += ["", "Pins: cron/delta schedules pinned to Airflow 2's timetable, deterministic + by Claude. "
               "Render check: DAGs that import after the migration, every template field compared. "
@@ -190,6 +204,10 @@ def main():
     for r in recs:
         for f, why in (r.get("af2_failed_files") or {}).items():
             lines.append(f"- `{r['repo']}` `{f}`: {why}")
+    lines += ["", "## Unverified files (fail on Airflow 3 before and after; no unsafe fixes applied)", ""]
+    for r in recs:
+        for u in r.get("unverified") or []:
+            lines.append(f"- `{r['repo']}` `{u['path']}`: {u['error'][:200]}")
     lines += ["", "## Render mismatches (full comparison)", ""]
     for r in recs:
         for m in r.get("mismatches") or []:

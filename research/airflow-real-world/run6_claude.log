@@ -1,0 +1,6 @@
+DaliGuerfali/big-data: exit=0 189s spent=$0.089 total=$0.089
+AMPATH/etl: exit=0 103s spent=$0.045 total=$0.134
+made-ml-in-prod-2021/airflow-examples: exit=0 1192s spent=$0.083 total=$0.083
+blockchain-etl/bitcoin-etl-airflow: exit=0 111s spent=$0.106 total=$0.189
+mozilla/telemetry-airflow: exit=0 1483s spent=$0.091 total=$0.091
+BasPH/data-pipelines-with-apache-airflow: exit=0 5824s spent=$0.184 total=$0.184

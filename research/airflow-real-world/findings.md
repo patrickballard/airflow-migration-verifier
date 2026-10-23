@@ -1,47 +1,48 @@
-## Verdicts
+## This round (2026-10-23): the top gaps fixed
 
-5 clean, 4 need a tweak, 1 wrong (AMPATH). No render mismatch came from a change the agent made and
-kept: every one is a DAG the agent left unpinned, or a template still using a removed variable.
+Five things changed since the previous scorecard:
 
-- **dag.test()** (only DAGs whose tasks run locally on Airflow 2: 67 of 161): all 14 of them that
-  import on Airflow 3 after the migration also pass `dag.test()` there. The other 53 don't import yet,
-  52 of them because of `days_ago`.
-- **Not counted as our failure:** `dag.test()` failing on connections, variables, credentials or the
-  45s timeout, on both versions.
+1. **`days_ago(N)`** now becomes `pendulum.today("UTC").add(days=-N)`. That is the same moment (UTC midnight today minus N days), still computed at parse time; a fixed date would change scheduling and catchup. It was checked against Airflow 2's own `days_ago` on its own version, and DAGs that use it are render-checked as a whole.
+2. **The cron pin reads `start_date` the way Airflow 2's `DAG.__init__` does:** from the DAG, else from `default_args`, else from module-level values. It also understands `days_ago` and `pendulum.today("Z")`.
+3. **Cron and timedelta DAGs left unpinned** are render-checked as a whole and listed under "⚠️ Run dates will shift".
+4. **Files that fail on Airflow 3 before and after** are rebuilt without ruff's unsafe fixes or Claude's patches. Their remaining changes are marked unverified, and the file is listed with its error.
+5. **Three more bugs the rerun found, fixed in separate commits:**
+   - a Python set printed in a per-process order;
+   - an unset trigger date: `None` on Airflow 2 versus `NOTSET` on Airflow 3, which mean the same thing;
+   - the unverified rebuild re-applying changes the render check had reverted (`624c918`).
 
-## What blocks the rest (ranked by DAGs)
+**Only 55 of the 146 DAGs** had at least one template field to compare. The other 91 have no templated fields, so "renders identically" is vacuous for them. For those, the evidence is the DagBag import plus the pin and `days_ago` proofs.
 
-| # | Gap | DAGs | Fix |
+**dag.test():** 66 DAGs both run locally on Airflow 2 and import on Airflow 3 after the migration. 58 of them also pass `dag.test()` on Airflow 3. Of the other 8:
+- 4 are BasPH's rocket-launch DAGs, which call a live external API (`KeyError: 'results'`). Not ours.
+- 2 read a removed context key the agent listed as manual: `next_execution_date`, and a callable parameter named `execution_date`. Claude's budget ran out before them.
+- 2 call `DAG.following_schedule`, which Airflow 3 removed. **Neither ruff nor our rules flag it.** Those DAGs import and render identically, so they count in the headline, but they would fail at run time.
+
+`dag.test()` failing on connections or credentials on both versions isn't counted against us.
+
+## What's left (ranked by DAGs)
+
+| # | Gap | DAGs | Note |
 |---|---|---|---|
-| 1 | `airflow.utils.dates.days_ago` removed; ruff has no fix | 70 (BasPH 60, made-ml 9, blockchain 1) | Deterministic rule: `days_ago(n)` → `pendulum.today("UTC").add(days=-n)`, the same instant (midnight UTC minus n days). The pin should then read its zone as UTC. |
-| 2 | Cron pin skips DAGs whose `start_date` is in `default_args` (or comes from `days_ago`) | mozilla 43 sites, BasPH ~55, made-ml 4 | Read a module-level `default_args` dict literal. These went to Claude and mostly ran out of budget. |
-| 3 | **An unpinned cron DAG shifts its dates silently.** The agent's own render check only covers pinned DAGs and changed fields, and the PR's manual entry says "budget used up", not "dates will move". | 5 mozilla DAGs caught by the full comparison (e.g. `--date=2024-10-06` → `2024-10-07`, weekly DAGs off by a week) | Render-check every cron DAG as a whole. When one stays unpinned, say in the PR that its run dates shift by one interval on Airflow 3. |
-| 4 | ruff's unsafe operator swaps can be wrong: `MySqlOperator` → `SQLExecuteQueryOperator` keeps `mysql_conn_id=` | AMPATH (5 operators, 1 subclass) | The test gate can't see it, because those files fail before and after. Treat class swaps whose kwargs differ as manual, or re-check the swapped call's kwargs. |
-| 5 | Removed provider classes (`PostgresOperator`, `SnowflakeOperator`, `BigQueryCreateEmptyTableOperator`, `SubDagOperator`) | 5 scored (more among excluded files) | Manual by nature; the PR should list them (today only the DAG table shows them). |
-| 6 | Module-style imports (`from airflow.operators import bash_operator`), `provide_context=`, `task_concurrency=`, `apply_defaults` | ~6 | Small deterministic rules. |
-| 7 | Claude's pins on naive `start_date`s assume `UTC` without the "Timezone assumed" warning | DaliGuerfali, BasPH, made-ml | Count Claude pins too in the warning. |
-
-Cosmetic:
-- The pin adds its own `from airflow.sdk import CronDataIntervalTimetable` line instead of merging it into ruff's `airflow.sdk` import.
-- PR rows for added lines show "(not declared)" as the before text.
-
-## Bugs this run found in the agent (fixed, separate commits, tests added)
-
-- `8410f71` A function body containing `if`/`for`/`with` crashed the context-key scan.
-- `0b8238b` The render check counted fields that only resolve in a running task (XCom) as mismatches. That reverted correct pins. TriggerDagRunOperator's `execution_date` → `logical_date` was never compared.
-- `e370828`, `1694f7c` The DAG check and render didn't put the dags folder, `plugins/` (at the root or beside `dags/`) and the repo root on `sys.path`, as deployments do. One hanging `dag.test()` crashed the whole check.
-- `1800ffd` ruff's AIR fixes left the old `from airflow.operators.dummy import DummyOperator` import in place, so the file still failed (47 DAGs).
+| 1 | Removed provider classes (`PostgresOperator`, `SnowflakeOperator`, `SubDagOperator`, ...) | ~7 scored (many more among excluded files) | Manual by nature; these files now show up as unverified. |
+| 2 | ruff marks `MySqlOperator` → `SQLExecuteQueryOperator` **safe**, but it keeps `mysql_conn_id=` | AMPATH | The unverified label keeps it from being presented as done. A kwargs check on class swaps would catch it outright. |
+| 3 | `prev_ds` / `next_ds` with no exact equivalent | BasPH 2 fields | Claude's patch was rejected; stays manual. |
+| 4 | `days_ago(n, h)` with a positional `hour` | made-ml 1 | Goes to judgment; Claude got it right. A small rule extension. |
+| 5 | Computed schedules (`schedule=export_schedule_interval`) | blockchain-etl 3 | Listed under "Run dates will shift". |
+| 6 | `DAG.following_schedule()` (removed in Airflow 3) isn't detected | BasPH 2 | **Unflagged**: the DAGs import and render, but fail at run time. Needs a rule (judgment: `dag.timetable.next_dagrun_info` or `data_interval_end`). |
 
 ## Runs and spend
 
-- **Pass 1** ($1.75): results discarded. The checker bugs above and current-day provider versions broke the Airflow 2 baseline.
-- **Pass 2** ($1.56): all 10 repos.
-- **Pass 3** ($0.79): BasPH, made-ml, astronomer (after `1800ffd`) and DaliGuerfali (after `1694f7c`), replacing their pass-2 results.
-- AMPATH and blockchain-etl weren't rerun after `1800ffd`; neither had a DummyOperator failure.
-- **Budget:** $0.32 per repo. Each Claude call cost about $0.03–0.08, so repos with dozens of judgment sites ran out after 4–7 calls. Gaps 1 and 2 would remove most of those sites.
+- **Earlier scorecard:** $4.10 (passes 1–3, see git history).
+- **This round, deterministic only ($0):**
+  - pass 4: superseded by the fixes it found;
+  - pass 5: all 10 repos.
+- **This round, with Claude ($0.60 of the $0.90 cap):** pass 6 on the six repos with judgment sites in verified files. That's 15 calls at about $0.04 each.
+- **Total:** $4.70 of the $5.00 limit.
+- **Time:** BasPH's Claude pass took 97 minutes, because every patch re-ran the full 87-DAG check. The next commit makes that check re-test only the patched file.
 
 ## Harness limits
 
-- **Provider versions** come from the repo's era: its Airflow pin, else its image tag, else its last-commit date (`deps.json`). AMPATH's recent commits on old code picked providers that are too new, so 11 of its 12 files don't load on Airflow 2.
-- **Excluded files:** 60 DAG files don't load on Airflow 2.11.2 with installable dependencies, for example `airflow.contrib` imports, missing private modules, or a connection read at parse time. They're listed below and excluded from the score.
-- **Repo code ran locally** with a throwaway HOME and no credentials in its environment.
+- Provider versions come from the repo's era (its Airflow pin, else its image tag, else its last-commit date).
+- 60 DAG files that don't load on Airflow 2.11.2 are excluded from the score and listed below.
+- Repo code ran locally with a throwaway HOME and no credentials in its environment.

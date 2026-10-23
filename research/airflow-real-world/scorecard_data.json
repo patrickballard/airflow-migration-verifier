@@ -3,8 +3,8 @@
   "repo": "eliasbenaddou/personal_finance_de_project",
   "ran": true,
   "commit": "e34718b",
-  "wall_s": 100,
-  "agent_s": 61,
+  "wall_s": 91,
+  "agent_s": 85,
   "usd": 0,
   "llm_calls": 0,
   "af2_failed_files": {
@@ -52,15 +52,17 @@
   "pins": 3,
   "claude_pins": 0,
   "pin_reverted": 0,
-  "rows": 19,
+  "rows": 17,
   "rules": {
-   "ruff AIR311": 4,
    "ruff AIR301": 7,
+   "ruff AIR311": 2,
    "airflow3-cron-timetable-pin": 6,
    "ruff AIR311/AIR312": 2
   },
-  "manual": {},
-  "manual_n": 0,
+  "manual": {
+   "ruff AIR311: unsafe fix withheld (unverified file)": 1
+  },
+  "manual_n": 1,
   "mismatches": [],
   "timezone": {
    "tz": null,
@@ -68,16 +70,23 @@
    "problem": ""
   },
   "new_failures": [],
+  "unverified": [
+   {
+    "path": "dags/monzo_dq_checks.py",
+    "error": "ModuleNotFoundError: No module named 'great_expectations.checkpoint.types'"
+   }
+  ],
+  "unpinned": [],
   "render_error": null
  },
  {
   "repo": "mozilla/telemetry-airflow",
   "ran": true,
   "commit": "cf609dd",
-  "wall_s": 2807,
-  "agent_s": 685,
-  "usd": 0.2557,
-  "llm_calls": 4,
+  "wall_s": 1483,
+  "agent_s": 1094,
+  "usd": 0.0907,
+  "llm_calls": 2,
   "af2_failed_files": {
    "dags/adm_dma_export.py": "airflow.exceptions.AirflowNotFoundException: The conn_id `adm_sftp` isn't defined",
    "dags/adm_export.py": "airflow.exceptions.AirflowNotFoundException: The conn_id `adm_sftp` isn't defined",
@@ -361,8 +370,8 @@
     "before": false,
     "after": true,
     "fields": 13,
-    "mismatched_fields": 1,
-    "render_ok": false,
+    "mismatched_fields": 0,
+    "render_ok": true,
     "dag_test_af2": false,
     "dag_test_after": false
    },
@@ -406,8 +415,8 @@
     "before": false,
     "after": true,
     "fields": 437,
-    "mismatched_fields": 31,
-    "render_ok": false,
+    "mismatched_fields": 0,
+    "render_ok": true,
     "dag_test_af2": false,
     "dag_test_after": false
    },
@@ -469,8 +478,8 @@
     "before": false,
     "after": true,
     "fields": 36,
-    "mismatched_fields": 3,
-    "render_ok": false,
+    "mismatched_fields": 0,
+    "render_ok": true,
     "dag_test_af2": false,
     "dag_test_after": false
    },
@@ -478,8 +487,8 @@
     "before": false,
     "after": true,
     "fields": 19,
-    "mismatched_fields": 1,
-    "render_ok": false,
+    "mismatched_fields": 0,
+    "render_ok": true,
     "dag_test_af2": false,
     "dag_test_after": false
    },
@@ -547,61 +556,88 @@
     "dag_test_after": false
    }
   },
-  "pins": 3,
+  "pins": 46,
   "claude_pins": 2,
   "pin_reverted": 0,
-  "rows": 204,
+  "rows": 263,
   "rules": {
-   "ruff AIR311/AIR321": 3,
-   "ruff AIR321/AIR312": 4,
-   "ruff AIR311/AIR321/AIR312": 5,
-   "airflow3-timetable-judgment": 4,
+   "airflow3-cron-timetable-pin": 88,
    "ruff AIR301": 57,
-   "ruff AIR311": 69,
-   "ruff AIR311/AIR312": 31,
-   "ruff AIR312": 6,
-   "ruff AIR321": 2,
+   "ruff AIR311": 65,
+   "ruff AIR311/AIR312": 28,
+   "ruff AIR321": 1,
    "ruff AIR311/AIR312/AIR321": 9,
-   "airflow3-cron-timetable-pin": 6,
-   "ruff AIR321/AIR311/AIR302": 2,
+   "airflow3-timetable-judgment": 4,
    "airflow3-templates": 1,
    "airflow3-context-keys": 1,
+   "ruff AIR311/AIR321": 1,
+   "ruff AIR311/AIR321/AIR312": 1,
    "apache-airflow 3.3.2": 3,
-   "ruff AIR3": 1
+   "ruff AIR312": 4
   },
   "manual": {
    "ruff AIR304: no automatic fix": 3,
    "ruff AIR301: no automatic fix": 7,
-   "ruff AIR311: no automatic fix": 5,
-   "needs Claude (budget)": 44
+   "ruff AIR311: no automatic fix": 4,
+   "needs Claude (budget)": 1,
+   "ruff AIR311: unsafe fix withheld (unverified file)": 16,
+   "ruff AIR321: unsafe fix withheld (unverified file)": 13,
+   "ruff AIR312: unsafe fix withheld (unverified file)": 21,
+   "ruff AIR302: unsafe fix withheld (unverified file)": 1
   },
-  "manual_n": 59,
-  "mismatches": [
-   "fxci_metric_export.fxci_metric_export.arguments: render mismatch on 3 of 3 runs, e.g. the run firing 2024-10-07 00:30 UTC (from the ordinary 6 sample): Airflow 2 rendered '[\"fxci-etl\", \"metric\", \"export\", \"-vv\", \"--date=2024-10-06\"]', the new template renders '[\"fxci-etl\", \"metric\", \"export\", \"-vv\", \"--date=2024-10-07\"]'",
-   "glam_fog_release.firefox_desktop_glam_release__scalar_bucket_counts_v1.query_firefox_desktop_glam_release__scalar_bucket_counts_v1_sampled_0_19.env_vars: render mismatch on 2 of 2 runs, e.g. the run firing 2024-12-28 10:00 UTC (from the ordinary 19 sample): Airflow 2 rendered '[\"{\\'name\\': \\'PRODUCT\\', \\'value\\': \\'firefox_desktop_glam_release\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SRC_PROJECT\\', \\'value\\': \\'moz-fx-data-shared-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'PROJECT\\', \\'value\\': \\'moz-fx-glam-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'DATASET\\', \\'value\\': \\'glam_etl\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SUBMISSION_DATE\\', \\'value\\': \\'2024-12-21\\', \\'value_from\\': None}\", \"{\\'name\\': \\'IMPORT\\', \\'value\\': \\'true\\', \\'value_from\\': None}\", \"{\\'name\\': \\'USE_SAMPLE_ID\\', \\'value\\': \\'True\\', \\'value_from\\': None}\", \"{\\'name\\': \\'STAGE\\', \\'value\\': \\'incremental\\', \\'value_from\\': None}\"]', the new template renders '[\"{\\'name\\': \\'PRODUCT\\', \\'value\\': \\'firefox_desktop_glam_release\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SRC_PROJECT\\', \\'value\\': \\'moz-fx-data-shared-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'PROJECT\\', \\'value\\': \\'moz-fx-glam-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'DATASET\\', \\'value\\': \\'glam_etl\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SUBMISSION_DATE\\', \\'value\\': \\'2024-12-28\\', \\'value_from\\': None}\", \"{\\'name\\': \\'IMPORT\\', \\'value\\': \\'true\\', \\'value_from\\': None}\", \"{\\'name\\': \\'USE_SAMPLE_ID\\', \\'value\\': \\'True\\', \\'value_from\\': None}\", \"{\\'name\\': \\'STAGE\\', \\'value\\': \\'incremental\\', \\'value_from\\': None}\"]'",
-   "glam_fog_release.firefox_desktop_glam_release__scalar_bucket_counts_v1.query_firefox_desktop_glam_release__scalar_bucket_counts_v1_sampled_20_39.env_vars: render mismatch on 2 of 2 runs, e.g. the run firing 2024-12-28 10:00 UTC (from the ordinary 19 sample): Airflow 2 rendered '[\"{\\'name\\': \\'PRODUCT\\', \\'value\\': \\'firefox_desktop_glam_release\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SRC_PROJECT\\', \\'value\\': \\'moz-fx-data-shared-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'PROJECT\\', \\'value\\': \\'moz-fx-glam-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'DATASET\\', \\'value\\': \\'glam_etl\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SUBMISSION_DATE\\', \\'value\\': \\'2024-12-21\\', \\'value_from\\': None}\", \"{\\'name\\': \\'IMPORT\\', \\'value\\': \\'true\\', \\'value_from\\': None}\", \"{\\'name\\': \\'USE_SAMPLE_ID\\', \\'value\\': \\'True\\', \\'value_from\\': None}\", \"{\\'name\\': \\'STAGE\\', \\'value\\': \\'incremental\\', \\'value_from\\': None}\"]', the new template renders '[\"{\\'name\\': \\'PRODUCT\\', \\'value\\': \\'firefox_desktop_glam_release\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SRC_PROJECT\\', \\'value\\': \\'moz-fx-data-shared-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'PROJECT\\', \\'value\\': \\'moz-fx-glam-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'DATASET\\', \\'value\\': \\'glam_etl\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SUBMISSION_DATE\\', \\'value\\': \\'2024-12-28\\', \\'value_from\\': None}\", \"{\\'name\\': \\'IMPORT\\', \\'value\\': \\'true\\', \\'value_from\\': None}\", \"{\\'name\\': \\'USE_SAMPLE_ID\\', \\'value\\': \\'True\\', \\'value_from\\': None}\", \"{\\'name\\': \\'STAGE\\', \\'value\\': \\'incremental\\', \\'value_from\\': None}\"]'",
-   "glam_fog_release.firefox_desktop_glam_release__scalar_bucket_counts_v1.query_firefox_desktop_glam_release__scalar_bucket_counts_v1_sampled_40_59.env_vars: render mismatch on 2 of 2 runs, e.g. the run firing 2024-12-28 10:00 UTC (from the ordinary 19 sample): Airflow 2 rendered '[\"{\\'name\\': \\'PRODUCT\\', \\'value\\': \\'firefox_desktop_glam_release\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SRC_PROJECT\\', \\'value\\': \\'moz-fx-data-shared-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'PROJECT\\', \\'value\\': \\'moz-fx-glam-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'DATASET\\', \\'value\\': \\'glam_etl\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SUBMISSION_DATE\\', \\'value\\': \\'2024-12-21\\', \\'value_from\\': None}\", \"{\\'name\\': \\'IMPORT\\', \\'value\\': \\'true\\', \\'value_from\\': None}\", \"{\\'name\\': \\'USE_SAMPLE_ID\\', \\'value\\': \\'True\\', \\'value_from\\': None}\", \"{\\'name\\': \\'STAGE\\', \\'value\\': \\'incremental\\', \\'value_from\\': None}\"]', the new template renders '[\"{\\'name\\': \\'PRODUCT\\', \\'value\\': \\'firefox_desktop_glam_release\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SRC_PROJECT\\', \\'value\\': \\'moz-fx-data-shared-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'PROJECT\\', \\'value\\': \\'moz-fx-glam-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'DATASET\\', \\'value\\': \\'glam_etl\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SUBMISSION_DATE\\', \\'value\\': \\'2024-12-28\\', \\'value_from\\': None}\", \"{\\'name\\': \\'IMPORT\\', \\'value\\': \\'true\\', \\'value_from\\': None}\", \"{\\'name\\': \\'USE_SAMPLE_ID\\', \\'value\\': \\'True\\', \\'value_from\\': None}\", \"{\\'name\\': \\'STAGE\\', \\'value\\': \\'incremental\\', \\'value_from\\': None}\"]'",
-   "glam_fog_release.firefox_desktop_glam_release__scalar_bucket_counts_v1.query_firefox_desktop_glam_release__scalar_bucket_counts_v1_sampled_60_79.env_vars: render mismatch on 2 of 2 runs, e.g. the run firing 2024-12-28 10:00 UTC (from the ordinary 19 sample): Airflow 2 rendered '[\"{\\'name\\': \\'PRODUCT\\', \\'value\\': \\'firefox_desktop_glam_release\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SRC_PROJECT\\', \\'value\\': \\'moz-fx-data-shared-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'PROJECT\\', \\'value\\': \\'moz-fx-glam-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'DATASET\\', \\'value\\': \\'glam_etl\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SUBMISSION_DATE\\', \\'value\\': \\'2024-12-21\\', \\'value_from\\': None}\", \"{\\'name\\': \\'IMPORT\\', \\'value\\': \\'true\\', \\'value_from\\': None}\", \"{\\'name\\': \\'USE_SAMPLE_ID\\', \\'value\\': \\'True\\', \\'value_from\\': None}\", \"{\\'name\\': \\'STAGE\\', \\'value\\': \\'incremental\\', \\'value_from\\': None}\"]', the new template renders '[\"{\\'name\\': \\'PRODUCT\\', \\'value\\': \\'firefox_desktop_glam_release\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SRC_PROJECT\\', \\'value\\': \\'moz-fx-data-shared-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'PROJECT\\', \\'value\\': \\'moz-fx-glam-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'DATASET\\', \\'value\\': \\'glam_etl\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SUBMISSION_DATE\\', \\'value\\': \\'2024-12-28\\', \\'value_from\\': None}\", \"{\\'name\\': \\'IMPORT\\', \\'value\\': \\'true\\', \\'value_from\\': None}\", \"{\\'name\\': \\'USE_SAMPLE_ID\\', \\'value\\': \\'True\\', \\'value_from\\': None}\", \"{\\'name\\': \\'STAGE\\', \\'value\\': \\'incremental\\', \\'value_from\\': None}\"]'",
-   "glam_fog_release.firefox_desktop_glam_release__scalar_bucket_counts_v1.query_firefox_desktop_glam_release__scalar_bucket_counts_v1_sampled_80_99.env_vars: render mismatch on 2 of 2 runs, e.g. the run firing 2024-12-28 10:00 UTC (from the ordinary 19 sample): Airflow 2 rendered '[\"{\\'name\\': \\'PRODUCT\\', \\'value\\': \\'firefox_desktop_glam_release\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SRC_PROJECT\\', \\'value\\': \\'moz-fx-data-shared-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'PROJECT\\', \\'value\\': \\'moz-fx-glam-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'DATASET\\', \\'value\\': \\'glam_etl\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SUBMISSION_DATE\\', \\'value\\': \\'2024-12-21\\', \\'value_from\\': None}\", \"{\\'name\\': \\'IMPORT\\', \\'value\\': \\'true\\', \\'value_from\\': None}\", \"{\\'name\\': \\'USE_SAMPLE_ID\\', \\'value\\': \\'True\\', \\'value_from\\': None}\", \"{\\'name\\': \\'STAGE\\', \\'value\\': \\'incremental\\', \\'value_from\\': None}\"]', the new template renders '[\"{\\'name\\': \\'PRODUCT\\', \\'value\\': \\'firefox_desktop_glam_release\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SRC_PROJECT\\', \\'value\\': \\'moz-fx-data-shared-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'PROJECT\\', \\'value\\': \\'moz-fx-glam-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'DATASET\\', \\'value\\': \\'glam_etl\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SUBMISSION_DATE\\', \\'value\\': \\'2024-12-28\\', \\'value_from\\': None}\", \"{\\'name\\': \\'IMPORT\\', \\'value\\': \\'true\\', \\'value_from\\': None}\", \"{\\'name\\': \\'USE_SAMPLE_ID\\', \\'value\\': \\'True\\', \\'value_from\\': None}\", \"{\\'name\\': \\'STAGE\\', \\'value\\': \\'incremental\\', \\'value_from\\': None}\"]'",
-   "glam_fog_release.query_firefox_desktop_glam_release__scalar_probe_counts_v1.env_vars: render mismatch on 2 of 2 runs, e.g. the run firing 2024-12-28 10:00 UTC (from the ordinary 19 sample): Airflow 2 rendered '[\"{\\'name\\': \\'PRODUCT\\', \\'value\\': \\'firefox_desktop_glam_release\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SRC_PROJECT\\', \\'value\\': \\'moz-fx-data-shared-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'PROJECT\\', \\'value\\': \\'moz-fx-glam-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'DATASET\\', \\'value\\': \\'glam_etl\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SUBMISSION_DATE\\', \\'value\\': \\'2024-12-21\\', \\'value_from\\': None}\", \"{\\'name\\': \\'IMPORT\\', \\'value\\': \\'true\\', \\'value_from\\': None}\", \"{\\'name\\': \\'USE_SAMPLE_ID\\', \\'value\\': \\'False\\', \\'value_from\\': None}\", \"{\\'name\\': \\'STAGE\\', \\'value\\': \\'incremental\\', \\'value_from\\': None}\"]', the new template renders '[\"{\\'name\\': \\'PRODUCT\\', \\'value\\': \\'firefox_desktop_glam_release\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SRC_PROJECT\\', \\'value\\': \\'moz-fx-data-shared-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'PROJECT\\', \\'value\\': \\'moz-fx-glam-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'DATASET\\', \\'value\\': \\'glam_etl\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SUBMISSION_DATE\\', \\'value\\': \\'2024-12-28\\', \\'value_from\\': None}\", \"{\\'name\\': \\'IMPORT\\', \\'value\\': \\'true\\', \\'value_from\\': None}\", \"{\\'name\\': \\'USE_SAMPLE_ID\\', \\'value\\': \\'False\\', \\'value_from\\': None}\", \"{\\'name\\': \\'STAGE\\', \\'value\\': \\'incremental\\', \\'value_from\\': None}\"]'",
-   "glam_fog_release.firefox_desktop_glam_release__histogram_bucket_counts_v1.query_firefox_desktop_glam_release__histogram_bucket_counts_v1_sampled_0_0.env_vars: render mismatch on 2 of 2 runs, e.g. the run firing 2024-12-28 10:00 UTC (from the ordinary 19 sample): Airflow 2 rendered '[\"{\\'name\\': \\'PRODUCT\\', \\'value\\': \\'firefox_desktop_glam_release\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SRC_PROJECT\\', \\'value\\': \\'moz-fx-data-shared-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'PROJECT\\', \\'value\\': \\'moz-fx-glam-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'DATASET\\', \\'value\\': \\'glam_etl\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SUBMISSION_DATE\\', \\'value\\': \\'2024-12-21\\', \\'value_from\\': None}\", \"{\\'name\\': \\'IMPORT\\', \\'value\\': \\'true\\', \\'value_from\\': None}\", \"{\\'name\\': \\'USE_SAMPLE_ID\\', \\'value\\': \\'True\\', \\'value_from\\': None}\", \"{\\'name\\': \\'STAGE\\', \\'value\\': \\'incremental\\', \\'value_from\\': None}\"]', the new template renders '[\"{\\'name\\': \\'PRODUCT\\', \\'value\\': \\'firefox_desktop_glam_release\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SRC_PROJECT\\', \\'value\\': \\'moz-fx-data-shared-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'PROJECT\\', \\'value\\': \\'moz-fx-glam-prod\\', \\'value_from\\': None}\", \"{\\'name\\': \\'DATASET\\', \\'value\\': \\'glam_etl\\', \\'value_from\\': None}\", \"{\\'name\\': \\'SUBMISSION_DATE\\', \\'value\\': \\'2024-12-28\\', \\'value_from\\': None}\", \"{\\'name\\': \\'IMPORT\\', \\'value\\': \\'true\\', \\'value_from\\': None}\", \"{\\'name\\': \\'USE_SAMPLE_ID\\', \\'value\\': \\'True\\', \\'value_from\\': None}\", \"{\\'name\\': \\'STAGE\\', \\'value\\': \\'incremental\\', \\'value_from\\': None}\"]'"
-  ],
+  "manual_n": 66,
+  "mismatches": [],
   "timezone": {
    "tz": null,
    "where": "",
    "problem": ""
   },
   "new_failures": [],
+  "unverified": [
+   {
+    "path": "dags/adm_dma_export.py",
+    "error": "airflow.sdk.exceptions.AirflowNotFoundException: The conn_id `adm_sftp` isn't defined"
+   },
+   {
+    "path": "dags/adm_export.py",
+    "error": "airflow.sdk.exceptions.AirflowNotFoundException: The conn_id `adm_sftp` isn't defined"
+   },
+   {
+    "path": "dags/bhr_collection.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.operators.subdag'"
+   },
+   {
+    "path": "dags/copy_deduplicate.py",
+    "error": "**kwargs: {'execution_date': '{{ execution_date.replace(hour=2, minute=0).isoformat() }}'}"
+   },
+   {
+    "path": "dags/fivetran_netsuite.py",
+    "error": "**kwargs: {'task_concurrency': 1}"
+   },
+   {
+    "path": "dags/looker.py",
+    "error": "KeyError: 'Variable lookml_generator_release_str does not exist.'"
+   },
+   {
+    "path": "dags/merino_jobs.py",
+    "error": "airflow.sdk.exceptions.AirflowNotFoundException: The conn_id `merino_elasticsearch_prod` isn't defined"
+   },
+   {
+    "path": "dags/probe_scraper.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.utils.weekday'"
+   }
+  ],
+  "unpinned": [],
   "render_error": null
  },
  {
   "repo": "BasPH/data-pipelines-with-apache-airflow",
   "ran": true,
   "commit": "d5b18a7",
-  "wall_s": 2207,
-  "agent_s": 1192,
-  "usd": 0.2548,
-  "llm_calls": 8,
+  "wall_s": 5824,
+  "agent_s": 5804,
+  "usd": 0.1838,
+  "llm_calls": 6,
   "af2_failed_files": {
    "chapter04/dags/listing_4_20.py": "ModuleNotFoundError: No module named 'airflow.providers.postgres.operators'",
    "chapter07/digit_classifier/dags/chapter9_digit_classifier.py": "ModuleNotFoundError: No module named 'airflow.providers.amazon.aws.operators.s3_copy_object'",
@@ -623,66 +659,66 @@
   "dags": {
    "chapter01/dags/01_umbrella.py::01_umbrella": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter02/dags/download_rocket_launches.py::download_rocket_launches": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 2,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter02/dags/listing_2_10.py::listing_2_10": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 2,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter02/dags/listing_2_2.py::listing_2_02": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter02/dags/listing_2_3.py::listing_2_03": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter02/dags/listing_2_4.py::listing_2_04": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter02/dags/listing_2_6.py::listing_2_06": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter03/dags/01_unscheduled.py::01_unscheduled": {
     "before": false,
@@ -785,460 +821,460 @@
    },
    "chapter04/dags/listing_4_1.py::listing_4_01": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 1,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter04/dags/listing_4_13.py::listing_4_13": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 1,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter04/dags/listing_4_15.py::listing_4_15": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 3,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter04/dags/listing_4_18.py::listing_4_18": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 3,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter04/dags/listing_4_3.py::listing_4_03": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter04/dags/listing_4_5.py::listing_4_05": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter04/dags/listing_4_7.py::listing_4_07": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter04/dags/listing_4_8.py::listing_4_08": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter05/dags/01_start.py::01_start": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter05/dags/02_branch_function.py::02_branch_function": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter05/dags/02_branch_task.py::02_branch_function": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter05/dags/03_branch_dag.py::03_branch_dag": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter05/dags/04_branch_dag_join.py::04_branch_dag_join": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter05/dags/05_condition_task.py::05_condition_function": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter05/dags/06_condition_dag.py::06_condition_dag": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter05/dags/07_condition_dag_op.py::07_condition_dag_op": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter05/dags/08_trigger_rules.py::08_trigger_rules": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter05/dags/09_xcoms.py::10_xcoms": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter05/dags/10_xcoms_template.py::10_xcoms_template": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter05/dags/11_xcoms_return.py::11_xcoms_return": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter05/dags/12_taskflow.py::12_taskflow": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter05/dags/13_taskflow_full.py::13_taskflow_full": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter06/dags/figure_6_1.py::figure_6_01": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter06/dags/figure_6_11.py::figure_6_11": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 4,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter06/dags/figure_6_12.py::figure_6_12": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 4,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_1_dag_1": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 4,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
     "dag_test_after": true
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_1_dag_2": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_2_dag_1": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 4,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
     "dag_test_after": true
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_2_dag_2": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 4,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
     "dag_test_after": true
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_2_dag_3": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 4,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
     "dag_test_after": true
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_2_dag_4": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_3_dag_1": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 12,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
     "dag_test_after": true
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_3_dag_2": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_3_dag_3": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter06/dags/figure_6_17.py::figure_6_17_example_3_dag_4": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter06/dags/figure_6_19.py::figure_6_19_dag_1": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter06/dags/figure_6_19.py::figure_6_19_dag_2": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter06/dags/figure_6_19.py::figure_6_19_dag_3": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter06/dags/figure_6_19.py::figure_6_19_dag_4": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter06/dags/figure_6_20.py::figure_6_20_dag_1": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter06/dags/figure_6_20.py::figure_6_20_dag_2": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 3,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter06/dags/figure_6_5.py::figure_6_05": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 4,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter06/dags/figure_6_6.py::figure_6_06": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 4,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter06/dags/figure_6_8.py::figure_6_08": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 4,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter06/dags/figure_6_9.py::figure_6_09": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 4,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter06/dags/listing_6_1.py::listing_6_01": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 1,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter06/dags/listing_6_2.py::listing_6_02": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 1,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter06/dags/listing_6_3.py::listing_6_03": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter06/dags/listing_6_4.py::listing_6_04_dag01": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 20,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter06/dags/listing_6_4.py::listing_6_04_dag02": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter06/dags/listing_6_8.py::listing_6_08": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
@@ -1280,64 +1316,64 @@
    },
    "chapter11/dags/01_task_factory.py::01_task_factory": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 6,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter11/dags/02_dag_factory.py::02_dag_factory_customers": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 2,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter11/dags/02_dag_factory.py::02_dag_factory_sales": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 2,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter11/dags/03_task_groups.py::04_task_groups": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 6,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter11/dags/04_task_groups_umbrella.py::05_task_groups_umbrella": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter11/dags/05_sla_misses.py::03_sla_misses": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 1,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter12/dags/dag_failure_callback.py::chapter12_dag_failure_callback": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
@@ -1352,85 +1388,89 @@
    },
    "chapter12/dags/task_failure_callback.py::chapter12_task_failure_callback": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter12/dags/task_failure_email.py::chapter12_task_failure_email": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "chapter12/dags/task_sla.py::chapter12_task_sla": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 1,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter13/ldap/dags/hello_airflow.py::hello_airflow": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 1,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter13/rbac/dags/hello_airflow.py::hello_airflow": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 1,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "chapter13/webserver_theme/dags/hello_airflow.py::hello_airflow": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 1,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    }
   },
-  "pins": 19,
-  "claude_pins": 8,
+  "pins": 77,
+  "claude_pins": 3,
   "pin_reverted": 0,
-  "rows": 422,
+  "rows": 648,
   "rules": {
-   "ruff AIR311": 36,
-   "airflow3-timetable-judgment": 16,
+   "airflow3-days-ago": 152,
+   "ruff AIR311": 24,
+   "airflow3-cron-timetable-pin": 147,
    "ruff AIR301": 123,
-   "ruff AIR302": 90,
-   "ruff AIR311/AIR312": 75,
-   "airflow3-cron-timetable-pin": 38,
+   "ruff AIR302": 93,
+   "ruff AIR311/AIR312": 62,
    "airflow3-templates": 12,
+   "airflow3-timetable-judgment": 6,
    "airflow3-context-keys": 20,
-   "ruff AIR311/AIR321/AIR312": 5,
+   "ruff AIR311/AIR321/AIR312": 3,
    "ruff AIR301/AIR311": 2,
    "ruff AIR312/AIR311": 1,
    "ruff AIR312/AIR311/AIR321": 1,
-   "apache-airflow 3.3.2": 2,
-   "ruff AIR312": 1
+   "apache-airflow 3.3.2": 2
   },
   "manual": {
-   "ruff AIR301: no automatic fix": 90,
    "ruff AIR311: no automatic fix": 2,
-   "needs Claude (budget)": 80
+   "airflow3-context-judgment": 1,
+   "needs Claude (budget)": 20,
+   "ruff AIR311: unsafe fix withheld (unverified file)": 15,
+   "ruff AIR312: unsafe fix withheld (unverified file)": 14,
+   "judgment, not attempted (unverified file)": 5,
+   "ruff AIR321: unsafe fix withheld (unverified file)": 4
   },
-  "manual_n": 172,
+  "manual_n": 61,
   "mismatches": [
    "chapter7_insideairbnb.download_from_postgres._query: render mismatch on 10 of 10 runs, e.g. the run firing 2016-03-01 00:00 UTC (from the 23:00 sample): Airflow 2 rendered \"SELECT * FROM listings WHERE download_date BETWEEN '2016-01-01' AND '2016-02-01'\", the new template renders \"RENDER ERROR UndefinedError: 'prev_ds' is undefined\"",
    "chapter7_insideairbnb.download_from_postgres._s3_key: render mismatch on 10 of 10 runs, e.g. the run firing 2016-03-01 00:00 UTC (from the 23:00 sample): Airflow 2 rendered 'listing-2016-02-01.csv', the new template renders \"RENDER ERROR UndefinedError: 'prev_ds' is undefined\""
@@ -1441,14 +1481,77 @@
    "problem": ""
   },
   "new_failures": [],
+  "unverified": [
+   {
+    "path": "chapter04/dags/listing_4_20.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.providers.postgres.operators'"
+   },
+   {
+    "path": "chapter07/digit_classifier/dags/chapter9_digit_classifier.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.providers.amazon.aws.operators.s3_copy_object'"
+   },
+   {
+    "path": "chapter07/insideairbnb/dags/chapter7_insideairbnb.py",
+    "error": "ValueError: Invalid `auto_remove` value True, expected one of 'never', 'success', or 'force'."
+   },
+   {
+    "path": "chapter08/dags/01_python.py",
+    "error": "KeyError: 'MOVIELENS_USER'"
+   },
+   {
+    "path": "chapter09/dags/bash_operator_no_command.py",
+    "error": "TypeError: missing keyword argument 'bash_command'"
+   },
+   {
+    "path": "chapter09/dags/dag_cycle.py",
+    "error": "AirflowDagCycleException: Cycle detected in Dag: chapter8_dag_cycle. Faulty task: t3"
+   },
+   {
+    "path": "chapter09/dags/duplicate_task_ids.py",
+    "error": "airflow.sdk.exceptions.DuplicateTaskIdFound: Task id 'task' has already been added to the Dag"
+   },
+   {
+    "path": "chapter09/dags/testme.py",
+    "error": "airflow.sdk.exceptions.DuplicateTaskIdFound: Task id 'test2' has already been added to the Dag"
+   },
+   {
+    "path": "chapter10/docker/dags/01_docker.py",
+    "error": "KeyError: 'MOVIELENS_USER'"
+   },
+   {
+    "path": "chapter10/kubernetes/dags/02_kubernetes.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.providers.cncf.kubernetes.operators.kubernetes_pod'"
+   },
+   {
+    "path": "chapter13/secretsbackend/dag.py",
+    "error": "ImportError: cannot import name 'SimpleHttpOperator' from 'airflow.providers.http.operators.http' (/Users/paddy/SDK/real-world-airflow/.venvs/BasPH__data-pipelines-with-apache-airflow-af3/lib/python3.12/site-packages/airflow/providers/http/operators/http.py)"
+   },
+   {
+    "path": "chapter14/dags/nyc_dag.py",
+    "error": "ModuleNotFoundError: No module named 'nyctransport'"
+   },
+   {
+    "path": "chapter16/dags/01_aws_usecase.py",
+    "error": "ImportError: cannot import name 'AWSAthenaOperator' from 'airflow.providers.amazon.aws.operators.athena' (/Users/paddy/SDK/real-world-airflow/.venvs/BasPH__data-pipelines-with-apache-airflow-af3/lib/python3.12/site-packages/airflow/providers/amazon/aws/operators/athena.py)"
+   },
+   {
+    "path": "chapter17/dags/01_azure_usecase.py",
+    "error": "Reason: tried: '/opt/homebrew/opt/unixodbc/lib/libodbc.2.dylib' (no such file), '/System/Volumes/Preboot/Cryptexes/OS/opt/homebrew/opt/unixodbc/lib/libodbc.2.dylib' (no such file), '/opt/homebrew/opt/unixodbc/lib/libodbc.2.dylib' (no such file)"
+   },
+   {
+    "path": "chapter18/dags/gcp.py",
+    "error": "ImportError: cannot import name 'BigQueryExecuteQueryOperator' from 'airflow.providers.google.cloud.operators.bigquery' (/Users/paddy/SDK/real-world-airflow/.venvs/BasPH__data-pipelines-with-apache-airflow-af3/lib/python3.12/site-packages/airflow/providers/google/cloud/operators/bigquery.py)"
+   }
+  ],
+  "unpinned": [],
   "render_error": null
  },
  {
   "repo": "sanchitvj/sports_betting_analytics_engine",
   "ran": true,
   "commit": "855a744",
-  "wall_s": 72,
-  "agent_s": 35,
+  "wall_s": 60,
+  "agent_s": 55,
   "usd": 0,
   "llm_calls": 0,
   "af2_failed_files": {
@@ -1475,24 +1578,21 @@
   "pins": 3,
   "claude_pins": 0,
   "pin_reverted": 0,
-  "rows": 48,
+  "rows": 26,
   "rules": {
-   "ruff AIR311/AIR312": 5,
-   "ruff AIR321": 1,
-   "ruff AIR312/AIR321": 2,
-   "ruff AIR311": 3,
-   "ruff AIR311/AIR312/AIR321": 4,
    "ruff AIR301": 17,
+   "ruff AIR311": 1,
+   "ruff AIR311/AIR312": 1,
    "airflow3-cron-timetable-pin": 6,
-   "ruff AIR312": 2,
-   "ruff AIR321/AIR311": 2,
-   "ruff AIR311/AIR321/AIR312": 5,
    "apache-airflow 3.3.2": 1
   },
   "manual": {
+   "ruff AIR311: unsafe fix withheld (unverified file)": 10,
+   "ruff AIR312: unsafe fix withheld (unverified file)": 23,
+   "ruff AIR321: unsafe fix withheld (unverified file)": 7,
    "ruff AIR301: no automatic fix": 10
   },
-  "manual_n": 10,
+  "manual_n": 50,
   "mismatches": [],
   "timezone": {
    "tz": null,
@@ -1500,14 +1600,45 @@
    "problem": ""
   },
   "new_failures": [],
+  "unverified": [
+   {
+    "path": "dags/odds_batch_processing.py",
+    "error": "ImportError: cannot import name 'classproperty' from 'kafka.util' (/Users/paddy/SDK/real-world-airflow/.venvs/sanchitvj__sports_betting_analytics_engine-af3/lib/python3.12/site-packages/kafka/util.py)"
+   },
+   {
+    "path": "dags/odds_ingestion_dqc.py",
+    "error": "ImportError: cannot import name 'classproperty' from 'kafka.util' (/Users/paddy/SDK/real-world-airflow/.venvs/sanchitvj__sports_betting_analytics_engine-af3/lib/python3.12/site-packages/kafka/util.py)"
+   },
+   {
+    "path": "dags/snowflake_dbt_staging_marts.py",
+    "error": "ImportError: cannot import name 'SnowflakeOperator' from 'airflow.providers.snowflake.operators.snowflake' (/Users/paddy/SDK/real-world-airflow/.venvs/sanchitvj__sports_betting_analytics_engine-af3/lib/python3.12/site-packages/airflow/providers/snowflake/operators/snowflake.py)"
+   },
+   {
+    "path": "dags/sports_batch_backup.py",
+    "error": "ImportError: cannot import name 'classproperty' from 'kafka.util' (/Users/paddy/SDK/real-world-airflow/.venvs/sanchitvj__sports_betting_analytics_engine-af3/lib/python3.12/site-packages/kafka/util.py)"
+   },
+   {
+    "path": "dags/sports_batch_processing.py",
+    "error": "ImportError: cannot import name 'classproperty' from 'kafka.util' (/Users/paddy/SDK/real-world-airflow/.venvs/sanchitvj__sports_betting_analytics_engine-af3/lib/python3.12/site-packages/kafka/util.py)"
+   },
+   {
+    "path": "dags/sports_ingestion_backup.py",
+    "error": "ImportError: cannot import name 'classproperty' from 'kafka.util' (/Users/paddy/SDK/real-world-airflow/.venvs/sanchitvj__sports_betting_analytics_engine-af3/lib/python3.12/site-packages/kafka/util.py)"
+   },
+   {
+    "path": "dags/sports_ingestion_dqc.py",
+    "error": "ImportError: cannot import name 'classproperty' from 'kafka.util' (/Users/paddy/SDK/real-world-airflow/.venvs/sanchitvj__sports_betting_analytics_engine-af3/lib/python3.12/site-packages/kafka/util.py)"
+   }
+  ],
+  "unpinned": [],
   "render_error": null
  },
  {
   "repo": "anilkulkarni87/airflow-docker",
   "ran": true,
   "commit": "8b87bef",
-  "wall_s": 182,
-  "agent_s": 66,
+  "wall_s": 130,
+  "agent_s": 126,
   "usd": 0,
   "llm_calls": 0,
   "af2_failed_files": {
@@ -1548,20 +1679,22 @@
   "pins": 0,
   "claude_pins": 0,
   "pin_reverted": 0,
-  "rows": 18,
+  "rows": 11,
   "rules": {
-   "ruff AIR311": 7,
-   "ruff AIR301": 4,
-   "ruff AIR311/AIR301": 1,
-   "ruff AIR321": 3,
-   "ruff AIR311/AIR321": 1,
-   "ruff AIR312": 1,
-   "ruff AIR311/AIR302": 1
+   "ruff AIR311": 2,
+   "ruff AIR301": 3,
+   "airflow3-days-ago": 4,
+   "ruff AIR321": 2
   },
   "manual": {
-   "ruff AIR301: no automatic fix": 3
+   "ruff AIR311: unsafe fix withheld (unverified file)": 6,
+   "ruff AIR301: unsafe fix withheld (unverified file)": 1,
+   "ruff AIR321: unsafe fix withheld (unverified file)": 1,
+   "ruff AIR312: unsafe fix withheld (unverified file)": 1,
+   "ruff AIR302: unsafe fix withheld (unverified file)": 2,
+   "ruff AIR301: no automatic fix": 1
   },
-  "manual_n": 3,
+  "manual_n": 12,
   "mismatches": [],
   "timezone": {
    "tz": null,
@@ -1569,14 +1702,37 @@
    "problem": ""
   },
   "new_failures": [],
+  "unverified": [
+   {
+    "path": "dags/covidNyDaily.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.providers.postgres.operators'"
+   },
+   {
+    "path": "dags/covidNyInitial.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.providers.postgres.operators'"
+   },
+   {
+    "path": "dags/testBackfill.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.providers.postgres.operators'"
+   },
+   {
+    "path": "dags/test_minio_local.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.operators.python_operator'"
+   },
+   {
+    "path": "dags/test_postgres.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.providers.postgres.operators'"
+   }
+  ],
+  "unpinned": [],
   "render_error": null
  },
  {
   "repo": "astronomer/airflow-data-quality-demo",
   "ran": true,
   "commit": "8847b1c",
-  "wall_s": 174,
-  "agent_s": 87,
+  "wall_s": 133,
+  "agent_s": 122,
   "usd": 0,
   "llm_calls": 0,
   "af2_failed_files": {
@@ -1621,23 +1777,20 @@
   "pins": 0,
   "claude_pins": 0,
   "pin_reverted": 0,
-  "rows": 67,
+  "rows": 40,
   "rules": {
-   "ruff AIR311": 14,
-   "ruff AIR321": 9,
+   "ruff AIR302": 21,
    "ruff AIR301": 18,
-   "ruff AIR302": 9,
-   "ruff AIR311/AIR321/AIR302": 2,
-   "ruff AIR311/AIR302": 6,
-   "ruff AIR311/AIR312": 5,
-   "airflow3-context-keys": 1,
-   "ruff AIR311/AIR321/AIR312": 2,
-   "ruff AIR311/AIR312/AIR321": 1
+   "airflow3-context-keys": 1
   },
   "manual": {
-   "ruff AIR303: no automatic fix": 1
+   "ruff AIR303: no automatic fix": 1,
+   "ruff AIR311: unsafe fix withheld (unverified file)": 53,
+   "ruff AIR321: unsafe fix withheld (unverified file)": 12,
+   "ruff AIR302: unsafe fix withheld (unverified file)": 12,
+   "ruff AIR312: unsafe fix withheld (unverified file)": 13
   },
-  "manual_n": 1,
+  "manual_n": 91,
   "mismatches": [],
   "timezone": {
    "tz": null,
@@ -1645,16 +1798,91 @@
    "problem": ""
   },
   "new_failures": [],
+  "unverified": [
+   {
+    "path": "dags/bigquery_examples/simple_bigquery.py",
+    "error": "ImportError: cannot import name 'BigQueryCreateEmptyTableOperator' from 'airflow.providers.google.cloud.operators.bigquery' (/Users/paddy/SDK/real-world-airflow/.venvs/astronomer__airflow-data-quality-demo-af3/lib/python3.12/site-packages/airflow/providers/google/cloud/operators/bigquery.py)"
+   },
+   {
+    "path": "dags/firebolt_examples/simple_firebolt.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.operators.sql'"
+   },
+   {
+    "path": "dags/great_expectations/great_expectations_bigquery.py",
+    "error": "ImportError: cannot import name 'BigQueryCreateEmptyTableOperator' from 'airflow.providers.google.cloud.operators.bigquery' (/Users/paddy/SDK/real-world-airflow/.venvs/astronomer__airflow-data-quality-demo-af3/lib/python3.12/site-packages/airflow/providers/google/cloud/operators/bigquery.py)"
+   },
+   {
+    "path": "dags/great_expectations/great_expectations_mlflow.py",
+    "error": "Reason: tried: '/opt/homebrew/opt/libomp/lib/libomp.dylib' (no such file), '/System/Volumes/Preboot/Cryptexes/OS/opt/homebrew/opt/libomp/lib/libomp.dylib' (no such file), '/opt/local/lib/libomp/libomp.dylib' (no such file), '/System/Volumes/Preboot/Cryptexes/OS/opt/local/lib/libomp/libomp.dylib' (no"
+   },
+   {
+    "path": "dags/great_expectations/great_expectations_pandas_df.py",
+    "error": "ModuleNotFoundError: No module named 'great_expectations.checkpoint.types'"
+   },
+   {
+    "path": "dags/great_expectations/great_expectations_redshift.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.providers.amazon.aws.operators.redshift_sql'"
+   },
+   {
+    "path": "dags/great_expectations/great_expectations_snowflake.py",
+    "error": "ImportError: cannot import name 'SnowflakeOperator' from 'airflow.providers.snowflake.operators.snowflake' (/Users/paddy/SDK/real-world-airflow/.venvs/astronomer__airflow-data-quality-demo-af3/lib/python3.12/site-packages/airflow/providers/snowflake/operators/snowflake.py)"
+   },
+   {
+    "path": "dags/great_expectations/great_expectations_snowflake_write_audit_publish.py",
+    "error": "ImportError: cannot import name 'SnowflakeOperator' from 'airflow.providers.snowflake.operators.snowflake' (/Users/paddy/SDK/real-world-airflow/.venvs/astronomer__airflow-data-quality-demo-af3/lib/python3.12/site-packages/airflow/providers/snowflake/operators/snowflake.py)"
+   },
+   {
+    "path": "dags/redshift_examples/simple_redshift_1.py",
+    "error": "ImportError: cannot import name 'datetime' from 'airflow.utils.dates' (/Users/paddy/SDK/real-world-airflow/.venvs/astronomer__airflow-data-quality-demo-af3/lib/python3.12/site-packages/airflow/utils/dates.py)"
+   },
+   {
+    "path": "dags/redshift_examples/simple_redshift_2.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.operators.sql'"
+   },
+   {
+    "path": "dags/redshift_examples/simple_redshift_3.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.operators.sql'"
+   },
+   {
+    "path": "dags/snowflake_examples/complex_snowflake_transform.py",
+    "error": "ImportError: cannot import name 'SnowflakeOperator' from 'airflow.providers.snowflake.operators.snowflake' (/Users/paddy/SDK/real-world-airflow/.venvs/astronomer__airflow-data-quality-demo-af3/lib/python3.12/site-packages/airflow/providers/snowflake/operators/snowflake.py)"
+   },
+   {
+    "path": "dags/snowflake_examples/simple_snowflake.py",
+    "error": "ImportError: cannot import name 'SnowflakeOperator' from 'airflow.providers.snowflake.operators.snowflake' (/Users/paddy/SDK/real-world-airflow/.venvs/astronomer__airflow-data-quality-demo-af3/lib/python3.12/site-packages/airflow/providers/snowflake/operators/snowflake.py)"
+   },
+   {
+    "path": "dags/snowflake_examples/snowflake_dynamic_write_audit_publish.py",
+    "error": "ImportError: cannot import name 'SnowflakeOperator' from 'airflow.providers.snowflake.operators.snowflake' (/Users/paddy/SDK/real-world-airflow/.venvs/astronomer__airflow-data-quality-demo-af3/lib/python3.12/site-packages/airflow/providers/snowflake/operators/snowflake.py)"
+   },
+   {
+    "path": "dags/snowflake_examples/snowflake_write_audit_publish.py",
+    "error": "ImportError: cannot import name 'SnowflakeOperator' from 'airflow.providers.snowflake.operators.snowflake' (/Users/paddy/SDK/real-world-airflow/.venvs/astronomer__airflow-data-quality-demo-af3/lib/python3.12/site-packages/airflow/providers/snowflake/operators/snowflake.py)"
+   },
+   {
+    "path": "dags/snowflake_examples/taxi_snowflake.py",
+    "error": "ImportError: cannot import name 'SnowflakeOperator' from 'airflow.providers.snowflake.operators.snowflake' (/Users/paddy/SDK/real-world-airflow/.venvs/astronomer__airflow-data-quality-demo-af3/lib/python3.12/site-packages/airflow/providers/snowflake/operators/snowflake.py)"
+   },
+   {
+    "path": "dags/sql_examples/sql_check.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.operators.sql'"
+   },
+   {
+    "path": "dags/sql_examples/sql_check_redshift_etl.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.operators.sql'"
+   }
+  ],
+  "unpinned": [],
   "render_error": null
  },
  {
   "repo": "blockchain-etl/bitcoin-etl-airflow",
   "ran": true,
   "commit": "72a88b0",
-  "wall_s": 144,
-  "agent_s": 132,
-  "usd": 0.3208,
-  "llm_calls": 4,
+  "wall_s": 111,
+  "agent_s": 105,
+  "usd": 0.1056,
+  "llm_calls": 2,
   "af2_failed_files": {
    "dags/bitcoinetl/build_load_dag.py": "ImportError: Could not import `airflow.providers.google.cloud.operators.bigquery.BigQueryExecuteQueryOperator` while trying to import `airflow.contrib.operators",
    "dags/bitcoinetl/build_verify_streaming_dag.py": "ImportError: Could not import `airflow.providers.google.cloud.operators.bigquery.BigQueryExecuteQueryOperator` while trying to import `airflow.contrib.operators"
@@ -1663,10 +1891,10 @@
   "dags": {
    "dags/liveness_dag.py::liveness_dag": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    }
@@ -1674,20 +1902,22 @@
   "pins": 0,
   "claude_pins": 1,
   "pin_reverted": 0,
-  "rows": 18,
+  "rows": 9,
   "rules": {
-   "ruff AIR311": 6,
-   "airflow3-timetable-judgment": 5,
-   "ruff AIR301": 4,
-   "ruff AIR302": 1,
-   "ruff AIR311/AIR302": 2
+   "ruff AIR301": 3,
+   "ruff AIR311": 1,
+   "ruff AIR311/AIR302": 1,
+   "airflow3-timetable-judgment": 2,
+   "airflow3-days-ago": 2
   },
   "manual": {
-   "ruff AIR302: no automatic fix": 1,
-   "ruff AIR301: no automatic fix": 7,
-   "needs Claude (budget)": 2
+   "ruff AIR311: unsafe fix withheld (unverified file)": 3,
+   "ruff AIR301: unsafe fix withheld (unverified file)": 1,
+   "ruff AIR302: unsafe fix withheld (unverified file)": 4,
+   "judgment, not attempted (unverified file)": 3,
+   "ruff AIR301: no automatic fix": 6
   },
-  "manual_n": 10,
+  "manual_n": 17,
   "mismatches": [],
   "timezone": {
    "tz": null,
@@ -1695,16 +1925,53 @@
    "problem": ""
   },
   "new_failures": [],
+  "unverified": [
+   {
+    "path": "dags/bitcoinetl/build_export_dag.py",
+    "error": "ImportError: cannot import name 'bash_operator' from 'airflow.operators' (/Users/paddy/SDK/real-world-airflow/.venvs/blockchain-etl__bitcoin-etl-airflow-af3/lib/python3.12/site-packages/airflow/operators/__init__.py)"
+   },
+   {
+    "path": "dags/bitcoinetl/build_load_dag.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.contrib'"
+   },
+   {
+    "path": "dags/bitcoinetl/build_verify_streaming_dag.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.contrib'"
+   }
+  ],
+  "unpinned": [
+   {
+    "path": "dags/bitcoinetl/build_export_dag.py",
+    "line": 39,
+    "schedule": "export_schedule_interval",
+    "reason": "run dates shift by one interval on Airflow 3 unless pinned if this is a cron string or timedelta: the schedule is not a literal; pin it to CronDataIntervalTimetable / DeltaDataIntervalTimetable",
+    "evidence": ""
+   },
+   {
+    "path": "dags/bitcoinetl/build_load_dag.py",
+    "line": 65,
+    "schedule": "schedule_interval",
+    "reason": "run dates shift by one interval on Airflow 3 unless pinned if this is a cron string or timedelta: the schedule is not a literal; pin it to CronDataIntervalTimetable / DeltaDataIntervalTimetable",
+    "evidence": ""
+   },
+   {
+    "path": "dags/bitcoinetl/build_verify_streaming_dag.py",
+    "line": 46,
+    "schedule": "schedule_interval",
+    "reason": "run dates shift by one interval on Airflow 3 unless pinned if this is a cron string or timedelta: the schedule is not a literal; pin it to CronDataIntervalTimetable / DeltaDataIntervalTimetable",
+    "evidence": ""
+   }
+  ],
   "render_error": null
  },
  {
   "repo": "DaliGuerfali/big-data",
   "ran": true,
   "commit": "df84c1f",
-  "wall_s": 814,
-  "agent_s": 664,
-  "usd": 0.282,
-  "llm_calls": 4,
+  "wall_s": 189,
+  "agent_s": 185,
+  "usd": 0.0893,
+  "llm_calls": 1,
   "af2_failed_files": {},
   "dag_files": 3,
   "dags": {
@@ -1736,14 +2003,14 @@
     "dag_test_after": false
    }
   },
-  "pins": 0,
-  "claude_pins": 3,
+  "pins": 3,
+  "claude_pins": 0,
   "pin_reverted": 0,
   "rows": 17,
   "rules": {
    "ruff AIR311": 1,
    "ruff AIR311/AIR312": 6,
-   "airflow3-timetable-judgment": 6,
+   "airflow3-cron-timetable-pin": 6,
    "ruff AIR301": 3,
    "apache-airflow 3.3.2": 1
   },
@@ -1758,16 +2025,18 @@
    "problem": ""
   },
   "new_failures": [],
+  "unverified": [],
+  "unpinned": [],
   "render_error": null
  },
  {
   "repo": "AMPATH/etl",
   "ran": true,
   "commit": "f932b01",
-  "wall_s": 169,
-  "agent_s": 155,
-  "usd": 0.243,
-  "llm_calls": 6,
+  "wall_s": 103,
+  "agent_s": 97,
+  "usd": 0.0446,
+  "llm_calls": 1,
   "af2_failed_files": {
    "airflow/dags/all_etl_jobs_realtime.py": "ImportError: Could not import `airflow.providers.mysql.operators.mysql.MySqlOperator` while trying to import `airflow.operators.mysql_operator.MySqlOperator`.",
    "airflow/dags/amrs_garbage_collection.py": "ImportError: cannot import name 'SimpleHttpOperator' from 'airflow.operators.http_operator' (unknown location)",
@@ -1793,23 +2062,22 @@
     "dag_test_after": true
    }
   },
-  "pins": 0,
-  "claude_pins": 3,
+  "pins": 3,
+  "claude_pins": 0,
   "pin_reverted": 0,
-  "rows": 91,
+  "rows": 88,
   "rules": {
-   "ruff AIR311": 11,
-   "ruff AIR311/AIR302": 8,
-   "ruff AIR302": 53,
+   "ruff AIR302": 70,
    "ruff AIR301": 12,
-   "airflow3-timetable-judgment": 6,
-   "ruff AIR302/AIR311": 1
+   "airflow3-cron-timetable-pin": 6
   },
   "manual": {
+   "ruff AIR311: unsafe fix withheld (unverified file)": 12,
+   "ruff AIR302: unsafe fix withheld (unverified file)": 27,
    "ruff AIR301: no automatic fix": 4,
-   "needs Claude (budget)": 3
+   "judgment, not attempted (unverified file)": 3
   },
-  "manual_n": 7,
+  "manual_n": 46,
   "mismatches": [],
   "timezone": {
    "tz": null,
@@ -1817,45 +2085,118 @@
    "problem": ""
   },
   "new_failures": [],
+  "unverified": [
+   {
+    "path": "airflow/dags/all_etl_jobs_realtime.py",
+    "error": "ModuleNotFoundError: No module named 'pytz'"
+   },
+   {
+    "path": "airflow/dags/amrs_garbage_collection.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.providers.http'"
+   },
+   {
+    "path": "airflow/dags/base_tables.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.operators.bash_operator'"
+   },
+   {
+    "path": "airflow/dags/branch_dag.py",
+    "error": "ModuleNotFoundError: No module named 'pytz'"
+   },
+   {
+    "path": "airflow/dags/build_hiv_summaries.py",
+    "error": "ModuleNotFoundError: No module named 'pytz'"
+   },
+   {
+    "path": "airflow/dags/eid_sync_job_daily.py",
+    "error": "ModuleNotFoundError: No module named 'pytz'"
+   },
+   {
+    "path": "airflow/dags/eid_sync_job_weekly.py",
+    "error": "ModuleNotFoundError: No module named 'pytz'"
+   },
+   {
+    "path": "airflow/dags/hiv_monthly_summary_nightly.py",
+    "error": "ModuleNotFoundError: No module named 'pytz'"
+   },
+   {
+    "path": "airflow/dags/nightly_jobs.py",
+    "error": "ModuleNotFoundError: No module named 'pytz'"
+   },
+   {
+    "path": "airflow/dags/surge_daily.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.operators.bash_operator'"
+   },
+   {
+    "path": "airflow/dags/sync_hiv_summary_only.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.operators.bash_operator'"
+   },
+   {
+    "path": "airflow/dags/test_new_etl_scripts.py",
+    "error": "ModuleNotFoundError: No module named 'pytz'"
+   }
+  ],
+  "unpinned": [
+   {
+    "path": "airflow/dags/eid_sync_job_daily.py",
+    "line": 33,
+    "schedule": "'0 22 * * *'",
+    "reason": "run dates shift by one interval on Airflow 3 unless pinned: cron schedule, but the DAG's timezone can't be read off a literal start_date (on the DAG or in default_args); pin CronDataIntervalTimetable(cron, timezone=...) by hand",
+    "evidence": ""
+   },
+   {
+    "path": "airflow/dags/eid_sync_job_weekly.py",
+    "line": 31,
+    "schedule": "'0 22 * * 6'",
+    "reason": "run dates shift by one interval on Airflow 3 unless pinned: cron schedule, but the DAG's timezone can't be read off a literal start_date (on the DAG or in default_args); pin CronDataIntervalTimetable(cron, timezone=...) by hand",
+    "evidence": ""
+   },
+   {
+    "path": "airflow/dags/hiv_monthly_summary_nightly.py",
+    "line": 24,
+    "schedule": "'30 22 * * *'",
+    "reason": "run dates shift by one interval on Airflow 3 unless pinned: cron schedule, but the DAG's timezone can't be read off a literal start_date (on the DAG or in default_args); pin CronDataIntervalTimetable(cron, timezone=...) by hand",
+    "evidence": ""
+   }
+  ],
   "render_error": null
  },
  {
   "repo": "made-ml-in-prod-2021/airflow-examples",
   "ran": true,
   "commit": "96aaf7b",
-  "wall_s": 455,
-  "agent_s": 208,
-  "usd": 0.2535,
-  "llm_calls": 8,
+  "wall_s": 1192,
+  "agent_s": 1183,
+  "usd": 0.0832,
+  "llm_calls": 3,
   "af2_failed_files": {},
   "dag_files": 10,
   "dags": {
    "dags/01_bash_operator.py::01_bash_operator": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "dags/02_python_operator.py::02_python_operator_try_change_name": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "dags/03_branching.py::03_branching": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "dags/04_branching_1.py::04_branching": {
     "before": false,
@@ -1863,92 +2204,96 @@
     "fields": 0,
     "mismatched_fields": 0,
     "render_ok": false,
-    "dag_test_af2": false,
+    "dag_test_af2": true,
     "dag_test_after": true
    },
    "dags/06_xcom.py::06_xcom": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "dags/07_templating.py::07_templating": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 2,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "dags/08_sensor.py::08_sensor": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "dags/09_dag_factory.py::dag_factory_dataset_1": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "dags/09_dag_factory.py::dag_factory_dataset_2": {
     "before": false,
-    "after": false,
+    "after": true,
     "fields": 0,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": true,
     "dag_test_after": true
    },
    "dags/10_docker.py::10_docker": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 5,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    },
    "dags/11_docker.py::11_docker": {
     "before": false,
-    "after": false,
-    "fields": 0,
+    "after": true,
+    "fields": 6,
     "mismatched_fields": 0,
-    "render_ok": false,
+    "render_ok": true,
     "dag_test_af2": false,
-    "dag_test_after": true
+    "dag_test_after": false
    }
   },
-  "pins": 0,
-  "claude_pins": 7,
+  "pins": 7,
+  "claude_pins": 2,
   "pin_reverted": 0,
-  "rows": 54,
+  "rows": 77,
   "rules": {
-   "ruff AIR311": 6,
+   "ruff AIR311": 5,
    "ruff AIR312": 2,
+   "airflow3-days-ago": 17,
    "ruff AIR311/AIR312": 9,
-   "airflow3-timetable-judgment": 14,
+   "airflow3-timetable-judgment": 4,
    "ruff AIR301": 10,
-   "ruff AIR302": 11,
-   "ruff AIR311/AIR302": 1,
-   "airflow3-templates": 1
+   "airflow3-cron-timetable-pin": 14,
+   "ruff AIR302": 12,
+   "airflow3-templates": 1,
+   "airflow3-days-ago-judgment": 3
   },
   "manual": {
-   "ruff AIR301: no automatic fix": 11,
-   "needs Claude (budget)": 4
+   "needs Claude (budget)": 2,
+   "ruff AIR311: unsafe fix withheld (unverified file)": 1,
+   "ruff AIR302: unsafe fix withheld (unverified file)": 1,
+   "ruff AIR301: no automatic fix": 1
   },
-  "manual_n": 15,
+  "manual_n": 5,
   "mismatches": [],
   "timezone": {
    "tz": null,
@@ -1956,6 +2301,13 @@
    "problem": ""
   },
   "new_failures": [],
+  "unverified": [
+   {
+    "path": "dags/04_branching_1.py",
+    "error": "ModuleNotFoundError: No module named 'airflow.operators.python_operator'"
+   }
+  ],
+  "unpinned": [],
   "render_error": null
  }
 ]
