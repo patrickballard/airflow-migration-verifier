@@ -340,3 +340,26 @@ def test_sets_render_in_the_same_order_on_both_versions(tmp_path):
     old_kw = old["dags"]["dags/s.py::s"]["tasks"]["t"]["fields"]["op_kwargs"]["raw"]
     new_kw = new["dags"]["dags/s.py::s"]["tasks"]["t"]["fields"]["op_kwargs"]["raw"]
     assert old_kw == new_kw
+
+
+@needs_both
+def test_dag_folders_with_same_named_packages_render_in_one_call(tmp_path):
+    # real repo (BasPH): each chapter has its own dags/custom package; rendered in one process,
+    # the first chapter's `custom` shadowed the others ("No module named 'custom.hooks'")
+    repo = tmp_path / "r"
+    for chapter, value in (("ch1", "one"), ("ch2", "two")):
+        pkg = repo / chapter / "dags" / "custom"
+        pkg.mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (pkg / f"only_{chapter}.py").write_text(f"VALUE = {value!r}\n")
+        (repo / chapter / "dags" / "d.py").write_text(
+            f"import datetime\nfrom custom.only_{chapter} import VALUE\nfrom airflow import DAG\n"
+            "from airflow.operators.bash import BashOperator\n"
+            f"with DAG('{chapter}', schedule='@daily', start_date=datetime.datetime(2024, 1, 1)):\n"
+            "    BashOperator(task_id='t', bash_command='echo ' + VALUE + ' {{ ds }}')\n")
+    files = ["ch1/dags/d.py", "ch2/dags/d.py"]
+    for venv in (AF2, AF3):
+        out = render_check.render(Path(venv) / "bin" / "python", repo, files)
+        assert out["errors"] == {}, out["errors"]
+        raws = {k: d["tasks"]["t"]["fields"]["bash_command"]["raw"] for k, d in out["dags"].items()}
+        assert raws == {"ch1/dags/d.py::ch1": "echo one {{ ds }}", "ch2/dags/d.py::ch2": "echo two {{ ds }}"}

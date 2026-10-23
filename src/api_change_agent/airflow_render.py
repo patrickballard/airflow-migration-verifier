@@ -230,6 +230,29 @@ def render_file(repo: Path, rel: str) -> dict:
     return out, {Path(k).name: v.strip().splitlines()[-1] for k, v in bag.import_errors.items()}
 
 
+def _dags_folder(repo: Path, f: Path) -> Path:
+    return next((p for p in f.parents if p.name == "dags" and repo in p.parents), f.parent)
+
+
+def _use_dags_folder(repo: Path, f: Path, current: list[str]) -> list[str]:
+    """Put this file's dags folder (and the plugins/ beside it) on sys.path, as its own deployment would.
+    Repos holding several deployments (one dags/ per chapter or team) often reuse package names like
+    `custom`: forget the previous folder's paths and the modules imported from them first."""
+    dags = _dags_folder(repo, f)
+    wanted = [str(p) for p in (dags, dags.parent / "plugins") if p.is_dir() and p not in (repo, repo / "plugins")]
+    if wanted == current:
+        return current
+    for old in current:
+        while old in sys.path:
+            sys.path.remove(old)
+        for name, module in list(sys.modules.items()):
+            if (getattr(module, "__file__", None) or "").startswith(old + os.sep):
+                del sys.modules[name]
+    for p in reversed(wanted):
+        sys.path.insert(0, p)
+    return wanted
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--repo", required=True)
@@ -249,16 +272,15 @@ def main(argv=None) -> int:
                 return 3
         return subprocess.run([sys.executable, __file__, *(argv or sys.argv[1:])], env=env).returncode
     repo = Path(a.repo).resolve()
-    for rel in reversed(a.files):  # what a deployment puts on sys.path: dags folder, plugins/, repo root
-        f = repo / rel
-        dags = next((p for p in f.parents if p.name == "dags" and repo in p.parents), f.parent)
-        for p in (repo, repo / "plugins", dags.parent / "plugins", dags):
-            if p.is_dir() and str(p) not in sys.path:
-                sys.path.insert(0, str(p))
+    for p in (repo, repo / "plugins"):  # what a deployment puts on sys.path, besides its dags folder
+        if p.is_dir() and str(p) not in sys.path:
+            sys.path.insert(0, str(p))
     import airflow
 
     result = {"version": airflow.__version__, "dags": {}, "errors": {}}
-    for rel in a.files:
+    current: list[str] = []
+    for rel in sorted(a.files, key=lambda r: str(_dags_folder(repo, repo / r))):
+        current = _use_dags_folder(repo, repo / rel, current)
         try:
             dags, errors = render_file(repo, rel)
             result["dags"].update(dags)
