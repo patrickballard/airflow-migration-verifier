@@ -18,6 +18,15 @@ from libcst.metadata import MetadataWrapper, PositionProvider
 
 SCRIPT = Path(__file__).with_name("airflow_render.py")
 EMPTY = {"null", "", "[]", "{}"}
+RENAMED = {"logical_date": "execution_date"}  # new field -> Airflow 2 name (TriggerDagRunOperator)
+NEEDS_RUNNER = ("SUPERVISOR_COMMS",)  # Airflow 3 resolves XCom/Variables/Connections through the task runner
+
+
+def _comparable(old: str, new: str) -> bool:
+    """A pair says something about the migration: neither side needs a live task runner, and not both errored."""
+    if any(n in old or n in new for n in NEEDS_RUNNER):
+        return False
+    return not (old.startswith("RENDER ERROR") and new.startswith("RENDER ERROR"))
 
 
 @dataclass(frozen=True)
@@ -94,14 +103,20 @@ def compare(old: dict, new: dict, changed: set, whole_dags: set[str] = frozenset
             for name, nf in task["fields"].items():
                 if key not in whole_dags and (ndag["file"], ndag["dag_id"], task_id, name) not in changed:
                     continue
-                of = odag["tasks"].get(task_id, {}).get("fields", {}).get(name)
+                old_fields = odag["tasks"].get(task_id, {}).get("fields", {})
+                of = old_fields.get(name) or old_fields.get(RENAMED.get(name, ""))
                 if of is None:
                     continue  # a new task or field: nothing to compare against
                 if of["raw"] in EMPTY and nf["raw"] in EMPTY:
                     continue  # nothing to render (an unset cwd, env, ...)
-                res = FieldResult(ndag["file"], ndag["dag_id"], task_id, name, len(pairs),
-                                  [r["label"] for r, _, _ in pairs], dst=ndag.get("dst", ""))
-                for run, oi, ni in pairs:
+                if of.get("unrenderable") or nf.get("unrenderable"):
+                    continue  # e.g. an XComArg: its value only exists while the DAG runs
+                usable = [(r, oi, ni) for r, oi, ni in pairs if _comparable(of["rendered"][oi], nf["rendered"][ni])]
+                if not usable:
+                    continue
+                res = FieldResult(ndag["file"], ndag["dag_id"], task_id, name, len(usable),
+                                  [r["label"] for r, _, _ in usable], dst=ndag.get("dst", ""))
+                for run, oi, ni in usable:
                     if of["rendered"][oi] != nf["rendered"][ni]:
                         res.mismatches.append(Mismatch(run["label"], run["fires"], of["rendered"][oi], nf["rendered"][ni]))
                 results.append(res)
@@ -112,7 +127,7 @@ def summary(res: FieldResult) -> str:
     if res.mismatches:
         m = res.mismatches[0]
         return (f"render mismatch on {len(res.mismatches)} of {res.runs} runs, e.g. the run firing {_when(m.fires)} "
-                f"({m.label}): Airflow 2 rendered {m.old!r}, the new template renders {m.new!r}")
+                f"(from the {m.label} sample): Airflow 2 rendered {m.old!r}, the new template renders {m.new!r}")
     covered = []
     labels = " ".join(res.labels)
     if "23:00" in labels:
@@ -134,7 +149,7 @@ def mismatch_lines(results: list[FieldResult], limit: int = 6) -> list[str]:
     lines = []
     for r in results:
         for m in r.mismatches[:limit]:
-            lines.append(f"{r.task_id}.{r.field}, run firing {_when(m.fires)} ({m.label}): "
+            lines.append(f"{r.task_id}.{r.field}, run firing {_when(m.fires)} (from the {m.label} sample): "
                          f"Airflow 2 rendered {m.old!r}; the new template renders {m.new!r}")
     return lines
 

@@ -76,6 +76,34 @@ def test_pairs_by_fire_time_not_by_position():
     assert [(m.label, m.old, m.new) for m in res.mismatches] == [("23:00", "2024-01-15", "2024-01-16")]
 
 
+def test_runs_that_need_the_task_runner_are_not_compared():
+    # real repo: op_args=[task.output] can't resolve outside a task runner on Airflow 3
+    runs = [("a", "2024-01-15T23:00:00+00:00"), ("b", "2024-01-16T23:00:00+00:00"), ("c", "2024-01-17T23:00:00+00:00")]
+    needs = "RENDER ERROR ImportError: cannot import name 'SUPERVISOR_COMMS' from 'airflow.sdk.execution_time.task_runner'"
+    old = side("2", runs, {"cmd": {"raw": '"x"', "rendered": ["A", "RENDER ERROR KeyError: v", "C"]},
+                           "xcom": {"raw": '"x"', "rendered": ["[null]"] * 3, "unrenderable": "XComArg"}})
+    new = side("3", runs, {"cmd": {"raw": '"y"', "rendered": [needs, "RENDER ERROR KeyError: v", "C"]},
+                           "xcom": {"raw": '"x"', "rendered": [needs] * 3, "unrenderable": "XComArg"}})
+    (res,) = render_check.compare(old, new, changed={("d.py", "d", "t", "cmd")}, whole_dags={"d.py::d"})
+    assert res.field == "cmd" and res.runs == 1 and res.mismatches == []  # only run c: a needs the runner, b errs on both
+
+
+def test_renamed_fields_are_compared_across_the_rename():
+    runs = [("a", "2024-01-15T23:00:00+00:00")]
+    old = side("2", runs, {"execution_date": {"raw": '"{{ ds }}"', "rendered": ["2024-01-15"]}})
+    new = side("3", runs, {"logical_date": {"raw": '"{{ ds }}"', "rendered": ["2024-01-16"]}})
+    (res,) = render_check.compare(old, new, changed=set(), whole_dags={"d.py::d"})
+    assert res.field == "logical_date" and res.mismatches
+
+
+def test_mismatch_names_the_sample_not_the_fire_time():
+    runs = [("23:00", "2024-01-16T09:00:00+00:00")]
+    old = side("2", runs, {"cmd": {"raw": '"x"', "rendered": ["A"]}})
+    new = side("3", runs, {"cmd": {"raw": '"y"', "rendered": ["B"]}})
+    (res,) = render_check.compare(old, new, changed={("d.py", "d", "t", "cmd")})
+    assert "the run firing 2024-01-16 09:00 UTC (from the 23:00 sample)" in render_check.summary(res)
+
+
 def test_unchanged_fields_are_skipped_unless_the_dag_was_pinned():
     old = side("2", [("o", "2024-01-15T23:00:00+00:00")], {"cmd": {"raw": '"x"', "rendered": ["A"]}})
     new = side("3", [("o", "2024-01-15T23:00:00+00:00")], {"cmd": {"raw": '"x"', "rendered": ["B"]}})

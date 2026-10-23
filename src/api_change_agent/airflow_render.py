@@ -108,6 +108,19 @@ def _norm(value) -> str:
     return json.dumps(value, default=str, sort_keys=True)
 
 
+def _has_xcom_arg(value, depth=0) -> bool:
+    """An upstream task's output: it only has a value while the DAG runs, so it can't be render-compared."""
+    if any(c.__name__.endswith("XComArg") for c in type(value).__mro__):
+        return True
+    if depth > 5:
+        return False
+    if isinstance(value, dict):
+        return any(_has_xcom_arg(v, depth + 1) for v in value.values())
+    if isinstance(value, (list, tuple, set)):
+        return any(_has_xcom_arg(v, depth + 1) for v in value)
+    return False
+
+
 def _scheduler_timetable(dag):
     try:  # Airflow 3: the SDK DAG's timetable is a definition; the scheduler deserializes its own
         from airflow.serialization.serialized_objects import DagSerialization
@@ -200,6 +213,8 @@ def render_file(repo: Path, rel: str) -> dict:
             fields = {}
             for f in task.template_fields:
                 fields[f] = {"raw": _norm(getattr(task, f, None)), "rendered": []}
+                if _has_xcom_arg(getattr(task, f, None)):
+                    fields[f]["unrenderable"] = "XComArg"
             for info in infos:
                 try:
                     rendered = (_render_af3 if af3 else _render_af2)(dag, task.task_id, info)
