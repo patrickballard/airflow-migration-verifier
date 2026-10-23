@@ -221,14 +221,26 @@ class TemplateRewriter:
         owners = sorted(set(self.attr_rename) | set(self.attr_judgment))
         self.attr = re.compile(r"(?<![\w.])(" + "|".join(map(re.escape, owners)) + r")\s*\.\s*(\w+)") if owners else None
 
-    def rewrite(self, text: str, forbidden_quote: str | None = None):
-        """Returns (new_text, deterministic_hits, llm_hits); hits are (offset, snippet, reason)."""
+    def rewrite(self, text: str, forbidden_quote: str | None = None, partial: bool = False):
+        """Returns (new_text, deterministic_hits, llm_hits); hits are (offset, snippet, reason).
+
+        `partial`: `text` is one piece of a template built by concatenation ("{{ a(" + x + ") }}"), so a
+        `}}` with no `{{` before it closes a template, and a `{{` with no `}}` after it opens one."""
+        spans = [(m.start(), m.end()) for m in _JINJA.finditer(text)]
+        if partial:
+            head = text[:spans[0][0] if spans else len(text)]
+            close = min((i for i in (head.find("}}"), head.find("%}")) if i >= 0), default=-1)
+            if close >= 0:
+                spans.insert(0, (0, close + 2))
+            start = spans[-1][1] if spans else 0
+            opens = [i for i in (text.find("{{", start), text.find("{%", start)) if i >= 0]
+            if opens:
+                spans.append((min(opens), len(text)))
         det, llm, out, last = [], [], [], 0
-        for block in _JINJA.finditer(text):
-            new_block = self._block(block.group(0), block.start(), forbidden_quote, det, llm)
-            out.append(text[last:block.start()])
-            out.append(new_block)
-            last = block.end()
+        for a, b in spans:
+            out.append(text[last:a])
+            out.append(self._block(text[a:b], a, forbidden_quote, det, llm))
+            last = b
         out.append(text[last:])
         return "".join(out), det, llm
 
@@ -290,11 +302,12 @@ class _LiteralTemplates(cst.CSTTransformer):
 
     def leave_SimpleString(self, original: cst.SimpleString, updated: cst.SimpleString):
         prefix = original.prefix.lower()
-        if "b" in prefix or "f" in prefix or ("{{" not in original.value and "{%" not in original.value):
+        if "b" in prefix or "f" in prefix or not any(t in original.value for t in ("{{", "{%", "}}", "%}")):
             return updated
         quote = original.quote
         inner = original.value[len(original.prefix) + len(quote): len(original.value) - len(quote)]
-        new_inner, det, llm = self.rw.rewrite(inner, forbidden_quote=None if len(quote) == 3 else quote)
+        # a literal may be one piece of a template built by concatenation
+        new_inner, det, llm = self.rw.rewrite(inner, forbidden_quote=None if len(quote) == 3 else quote, partial=True)
         line0 = self.get_metadata(PositionProvider, original).start.line
         for bucket, hits in ((self.det, det), (self.llm, llm)):
             for off, snippet, reason in hits:

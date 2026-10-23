@@ -50,9 +50,11 @@ from airflow import DAG
 from airflow.sensors.external_task import ExternalTaskMarker
 from airflow.operators.bash_operator import BashOperator
 
+HOURS = "hour=2, minute=0"
 with DAG("marker", schedule_interval="@daily", start_date=datetime.datetime(2024, 1, 1), catchup=False) as dag:
+    # as in mozilla/telemetry-airflow: the template is built by concatenation
     ExternalTaskMarker(task_id="m", external_dag_id="down", external_task_id="wait",
-                       execution_date="{{ execution_date.replace(hour=2, minute=0).isoformat() }}")
+                       execution_date="{{ execution_date.replace(" + HOURS + ").isoformat() }}")
     BashOperator(task_id="b", bash_command="echo {{ ds }}", task_concurrency=1)
 '''
 AF2, AF3 = os.environ.get("ACA_AIRFLOW2_VENV"), os.environ.get("ACA_AIRFLOW3_VENV")

@@ -382,3 +382,19 @@ def test_no_manual_runs_section_for_openai(sample_repo):
     from conftest import RULES as OPENAI_RULES
     result = run(Options(repo=sample_repo, rules_path=OPENAI_RULES, dry_run=True, test_command=None), model=None)
     assert "Manual runs" not in result.body
+
+
+@pytest.mark.parametrize("src, expected", [
+    # real repo (mozilla): a template built by concatenation; the kwarg was renamed but the key inside wasn't
+    ('d = "{{ execution_date.replace(" + h + ").isoformat() }}"\n',
+     'd = "{{ logical_date.replace(" + h + ").isoformat() }}"\n'),
+    ('d = x + ") }} and {{ execution_date }}"\n', 'd = x + ") }} and {{ logical_date }}"\n'),
+    ('d = "a " + ds + " }} {{ yesterday_ds"\n', 'd = "a " + ds + " }} {{ macros.ds_add(ds, -1)"\n'),
+])
+def test_templates_split_across_concatenated_literals(src, expected):
+    assert TPL.apply(Path("dag.py"), src, OPTS) == expected
+
+
+def test_a_closing_brace_alone_is_not_a_template():
+    src = 'msg = "execution_date: }"\n'
+    assert TPL.apply(Path("dag.py"), src, OPTS) == src
