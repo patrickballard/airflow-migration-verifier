@@ -1,6 +1,6 @@
 """Check that a repo's DAGs import and run on the installed Airflow.
 
-    python airflow_dag_check.py [--repo DIR] --junitxml OUT.xml
+    python airflow_dag_check.py [--repo DIR] --junitxml OUT.xml [--files dags/a.py ...]
 
 Standalone on purpose (stdlib + airflow only): the agent runs it with the
 python of the venv under test. For every .py file that imports airflow it
@@ -130,6 +130,7 @@ def main(argv=None) -> int:
     p.add_argument("--json", dest="json_out")
     p.add_argument("--timeout", type=int, default=600)
     p.add_argument("--child", nargs="+")
+    p.add_argument("--files", nargs="+", help="check only these DAG files (paths relative to --repo)")
     a = p.parse_args(argv)
     if a.child:
         child(a.child[0], a.child[1] if len(a.child) > 1 else None)
@@ -145,8 +146,11 @@ def main(argv=None) -> int:
         return 3
 
     cases: list[dict] = []
+    only = set(a.files or ())
     for f in dag_files(repo):
         rel = f.relative_to(repo).as_posix()
+        if only and rel not in only:
+            continue
         res, out = run_child([str(f)], env, a.timeout, repo)
         cases.append({"id": f"{rel}::import", "ok": res["ok"], "error": res.get("error") or first_cause(out, "import failed")})
         if not res["ok"]:

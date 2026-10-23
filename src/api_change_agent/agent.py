@@ -31,7 +31,8 @@ from .plugins import NAIVE, PLUGINS
 from .report import Row, render_body
 from .rules import Rule, load_rules
 from .scanner import SKIP_DIRS, iter_python_files, scan_repo
-from .testrun import TestOutcome, TestRunner, default_install_command, detect_test_command, new_failures
+from .testrun import (TestOutcome, TestRunner, default_install_command, detect_test_command, merge_outcome,
+                      new_failures)
 
 DEFAULT_BRANCH = "api-change-agent/openai"
 DAG_CHECK = Path(__file__).with_name("airflow_dag_check.py")
@@ -243,8 +244,33 @@ class _Run:
                     found.append(rel)
         return found
 
-    def _run_tests(self) -> TestOutcome | None:
-        return self.runner.run() if self.runner else None
+    def _run_tests(self, changed: list[Path] | None = None) -> TestOutcome | None:
+        """Run the repo's checks. With `changed`, the Airflow DAG check re-tests only those DAG files and
+        reuses the last results for the rest, when nothing else can be affected (see _alone)."""
+        if not self.runner:
+            return None
+        if changed and self._alone(changed):
+            files = [rel.as_posix() for rel in changed]
+            self.log(f"test: re-checking only {', '.join(files)}")
+            return merge_outcome(self.state_outcome, self.runner.run(("--files", *files)), files)
+        return self.runner.run()
+
+    def _alone(self, changed: list[Path]) -> bool:
+        """Whether re-checking just these files is enough: they are DAG files the last check covered, and
+        no other file imports them (a helper module's change can break every DAG that uses it)."""
+        last = self.state_outcome
+        if (self.ruleset.verify != "airflow-dags" or "airflow_dag_check" not in self.runner.command
+                or last is None or not last.has_junit):
+            return False
+        for rel in changed:
+            if f"{rel.as_posix()}::import" not in last.ids:
+                return False
+            imports_it = re.compile(rf"^\s*(from\s+[\w.]*\b{re.escape(rel.stem)}\b[\w.]*\s+import|import\s+.*\b"
+                                    rf"{re.escape(rel.stem)}\b)", re.M)
+            for other in iter_python_files(self.repo, self.o.exclude):
+                if other != rel and imports_it.search((self.repo / other).read_text(errors="replace")):
+                    return False
+        return True
 
     # -- stages ---------------------------------------------------------------
     def scan(self) -> dict[str, dict[Path, list[Site]]]:
@@ -741,7 +767,7 @@ class _Run:
                 problem = self._render_problem(rel, original, proposed, rule.match.plugin)
             if problem is None and self.runner:
                 (self.repo / rel).write_text(proposed)
-                outcome = self._run_tests()
+                outcome = self._run_tests(changed=[rel])
                 regressions = new_failures(self.state_outcome, outcome)
                 if regressions:
                     (self.repo / rel).write_text(original)

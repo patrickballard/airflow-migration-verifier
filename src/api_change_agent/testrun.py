@@ -58,6 +58,17 @@ def new_failures(baseline: TestOutcome | None, after: TestOutcome | None) -> set
     return set() if not baseline.passed else (set(after.failures) or {f"<exit {after.returncode}>"})
 
 
+def merge_outcome(base: TestOutcome, partial: TestOutcome, files: list[str]) -> TestOutcome:
+    """`base` with the checks of `files` replaced by `partial`'s (a re-test of just those files)."""
+    redone = set(files)
+    keep = [i for i in base.ids if i.split("::", 1)[0] not in redone]
+    failures = frozenset({f for f in base.failures if f.split("::", 1)[0] not in redone} | partial.failures)
+    messages = {k: v for k, v in base.messages.items() if k.split("::", 1)[0] not in redone}
+    messages.update(partial.messages)
+    return TestOutcome(base.command, not failures, 1 if failures else 0, failures, True,
+                       partial.output, len(keep) + len(partial.ids), tuple(keep) + tuple(partial.ids), messages)
+
+
 def _was_blocked(test_id: str, baseline: TestOutcome) -> bool:
     """A check that didn't exist at baseline because something before it failed.
 
@@ -202,8 +213,9 @@ class TestRunner:
         if proc.returncode != 0:
             raise RuntimeError(f"install command failed (exit {proc.returncode}):\n{proc.stdout[-4000:]}")
 
-    def run(self) -> TestOutcome:
-        command = self.command
+    def run(self, extra_args: tuple[str, ...] = ()) -> TestOutcome:
+        """Run the test command; `extra_args` are appended (e.g. the DAG checker's --files)."""
+        command = self.command + "".join(f" {shlex.quote(a)}" for a in extra_args)
         junit = None
         if "{junit}" in command:  # e.g. the Airflow DAG checker writes junit where we say
             fd, junit = tempfile.mkstemp(suffix=".xml", prefix="aca-junit-")
