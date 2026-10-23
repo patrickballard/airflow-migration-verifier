@@ -52,4 +52,6 @@ jobs:
       - run: |
           echo "ACA_AIRFLOW2_VENV=$HOME/.aca-venvs/airflow-2" >> "$GITHUB_ENV"
           echo "ACA_AIRFLOW3_VENV=$HOME/.aca-venvs/airflow-3" >> "$GITHUB_ENV"
-      - run: python -m pytest -q
+      - name: Mutation tests of the render check (wrong migrations must never read as identical)
+        run: python -m pytest -q tests/test_render_mutations.py
+      - run: python -m pytest -q --ignore tests/test_render_mutations.py
