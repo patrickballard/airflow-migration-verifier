@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -20,12 +21,12 @@ from packaging.requirements import Requirement
 from packaging.version import Version
 
 from . import gitops, render_check, ruff_layer
+from .airflow_config import ENV as ENV_TZ
+from .airflow_config import find_default_timezone
 from .codemod import Site, apply_deterministic, find_sites, missing_comments
 from .deps import plan_add_dependency
 from .llm import BudgetExhausted, PatchModel, PatchRequest
 from .pins import PinPlan, apply_pins, plan_pins
-from .airflow_config import ENV as ENV_TZ
-from .airflow_config import find_default_timezone
 from .plugins import NAIVE, PLUGINS
 from .report import Row, render_body
 from .rules import Rule, load_rules
@@ -64,6 +65,13 @@ class ManualItem:
     reason: str
 
 
+@dataclass(frozen=True)
+class Unverified:
+    """A file that fails on the target before and after the change: nothing in it could be checked."""
+    path: str
+    error: str
+
+
 @dataclass
 class RunResult:
     rows: list[Row] = field(default_factory=list)
@@ -80,6 +88,8 @@ class RunResult:
     llm_usage: dict = field(default_factory=dict)  # calls, tokens and USD spent on Claude
     llm_notes: list = field(default_factory=list)  # Claude's full notes per attempt (never truncated)
     render_results: list = field(default_factory=list)  # Airflow render check, one per template field
+    unverified: list[Unverified] = field(default_factory=list)
+    unpinned: list = field(default_factory=list)  # Airflow schedules left on the new timetable defaults
     dep_notes: list[str] = field(default_factory=list)
     pushed: bool = False
     pr_url: str | None = None
@@ -107,11 +117,16 @@ class RunResult:
             "llm_usage": self.llm_usage,
             "llm_notes": self.llm_notes,
             "render": [dataclasses.asdict(r) for r in self.render_results],
+            "unverified": [dataclasses.asdict(u) for u in self.unverified],
+            "unpinned": self.unpinned,
         }
 
 
 # --------------------------------------------------------------------------
 # line bookkeeping
+
+
+WHOLE_DAG = ("airflow_cron_pin", "airflow_days_ago")  # changes that answer for every template field of a DAG
 
 
 def _pin_can_explain(res) -> bool:
@@ -339,21 +354,43 @@ class _Run:
             if tool.id not in hits:
                 continue
             res = ruff_layer.run(self.repo, [f.as_posix() for f in self.sdk_files], tool)
-            by_file: dict[Path, list[Row]] = {}
-            for c in res.changes:
-                codes = "/".join(c.codes) or tool.select
-                note = f"fixed by ruff {', '.join(c.codes)}: " + " ".join(c.messages)
-                by_file.setdefault(Path(c.path), []).append(
-                    Row(c.path, c.line, c.before, c.after, f"ruff {codes}", c.url or tool.changelog, note))
-            for rel, text in res.new_text.items():
-                # ruff already wrote the file; this records it (self.current still holds the pre-ruff text)
-                self._set_source(Path(rel), text, by_file.get(Path(rel), []))
-            for d in res.left:
-                self.result.manual.append(ManualItem(d.path, d.line, f"ruff {d.code}",
-                                                     f"ruff {d.code} has no automatic fix: {d.message}"))
+            self._record_ruff(res, tool)
             if res.changes:
                 applied.append(tool)
         return applied
+
+    def _record_ruff(self, res, tool, left_reason=None) -> None:
+        by_file: dict[Path, list[Row]] = {}
+        for c in res.changes:
+            codes = "/".join(c.codes) or tool.select
+            note = f"fixed by ruff {', '.join(c.codes)}: " + " ".join(c.messages)
+            by_file.setdefault(Path(c.path), []).append(
+                Row(c.path, c.line, c.before, c.after, f"ruff {codes}", c.url or tool.changelog, note))
+        for rel, text in res.new_text.items():
+            # ruff already wrote the file; this records it (self.current still holds the pre-ruff text)
+            self._set_source(Path(rel), text, by_file.get(Path(rel), []))
+        for d in res.left:
+            why = (left_reason(d) if left_reason else None) or f"ruff {d.code} has no automatic fix: {d.message}"
+            self.result.manual.append(ManualItem(d.path, d.line, f"ruff {d.code}", why))
+
+    def _refresh_ruff_manual(self) -> None:
+        """Drop ruff's "no automatic fix" items that a later rule fixed after all (e.g. days_ago)."""
+        if not self.ruleset.tools or not any(m.rule_id.startswith("ruff ") for m in self.result.manual):
+            return
+        left: Counter = Counter()
+        for tool in self.ruleset.tools:
+            for d in ruff_layer.diagnose(self.repo, [f.as_posix() for f in self.sdk_files], tool):
+                left[(d.path, f"ruff {d.code}", d.message)] += 1
+        kept = []
+        for m in self.result.manual:
+            if m.rule_id.startswith("ruff "):
+                key = next((k for k in left if k[:2] == (m.path, m.rule_id) and m.reason.endswith(k[2]) and left[k]),
+                           None)
+                if key is None:
+                    continue
+                left[key] -= 1
+            kept.append(m)
+        self.result.manual = kept
 
     def deterministic(self, hits) -> None:
         stage_rules = self.tools(hits)
@@ -456,12 +493,15 @@ class _Run:
             return None
         changed_files = {rel.as_posix() for rel, text in self.originals.items() if (self.repo / rel).read_text() != text}
         changed = render_check.changed_fields(old, new, changed_files)
-        pinned = {r.path for rows in self.rows.values() for r in rows if self._plugin_of(r.rule_id) == "airflow_cron_pin"}
-        whole = {k for k, d in new["dags"].items() if d["file"] in pinned}
+        pinned = {r.path for rows in self.rows.values() for r in rows if self._plugin_of(r.rule_id) in WHOLE_DAG}
+        # whole DAGs: those we pinned or rebased, and those left on Airflow 3's new default timetable
+        whole = {k for k, d in new["dags"].items() if d["file"] in pinned or d.get("timetable") in render_check.TRIGGER}
         return render_check.compare(old, new, changed, whole), new
 
     def _covering(self, res, new) -> tuple[list[Row], list[Row]]:
-        """(template rows, pin rows) that can affect this rendered field."""
+        """(template rows, pin rows) that can affect this rendered field. A DAG left on Airflow 3's new
+        timetable shifts its dates by design (see Run dates will shift): no pin or start_date change
+        answers for that, only the template rewrites in its own fields."""
         span = render_check.task_spans(self.current[Path(res.file)]).get(res.task_id)
         raw = new["dags"][f"{res.file}::{res.dag_id}"]["tasks"][res.task_id]["fields"][res.field]["raw"]
         refs = {s for s in render_check._strings(raw) if s}
@@ -475,7 +515,7 @@ class _Run:
                                                        or (r.raw_after.strip() and r.raw_after.strip() in s)  # contents
                                                        for s in refs))):  # (DagBag inlines template files)
                     templates.append(r)
-                elif plugin == "airflow_cron_pin" and r.path == res.file:
+                elif plugin in WHOLE_DAG and r.path == res.file and not res.unpinned:
                     pins.append(r)
         return templates, pins
 
@@ -520,7 +560,7 @@ class _Run:
         if self.runner:
             self.state_outcome = self._run_tests()
 
-    def _render_problem(self, rel: Path, original: str, proposed: str) -> str | None:
+    def _render_problem(self, rel: Path, original: str, proposed: str, plugin: str | None) -> str | None:
         """For a Claude patch: mismatches in the fields of the tasks it touched (None = fine / not checked)."""
         if self._render_pythons() is None:
             return None
@@ -539,7 +579,9 @@ class _Run:
         spans = render_check.task_spans(proposed)
         touched = {t for t, (a, b) in spans.items()
                    if any(a <= r.line <= b for r in _rows(rel, original, proposed, "", "", ""))}
-        bad = [r for r in results if r.mismatches and r.file == rel.as_posix() and r.task_id in touched]
+        whole = plugin in WHOLE_DAG  # a pin / start_date change answers for every field of its DAGs
+        bad = [r for r in results if r.mismatches and r.file == rel.as_posix()
+               and ((whole and not r.unpinned) or (not whole and r.task_id in touched))]
         if not bad:
             return None
         return ("render mismatch (old template on Airflow 2 vs yours on Airflow 3, runs paired by the moment "
@@ -557,6 +599,7 @@ class _Run:
             templates, pins = self._covering(res, new)
             for r in templates + (pins if _pin_can_explain(res) else []):
                 by_row.setdefault(id(r), []).append(res)
+        unpinned_dags = {(r.file, r.dag_id) for r in results if r.unpinned}
         for rel, rows in self.rows.items():
             out = []
             for r in rows:
@@ -564,11 +607,15 @@ class _Run:
                 extra = None
                 if plugin == "airflow_context_keys" and r.path.endswith(".py"):
                     extra = "not render-checked (Python context reads are out of scope for v0)"
-                elif plugin in ("airflow_templates", "airflow_cron_pin"):
+                elif plugin in ("airflow_templates", *WHOLE_DAG):
                     covering = by_row.get(id(r))
+                    in_unpinned = any(f == r.path for f, _ in unpinned_dags)
                     if not compared:
                         extra = f"not render-checked: {getattr(self, 'render_unavailable', 'unavailable')}"
-                    elif not covering and plugin == "airflow_cron_pin":
+                    elif not covering and in_unpinned:
+                        extra = ("not render-checked: a DAG in this file isn't pinned, so its run dates shift "
+                                 "(see Run dates will shift)")
+                    elif not covering and plugin in WHOLE_DAG:
                         extra = ("not render-checked (no template field of this DAG could be compared: none, "
                                  "or only ones still using a removed variable)")
                     elif not covering:
@@ -576,7 +623,7 @@ class _Run:
                     else:
                         worst = next((c for c in covering if c.mismatches), min(covering, key=lambda c: c.runs))
                         extra = render_check.summary(worst)
-                        if plugin == "airflow_cron_pin" and not worst.mismatches:
+                        if plugin in WHOLE_DAG and not worst.mismatches:
                             extra = extra.replace("render-checked:", f"render-checked: all {len(covering)} template "
                                                   "field(s) of this DAG", 1)
                 out.append(dataclasses.replace(r, note=f"{r.note}; {extra}" if r.note and extra else (extra or r.note)))
@@ -688,8 +735,8 @@ class _Run:
             else:
                 problem = self._validate(original, proposed, rule, rel)
             entry = {"path": rel.as_posix(), "rule_id": rule.id, "attempt": attempt, "notes": notes}
-            if problem is None and rule.match.plugin in ("airflow_templates", "airflow_cron_pin"):
-                problem = self._render_problem(rel, original, proposed)
+            if problem is None and rule.match.plugin in ("airflow_templates", *WHOLE_DAG):
+                problem = self._render_problem(rel, original, proposed, rule.match.plugin)
             if problem is None and self.runner:
                 (self.repo / rel).write_text(proposed)
                 outcome = self._run_tests()
@@ -716,6 +763,78 @@ class _Run:
             self.log(f"{rel}: rejected: {reason}")
         self.result.manual += [ManualItem(rel.as_posix(), s.line, rule.id, reason) for s in sites]
         return False
+
+    UNVERIFIED = ("this file fails to import on Airflow 3 before and after, so nothing in it could be verified "
+                  "(see Unverified files)")
+
+    def unverified_pass(self) -> None:
+        """A file that fails on the target before *and* after: nothing in it was checked. Rebuild it from
+        the original without ruff's unsafe fixes or Claude's patches, and say plainly that it's unverified."""
+        before, after = self.result.tests_baseline, self.state_outcome
+        if not self.runner or before is None or after is None or not after.has_junit:
+            return
+        bad = [rel for rel in sorted(self.rows) if rel.suffix == ".py" and self.rows[rel]
+               and f"{rel.as_posix()}::import" in before.failures and f"{rel.as_posix()}::import" in after.failures]
+        if not bad:
+            return
+        self.log(f"unverified: {len(bad)} file(s) fail on the target before and after; rebuilding without unsafe fixes")
+        safe = [dataclasses.replace(t, args=tuple(a for a in t.args if a != "--unsafe-fixes")) for t in self.ruleset.tools]
+        for rel in bad:
+            self._rebuild_safe(rel, safe)
+        self.state_outcome = self._run_tests()
+        self.tested_after_changes = True
+        for rel in bad:
+            key = f"{rel.as_posix()}::import"
+            if key not in self.state_outcome.failures:
+                continue  # imports now: its checks ran like any other file's
+            error = self.state_outcome.messages.get(key) or before.messages.get(key) or "import failed"
+            self.result.unverified.append(Unverified(rel.as_posix(), error))
+            self.rows[rel] = [dataclasses.replace(r, note=f"{r.note}; ⚠️ unverified: {self.UNVERIFIED}" if r.note
+                                                  else f"⚠️ unverified: {self.UNVERIFIED}") for r in self.rows[rel]]
+
+    def _rebuild_safe(self, rel: Path, tools) -> None:
+        original = self.originals[rel]
+        (self.repo / rel).write_text(original)
+        self.current[rel], self.rows[rel] = original, []
+        self.result.manual = [m for m in self.result.manual if m.path != rel.as_posix()]
+        self.result.llm_notes = [n for n in self.result.llm_notes if n.get("path") != rel.as_posix()]
+        unsafe = (lambda d: f"ruff {d.code}: unsafe fix not applied ({self.UNVERIFIED}): {d.message}"
+                  if d.edit_lines else None)
+        for tool in tools:
+            self._record_ruff(ruff_layer.run(self.repo, [rel.as_posix()], tool), tool, unsafe)
+        for rule in self.ruleset.rules:
+            if "add_dependency" in rule.transform:
+                continue
+            if rule.fix == "deterministic" and rule in self.applied_rules:
+                if rule.match.plugin:
+                    new = PLUGINS[rule.match.plugin].apply(rel, self.current[rel], self._options(rule))
+                    rows = _rows(rel, self.current[rel], new, rule.id, rule.changelog, rule.note)
+                else:
+                    new, edits = apply_deterministic(self.current[rel], rule)
+                    rows = [Row(rel.as_posix(), e.line, e.before, e.after, rule.id, rule.changelog) for e in edits]
+                if new != self.current[rel]:
+                    self._set_source(rel, new, rows)
+            elif rule.fix == "llm":
+                self.result.manual += [
+                    ManualItem(rel.as_posix(), s.line, rule.id, f"{s.reason} (no patch: {self.UNVERIFIED})"
+                               if s.reason else f"no patch: {self.UNVERIFIED}")
+                    for s in self._sites(self.current[rel], rule, rel)]
+
+    def unpinned_schedules(self) -> list[dict]:
+        """Schedules still on Airflow 3's new default timetables, with the render check's evidence."""
+        rule = next((r for r in self.ruleset.rules if r.match.plugin == "airflow_cron_pin"), None)
+        if rule is None:
+            return []
+        out = []
+        for rel in sorted(self.current):
+            if rel.suffix != ".py":
+                continue
+            for site in PLUGINS[rule.match.plugin].find(rel, (self.repo / rel).read_text(), self._options(rule), "llm"):
+                bad = [r for r in self.result.render_results if r.file == rel.as_posix() and r.unpinned and r.mismatches]
+                out.append({"path": rel.as_posix(), "line": site.line, "schedule": site.snippet, "reason": site.reason,
+                            "evidence": render_check.summary(bad[0]) + f" (field {bad[0].dag_id}.{bad[0].task_id}."
+                                        f"{bad[0].field})" if bad else ""})
+        return out
 
     def dependencies(self, hits) -> None:
         """``add_dependency`` rules. Run last, so the SDK pins they look at
@@ -808,6 +927,9 @@ class _Run:
             "".join(difflib.unified_diff(self.originals[Path(rel)].splitlines(True),
                                          (self.repo / rel).read_text().splitlines(True), f"a/{rel}", f"b/{rel}"))
             for rel in res.changed_files)
+        self._refresh_ruff_manual()
+        if self.ruleset.verify == "airflow-dags":
+            res.unpinned = self.unpinned_schedules()
         res.tests_after = self.state_outcome if self.tested_after_changes else None
         res.new_failures = new_failures(res.tests_baseline, res.tests_after)
         if self.model is not None and hasattr(self.model, "usage_summary"):
@@ -826,6 +948,7 @@ class _Run:
             dag_target=(f"{self.ruleset.dist} {self.ruleset.target_version}"
                         if self.ruleset.verify == "airflow-dags" else None),
             llm_usage=res.llm_usage, llm_notes=res.llm_notes, render_results=res.render_results,
+            unverified=res.unverified, unpinned=res.unpinned,
             timezone=self.tz, naive_pins=[r for r in rows if r.rule_id == "airflow3-cron-timetable-pin"
                                           and (Path(r.path), r.line) in self.naive_pin_lines()],
         )
@@ -870,6 +993,7 @@ def run(options: Options, model: PatchModel | None = None, github=None) -> RunRe
     r.setup_tests()
     r.deterministic(hits)
     r.llm(hits)
+    r.unverified_pass()
     r.dependencies(hits)
     r.render_annotate()
     result = r.finish()

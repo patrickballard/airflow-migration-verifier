@@ -126,6 +126,36 @@ def _timezone_section(tz, naive_pins, blob_base) -> list[str]:
             "or the DAGs will fire at different times than they do on Airflow 2:", "", *sites, ""]
 
 
+def _unpinned_section(unpinned, blob_base) -> list[str]:
+    if not unpinned:
+        return []
+    out = [f"### ⚠️ Run dates will shift: {len(unpinned)} schedule(s) not pinned", "",
+           "Airflow 3 runs cron schedules on `CronTriggerTimetable` and timedelta schedules on "
+           "`DeltaTriggerTimetable`, where a run's logical date is the moment it fires; Airflow 2 used the interval "
+           "timetables, where it is the start of the interval that just ended. For these DAGs every date derived from "
+           "the run (`{{ ds }}`, `logical_date`, partition paths) moves by one interval unless you pin them as in "
+           "Timetable pin, or restore the old defaults for all DAGs with `[scheduler] create_cron_data_intervals = "
+           "True` and `create_delta_data_intervals = True`.", ""]
+    for u in unpinned:
+        why = u["reason"].split(": ", 1)[1] if ": " in u["reason"] else u["reason"]
+        line = f"- {_link(u['path'], u['line'], blob_base)} <code>{html.escape(u['schedule'][:120], quote=False)}</code>: {why}"
+        if u.get("evidence"):
+            line += f". ❌ {html.escape(u['evidence'][:400], quote=False)}"
+        out.append(line)
+    return out + [""]
+
+
+def _unverified_section(unverified, blob_base) -> list[str]:
+    if not unverified:
+        return []
+    out = ["### ⚠️ Unverified files", "",
+           "These files fail to import on Airflow 3 both before and after this PR, so nothing in them could be "
+           "checked (DagBag import, `dag.test()`, render check). Their changes above are marked unverified; ruff's "
+           "unsafe fixes and Claude's patches were not applied to them. Fix the error and run the agent again.", ""]
+    out += [f"- `{u.path}`: <code>{html.escape(u.error[:300], quote=False)}</code>" for u in unverified]
+    return out + [""]
+
+
 def _render_section(results) -> list[str]:
     from .render_check import summary  # local: render_check imports nothing from here, but keep report light
 
@@ -163,7 +193,7 @@ def _dag_table(before, after, target) -> list[str]:
 def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes, skipped_rules, skipped, manual,
                 unparsable, tests_baseline, tests_after, new_failures, blob_base, rules_path,
                 rule_notes=None, dep_notes=(), title="", tools=(), dag_target=None, llm_usage=None,
-                llm_notes=(), render_results=(), timezone=None, naive_pins=()) -> str:
+                llm_notes=(), render_results=(), timezone=None, naive_pins=(), unverified=(), unpinned=()) -> str:
     rule_notes = rule_notes or {}
     applied = sorted({r.rule_id for r in rows})
     parts = [
@@ -178,6 +208,8 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
         if any(r.rule_id == "airflow3-cron-timetable-pin" for r in rows):
             parts += [TIMETABLE_PIN, ""]
             parts += _timezone_section(timezone, naive_pins, blob_base)
+        parts += _unpinned_section(unpinned, blob_base)
+        parts += _unverified_section(unverified, blob_base)
         parts += _manual_runs_section(rows, blob_base)
         if render_results:
             parts += _render_section(render_results)

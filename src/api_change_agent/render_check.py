@@ -18,6 +18,7 @@ from libcst.metadata import MetadataWrapper, PositionProvider
 
 SCRIPT = Path(__file__).with_name("airflow_render.py")
 EMPTY = {"null", "", "[]", "{}"}
+TRIGGER = {"CronTriggerTimetable", "DeltaTriggerTimetable"}  # Airflow 3's defaults for cron / timedelta
 RENAMED = {"logical_date": "execution_date"}  # new field -> Airflow 2 name (TriggerDagRunOperator)
 NEEDS_RUNNER = ("SUPERVISOR_COMMS",)  # Airflow 3 resolves XCom/Variables/Connections through the task runner
 
@@ -47,6 +48,12 @@ class FieldResult:
     labels: list[str] = field(default_factory=list)
     mismatches: list[Mismatch] = field(default_factory=list)
     dst: str = ""
+    timetable: str = ""  # the migrated DAG's, as Airflow 3's scheduler sees it
+
+    @property
+    def unpinned(self) -> bool:
+        """On Airflow 3's new default timetable: its run dates differ from Airflow 2 by design."""
+        return self.timetable in TRIGGER
 
 
 def render(python: Path, repo: Path, files: list[str], timeout: int = 1800, env: dict | None = None) -> dict:
@@ -115,7 +122,8 @@ def compare(old: dict, new: dict, changed: set, whole_dags: set[str] = frozenset
                 if not usable:
                     continue
                 res = FieldResult(ndag["file"], ndag["dag_id"], task_id, name, len(usable),
-                                  [r["label"] for r, _, _ in usable], dst=ndag.get("dst", ""))
+                                  [r["label"] for r, _, _ in usable], dst=ndag.get("dst", ""),
+                                  timetable=ndag.get("timetable", ""))
                 for run, oi, ni in usable:
                     if of["rendered"][oi] != nf["rendered"][ni]:
                         res.mismatches.append(Mismatch(run["label"], run["fires"], of["rendered"][oi], nf["rendered"][ni]))

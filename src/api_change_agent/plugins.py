@@ -352,13 +352,31 @@ def _kw(call: cst.Call, name: str):
 
 
 NAIVE = "naive start_date"
+_UNKNOWN = object()  # an expression whose value can't be read off the source
+
+
+def _root_call(node):
+    """pendulum.today("UTC").add(days=-1) -> the pendulum.today("UTC") call it starts from."""
+    while isinstance(node, cst.Call) and isinstance(node.func, cst.Attribute) and isinstance(node.func.value, cst.Call):
+        node = node.func.value
+    return node
 
 
 def _literal_timezone(start) -> str | None:
     """The timezone Airflow 2 would schedule in, if it can be read off a literal start_date (NAIVE: the default)."""
+    if isinstance(start, cst.SimpleString):  # parsed by Airflow; an explicit offset isn't handled here
+        value = start.evaluated_value
+        return None if re.search(r"(Z|[+-]\d\d:?\d\d)$", value) else NAIVE
     if not isinstance(start, cst.Call):
         return None
+    start = _root_call(start)
     callee = _callee(start)
+    if callee.split(".")[-1] == "days_ago" and callee in ("days_ago", "dates.days_ago", "airflow.utils.dates.days_ago"):
+        return "UTC"  # timezone.utcnow() based
+    if callee in ("pendulum.today", "pendulum.now", "pendulum.yesterday", "pendulum.tomorrow"):
+        tz = start.args[0].value if start.args and start.args[0].keyword is None else _kw(start, "tz")
+        # no zone: pendulum's local zone, i.e. the parsing machine's, which can't be known here
+        return tz.evaluated_value if isinstance(tz, cst.SimpleString) else None
     if callee in ("datetime.datetime", "datetime", "dt.datetime"):
         # naive datetime: Airflow uses [core] default_timezone
         return None if _kw(start, "tzinfo") is not None or len(start.args) > 7 else NAIVE
@@ -368,6 +386,96 @@ def _literal_timezone(start) -> str | None:
             return "UTC"  # pendulum's default
         return tz.evaluated_value if isinstance(tz, cst.SimpleString) else None
     return None
+
+
+class _ModuleValues(cst.CSTVisitor):
+    """Module-level `NAME = <expr>` assigned exactly once and never mutated: their values can be read."""
+
+    def __init__(self):
+        self.values: dict[str, object] = {}
+        self.depth = 0
+
+    def visit_FunctionDef(self, node):
+        self.depth += 1
+
+    def leave_FunctionDef(self, node):
+        self.depth -= 1
+
+    def visit_ClassDef(self, node):
+        self.depth += 1
+
+    def leave_ClassDef(self, node):
+        self.depth -= 1
+
+    def _taint(self, name):
+        self.values[name] = _UNKNOWN
+
+    def visit_Assign(self, node: cst.Assign):
+        for t in node.targets:
+            if isinstance(t.target, cst.Name):
+                name = t.target.value
+                self.values[name] = node.value if self.depth == 0 and name not in self.values else _UNKNOWN
+            elif isinstance(t.target, cst.Subscript) and isinstance(t.target.value, cst.Name):
+                self._taint(t.target.value.value)  # default_args["start_date"] = ...
+
+    def visit_AugAssign(self, node: cst.AugAssign):
+        if isinstance(node.target, cst.Name):
+            self._taint(node.target.value)  # default_args |= {...}
+
+    def visit_Call(self, node: cst.Call):
+        f = node.func
+        if isinstance(f, cst.Attribute) and isinstance(f.value, cst.Name) and f.attr.value in (
+                "update", "setdefault", "pop", "__setitem__", "clear", "popitem"):
+            self._taint(f.value.value)
+
+
+def _start_from_args(args, values) -> object:
+    """default_args' start_date: an expression, None (no such key) or _UNKNOWN."""
+    if isinstance(args, cst.Name):
+        args = values.get(args.value, _UNKNOWN)
+    if isinstance(args, cst.Dict):
+        if any(isinstance(e, cst.StarredDictElement) for e in args.elements):
+            return _UNKNOWN
+        found = None
+        for e in args.elements:
+            key = _string_key(e.key)
+            if key is None:
+                return _UNKNOWN
+            if key == "start_date":
+                found = e.value
+        return found
+    if isinstance(args, cst.Call) and _callee(args) == "dict":
+        if any(a.keyword is None for a in args.args):
+            return _UNKNOWN
+        return _kw(args, "start_date")
+    return _UNKNOWN
+
+
+def _dag_timezone(call: cst.Call, values: dict) -> str | None:
+    """Airflow 2's DAG.__init__: an aware start_date's zone, else default_args' start_date's (its own
+    zone, or default_timezone if naive), else default_timezone for a naive one. None: can't tell."""
+    def resolve(expr):
+        if isinstance(expr, cst.Name):
+            expr = values.get(expr.value, _UNKNOWN)
+        return None if expr is _UNKNOWN else _literal_timezone(expr)
+
+    start = _kw(call, "start_date")
+    own = resolve(start) if start is not None else None
+    if start is not None and own is None:
+        return None
+    if own not in (None, NAIVE):
+        return own
+    args = _kw(call, "default_args")
+    if args is not None:
+        inherited = _start_from_args(args, values)
+        if inherited is _UNKNOWN:
+            return None
+        if inherited is not None:
+            return resolve(inherited)
+    return NAIVE if own == NAIVE else None
+
+
+SHIFT = "run dates shift by one interval on Airflow 3 unless pinned"
 
 
 class _CronPin(cst.CSTTransformer):
@@ -384,6 +492,11 @@ class _CronPin(cst.CSTTransformer):
     def _site(self, node, bucket, reason=""):
         bucket.append(Site(self.get_metadata(PositionProvider, node).start.line, _EMPTY.code_for_node(node), reason))
 
+    def visit_Module(self, node: cst.Module):
+        scan = _ModuleValues()
+        node.visit(scan)
+        self.values = scan.values
+
     def leave_Call(self, original: cst.Call, updated: cst.Call):
         if not (_callee(original).split(".")[-1] == "DAG" or _callee(original) == "dag"):
             return updated
@@ -396,15 +509,17 @@ class _CronPin(cst.CSTTransformer):
             cron = value.evaluated_value
             if cron not in CRON_PRESETS and not _CRON.match(cron):
                 return updated  # @once, @continuous, ...
-            tz = _literal_timezone(_kw(original, "start_date"))
+            tz = _dag_timezone(original, self.values)
             if tz is None:
-                self._site(value, self.llm, "cron schedule, but the DAG's timezone can't be read off a literal "
-                                            "start_date; pin CronDataIntervalTimetable(cron, timezone=...) by hand")
+                self._site(value, self.llm, f"{SHIFT}: cron schedule, but the DAG's timezone can't be read off a "
+                                            "literal start_date (on the DAG or in default_args); pin "
+                                            "CronDataIntervalTimetable(cron, timezone=...) by hand")
                 return updated
             reason = ""
             if tz == NAIVE:
                 if not self.default_tz:
-                    self._site(value, self.llm, f"cron schedule with a naive start_date, but {self.tz_problem}")
+                    self._site(value, self.llm, f"{SHIFT}: cron schedule with a naive start_date, but "
+                                                f"{self.tz_problem}")
                     return updated
                 tz, reason = self.default_tz, f"{NAIVE}: [core] default_timezone = {self.default_tz}"
             self._site(value, self.det, reason)
@@ -415,12 +530,12 @@ class _CronPin(cst.CSTTransformer):
             arg = updated.args[idx].with_changes(keyword=cst.Name("schedule"), value=pinned)
             return updated.with_changes(args=[*updated.args[:idx], arg, *updated.args[idx + 1:]])
         if isinstance(value, cst.Call) and _callee(value) in _TIMEDELTA:
-            self._site(value, self.llm, "timedelta schedule: Airflow 3 also changed the default for these "
-                                        "([scheduler] create_delta_data_intervals = False); pin "
+            self._site(value, self.llm, f"{SHIFT}: timedelta schedule; Airflow 3 also changed the default for "
+                                        "these ([scheduler] create_delta_data_intervals = False); pin "
                                         "DeltaDataIntervalTimetable to keep Airflow 2's run dates")
         elif isinstance(value, cst.Attribute) or (isinstance(value, cst.Name) and value.value != "None"):
-            self._site(value, self.llm, "schedule is not a literal; if it is a cron string, Airflow 3's default "
-                                        "timetable changes this DAG's run dates")
+            self._site(value, self.llm, f"{SHIFT} if this is a cron string or timedelta: the schedule is not a "
+                                        "literal; pin it to CronDataIntervalTimetable / DeltaDataIntervalTimetable")
         return updated
 
     def leave_Module(self, original: cst.Module, updated: cst.Module):
@@ -465,4 +580,226 @@ class AirflowCronPin:
         return text if path.suffix != ".py" else self._run(text, rewrite=True, options=options)[0]
 
 
-PLUGINS = {p.name: p for p in (AirflowContextKeys(), AirflowTemplates(), AirflowCronPin())}
+# --------------------------------------------------------------------------
+# Airflow 3: airflow.utils.dates.days_ago was removed
+
+# days_ago(n, hour, minute, second, microsecond) =
+#   timezone.utcnow().replace(hour=.., minute=.., second=.., microsecond=..) - timedelta(days=n)
+# i.e. UTC midnight today (+ the given time of day) minus n days, evaluated when the DAG file is parsed.
+# pendulum.today("UTC") is UTC midnight today; in UTC, add(days=-n, hours=h, ...) is the same arithmetic.
+_DAYS_AGO_PARTS = {"hour": ("hours", 23), "minute": ("minutes", 59), "second": ("seconds", 59),
+                   "microsecond": ("microseconds", 999_999)}
+
+
+def _int_literal(node) -> int | None:
+    if isinstance(node, cst.Integer):
+        return int(node.value.replace("_", ""), 0)
+    if (isinstance(node, cst.UnaryOperation) and isinstance(node.operator, cst.Minus)
+            and isinstance(node.expression, cst.Integer)):
+        return -int(node.expression.value.replace("_", ""), 0)
+    return None
+
+
+class _DaysAgoScan(cst.CSTVisitor):
+    """Where days_ago comes from in this file, and whether the name `pendulum` is free to use."""
+
+    def __init__(self):
+        self.names: set[str] = set()      # local names bound to days_ago
+        self.modules: set[str] = set()    # names bound to the airflow.utils.dates module
+        self.nested_import = False
+        self.pendulum_imported = False
+        self.pendulum_taken = False
+        self.depth = 0
+        self.refs = 0                     # references to a days_ago name...
+        self.calls = 0                    # ...and how many of them are calls
+
+    def visit_FunctionDef(self, node):
+        self.depth += 1
+
+    def leave_FunctionDef(self, node):
+        self.depth -= 1
+
+    def visit_ImportFrom(self, node: cst.ImportFrom):
+        module = _EMPTY.code_for_node(node.module) if node.module else ""
+        if isinstance(node.names, cst.ImportStar):
+            return False
+        for a in node.names:
+            bound = a.asname.name.value if a.asname else _EMPTY.code_for_node(a.name)
+            if (module, _EMPTY.code_for_node(a.name)) in (("airflow.utils.dates", "days_ago"), ("airflow.utils", "dates")):
+                (self.names if module == "airflow.utils.dates" else self.modules).add(bound)
+                self.nested_import |= self.depth > 0
+            elif bound == "pendulum":
+                self.pendulum_taken = True
+        return False
+
+    def visit_Import(self, node: cst.Import):
+        for a in node.names:
+            name = _EMPTY.code_for_node(a.name)
+            bound = a.asname.name.value if a.asname else name.split(".")[0]
+            if name == "airflow.utils.dates":
+                self.modules.add(a.asname.name.value if a.asname else name)
+                self.nested_import |= self.depth > 0
+            elif bound == "pendulum":
+                if name == "pendulum" and not a.asname:
+                    self.pendulum_imported = True
+                else:
+                    self.pendulum_taken = True
+        return False
+
+    def visit_Name(self, node: cst.Name):
+        if node.value in self.names:
+            self.refs += 1
+
+    def visit_AssignTarget(self, node: cst.AssignTarget):
+        if isinstance(node.target, cst.Name) and node.target.value == "pendulum":
+            self.pendulum_taken = True
+
+    def visit_Call(self, node: cst.Call):
+        if isinstance(node.func, cst.Name) and node.func.value in self.names:
+            self.calls += 1
+
+
+class _DaysAgo(cst.CSTTransformer):
+    METADATA_DEPENDENCIES = (PositionProvider,)
+
+    def __init__(self, rewrite: bool, scan: _DaysAgoScan):
+        self.rewrite, self.scan = rewrite, scan
+        self.det: list[Site] = []
+        self.llm: list[Site] = []
+        self.rewritten = 0
+
+    def _is_days_ago(self, call: cst.Call) -> bool:
+        f = call.func
+        if isinstance(f, cst.Name):
+            return f.value in self.scan.names
+        if isinstance(f, cst.Attribute) and f.attr.value == "days_ago":
+            owner = _EMPTY.code_for_node(f.value)
+            return owner in self.scan.modules or owner == "airflow.utils.dates"
+        return False
+
+    def _replacement(self, call: cst.Call) -> tuple[str | None, str]:
+        """(pendulum expression, why not) for one days_ago(...) call."""
+        n, parts = None, {}
+        for i, a in enumerate(call.args):
+            if a.star:
+                return None, "days_ago called with *args/**kwargs"
+            key = a.keyword.value if a.keyword else ("n" if i == 0 else None)
+            if key == "n":
+                n = _int_literal(a.value)
+                if n is None:
+                    return None, "days_ago's day count is not a literal integer"
+            elif key in _DAYS_AGO_PARTS:
+                v = _int_literal(a.value)
+                if v is None or not 0 <= v <= _DAYS_AGO_PARTS[key][1]:
+                    return None, f"days_ago's {key}= is not a literal in range"
+                parts[key] = v
+            else:
+                return None, f"days_ago called with an unexpected argument {key!r}"
+        if n is None:
+            return None, "days_ago called without a day count"
+        extra = "".join(f", {_DAYS_AGO_PARTS[k][0]}={parts[k]}" for k in _DAYS_AGO_PARTS if k in parts)
+        return f'pendulum.today("UTC").add(days={-n}{extra})', ""
+
+    def leave_Call(self, original: cst.Call, updated: cst.Call):
+        if not self._is_days_ago(original):
+            return updated
+        line = self.get_metadata(PositionProvider, original).start.line
+        text = _EMPTY.code_for_node(original)
+        expr, why = self._replacement(original)
+        blocked = ("days_ago is used other than as a call" if self.scan.refs > self.scan.calls else
+                   "days_ago is imported inside a function" if self.scan.nested_import else
+                   "the name `pendulum` is bound to something else in this file" if self.scan.pendulum_taken else "")
+        if expr is None or blocked:
+            self.llm.append(Site(line, text, (
+                f"{why or blocked}; Airflow 3 removed days_ago: replace with pendulum.today(\"UTC\").add(days=-N), "
+                "the same moment (UTC midnight today minus N days, evaluated at parse time). Not a fixed date: "
+                "that changes scheduling and catchup")))
+            return updated
+        self.det.append(Site(line, text, ""))
+        if not self.rewrite:
+            return updated
+        self.rewritten += 1
+        return cst.parse_expression(expr)
+
+    def leave_Module(self, original: cst.Module, updated: cst.Module):
+        if not self.rewritten:
+            return updated
+        body, placed = [], self.scan.pendulum_imported
+        pendulum_import = cst.parse_statement("import pendulum\n")
+        for st in updated.body:
+            new = self._drop_days_ago_imports(st, updated)
+            if new is None:
+                if not placed:
+                    body.append(pendulum_import.with_changes(leading_lines=st.leading_lines))
+                    placed = True
+                continue
+            body.append(new)
+        if not placed:
+            last = max((i for i, st in enumerate(body) if isinstance(st, cst.SimpleStatementLine)
+                        and any(isinstance(x, (cst.Import, cst.ImportFrom)) for x in st.body)), default=-1)
+            body.insert(last + 1, pendulum_import)
+        return updated.with_changes(body=body)
+
+    def _drop_days_ago_imports(self, st, module: cst.Module):
+        """The statement without the days_ago / dates imports nothing uses any more (None: drop it)."""
+        if not isinstance(st, cst.SimpleStatementLine) or len(st.body) != 1:
+            return st
+        node = st.body[0]
+        rest = module.code.replace(module.code_for_node(st), "", 1)
+        def unused(bound: str) -> bool:
+            return not re.search(rf"(?<![\w.]){re.escape(bound)}\b", rest)
+        if isinstance(node, cst.ImportFrom) and not isinstance(node.names, cst.ImportStar) and node.module is not None:
+            module_name = _EMPTY.code_for_node(node.module)
+            keep = []
+            for a in node.names:
+                bound = a.asname.name.value if a.asname else _EMPTY.code_for_node(a.name)
+                ours = (module_name, _EMPTY.code_for_node(a.name)) in (("airflow.utils.dates", "days_ago"),
+                                                                      ("airflow.utils", "dates"))
+                if not (ours and unused(bound)):
+                    keep.append(a)
+            if len(keep) == len(node.names):
+                return st
+            if not keep:
+                return None
+            keep[-1] = keep[-1].with_changes(comma=cst.MaybeSentinel.DEFAULT)
+            return st.with_changes(body=[node.with_changes(names=keep)])
+        if isinstance(node, cst.Import):
+            keep = [a for a in node.names if not (_EMPTY.code_for_node(a.name) == "airflow.utils.dates"
+                                                    and unused(a.asname.name.value if a.asname else "airflow.utils.dates"))]
+            if len(keep) == len(node.names):
+                return st
+            if not keep:
+                return None
+            keep[-1] = keep[-1].with_changes(comma=cst.MaybeSentinel.DEFAULT)
+            return st.with_changes(body=[node.with_changes(names=keep)])
+        return st
+
+
+class AirflowDaysAgo:
+    """`days_ago(N)` -> `pendulum.today("UTC").add(days=-N)`: the same instant, still computed at parse time."""
+
+    name = "airflow_days_ago"
+    file_globs: tuple[str, ...] = ()
+
+    def _run(self, text: str, rewrite: bool):
+        module = cst.parse_module(text)
+        scan = _DaysAgoScan()
+        module.visit(scan)
+        if not scan.names and not scan.modules and "airflow.utils.dates.days_ago" not in text:
+            return text, _DaysAgo(False, scan)
+        t = _DaysAgo(rewrite, scan)
+        return MetadataWrapper(module).visit(t).code, t
+
+    def find(self, path: Path, text: str, options: dict, mode: str) -> list[Site]:
+        if path.suffix != ".py" or "days_ago" not in text:
+            return []
+        _, t = self._run(text, rewrite=False)
+        return t.det if mode == "deterministic" else t.llm
+
+    def apply(self, path: Path, text: str, options: dict) -> str:
+        if path.suffix != ".py" or "days_ago" not in text:
+            return text
+        return self._run(text, rewrite=True)[0]
+
+
+PLUGINS = {p.name: p for p in (AirflowContextKeys(), AirflowTemplates(), AirflowCronPin(), AirflowDaysAgo())}

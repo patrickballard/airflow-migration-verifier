@@ -49,6 +49,33 @@ x-context-keys: &context_keys
     task_instance: {execution_date: "TaskInstance has no execution_date or logical_date in Airflow 3; use the context's logical_date"}
 
 rules:
+  - id: airflow3-days-ago
+    description: >-
+      Airflow 3 removed airflow.utils.dates.days_ago. days_ago(N) is UTC midnight
+      today minus N days, computed when the DAG file is parsed; it becomes
+      pendulum.today("UTC").add(days=-N), the same moment computed the same way
+      (not a fixed date, which would change scheduling and catchup). Proven by
+      evaluating both on their own Airflow versions, and by the render check.
+    match: {plugin: airflow_days_ago}
+    fix: deterministic
+    transform: {plugin: airflow_days_ago}
+    min_sdk_version: "3.0.0"
+    changelog: https://docs.astral.sh/ruff/rules/airflow3-removal/
+    note: "same moment as days_ago(N): UTC midnight today minus N days, still computed at parse time"
+
+  - id: airflow3-days-ago-judgment
+    description: days_ago calls that can't be rewritten mechanically (non-literal arguments, unusual imports).
+    match: {plugin: airflow_days_ago}
+    fix: llm
+    min_sdk_version: "3.0.0"
+    changelog: https://docs.astral.sh/ruff/rules/airflow3-removal/
+    guidance: |
+      Airflow 3 removed airflow.utils.dates.days_ago. days_ago(n, hour=0, minute=0, second=0,
+      microsecond=0) returned UTC midnight today (plus that time of day) minus n days, computed
+      when the file is parsed. Replace it with pendulum.today("UTC").add(days=-n, hours=..., ...)
+      (import pendulum), which is the same moment computed the same way. Never use a fixed date:
+      that changes scheduling and catchup.
+
   - id: airflow3-cron-timetable-pin
     description: >-
       Airflow 3 schedules cron DAGs on CronTriggerTimetable by default, where a

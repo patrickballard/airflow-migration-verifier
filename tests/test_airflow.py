@@ -41,6 +41,7 @@ def test_ruleset_loads():
     (tool,) = RULESET.tools
     assert (tool.tool, tool.select) == ("ruff", "AIR3") and "--unsafe-fixes" in tool.args
     assert [(r.id, r.fix) for r in RULESET.rules] == [
+        ("airflow3-days-ago", "deterministic"), ("airflow3-days-ago-judgment", "llm"),
         ("airflow3-cron-timetable-pin", "deterministic"), ("airflow3-timetable-judgment", "llm"),
         ("airflow3-context-keys", "deterministic"), ("airflow3-templates", "deterministic"),
         ("airflow3-context-judgment", "llm"), ("airflow3-template-judgment", "llm")]
