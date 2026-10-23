@@ -107,7 +107,12 @@ def compare(old: dict, new: dict, changed: set, whole_dags: set[str] = frozenset
         if odag is None:
             continue
         o_at = {r["fires"]: i for i, r in enumerate(odag["runs"])}
+        n_at = {r["fires"]: i for i, r in enumerate(ndag["runs"])}
         pairs = [(r, o_at[r["fires"]], i) for i, r in enumerate(ndag["runs"]) if r["fires"] in o_at]
+        # Both versions snap the same sample moments to their next run, so the same schedule gives the same
+        # fire times. A run on only one side means the schedule itself changed (e.g. a pin in the wrong zone).
+        lone = sorted([(r, "old") for r in odag["runs"] if r["fires"] not in n_at]
+                      + [(r, "new") for r in ndag["runs"] if r["fires"] not in o_at], key=lambda x: x[0]["fires"])
         for task_id, task in ndag["tasks"].items():
             for name, nf in task["fields"].items():
                 if key not in whole_dags and (ndag["file"], ndag["dag_id"], task_id, name) not in changed:
@@ -128,11 +133,16 @@ def compare(old: dict, new: dict, changed: set, whole_dags: set[str] = frozenset
                                                timetable=ndag.get("timetable", ""), unpaired=why))
                     continue
                 usable = [(r, oi, ni) for r, oi, ni in pairs if _comparable(of["rendered"][oi], nf["rendered"][ni])]
-                if not usable:
+                if not usable and not lone:
                     continue
-                res = FieldResult(ndag["file"], ndag["dag_id"], task_id, name, len(usable),
-                                  [r["label"] for r, _, _ in usable], dst=ndag.get("dst", ""),
-                                  timetable=ndag.get("timetable", ""))
+                res = FieldResult(ndag["file"], ndag["dag_id"], task_id, name, len(usable) + len(lone),
+                                  [r["label"] for r, _, _ in usable] + [r["label"] for r, _ in lone],
+                                  dst=ndag.get("dst", ""), timetable=ndag.get("timetable", ""))
+                for run, side in lone:
+                    value = (of if side == "old" else nf)["rendered"][(o_at if side == "old" else n_at)[run["fires"]]]
+                    missing = f"(no run fires at this moment on Airflow {'3' if side == 'old' else '2'})"
+                    res.mismatches.append(Mismatch(run["label"], run["fires"], value if side == "old" else missing,
+                                                   value if side == "new" else missing))
                 for run, oi, ni in usable:
                     o, n = of["rendered"][oi], nf["rendered"][ni]
                     if o != n and UNSET_SAME.get(name) != (o, n):

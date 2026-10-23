@@ -387,3 +387,16 @@ def test_start_date_from_default_args_samples_the_same_runs_on_both_versions(tmp
     new = render_check.render(Path(AF3) / "bin" / "python", repo, ["dags/d.py"])
     fires = [{r["fires"] for r in out["dags"]["dags/d.py::d"]["runs"]} for out in (old, new)]
     assert fires[0] and fires[0] == fires[1]
+
+
+def test_runs_on_only_one_side_are_mismatches_not_skipped():
+    # mutation test: a pin in the wrong zone fires at the same moments in winter and an hour off in summer;
+    # the summer runs never paired and were dropped, so the field read as "identical"
+    old = side("2", [("w", "2024-01-15T00:00:00+00:00"), ("s", "2024-07-15T00:00:00+00:00")],
+               {"cmd": {"raw": '"x"', "rendered": ["A", "B"]}})
+    new = side("3", [("w", "2024-01-15T00:00:00+00:00"), ("s", "2024-07-14T23:00:00+00:00")],
+               {"cmd": {"raw": '"x"', "rendered": ["A", "B"]}})
+    (res,) = render_check.compare(old, new, changed=set(), whole_dags={"d.py::d"})
+    assert res.runs == 3 and len(res.mismatches) == 2
+    assert {m.new for m in res.mismatches} >= {"(no run fires at this moment on Airflow 3)"}
+    assert render_check.summary(res).startswith("render mismatch on 2 of 3 runs")
