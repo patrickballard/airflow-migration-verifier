@@ -20,7 +20,7 @@ import libcst as cst
 from packaging.requirements import Requirement
 from packaging.version import Version
 
-from . import gitops, render_check, ruff_layer
+from . import gitops, kwarg_check, render_check, ruff_layer
 from .airflow_config import ENV as ENV_TZ
 from .airflow_config import find_default_timezone
 from .codemod import Site, apply_deterministic, find_sites, missing_comments
@@ -850,6 +850,39 @@ class _Run:
                                if s.reason else f"no patch: {self.UNVERIFIED}")
                     for s in self._sites(self.current[rel], rule, rel)]
 
+    def kwarg_check(self) -> None:
+        """Operator classes ruff swapped in must accept the call's keyword arguments on the target."""
+        if self.ruleset.verify != "airflow-dags":
+            return
+        swapped = {}
+        for rel, rows in self.rows.items():
+            if rel.suffix == ".py" and any(r.rule_id.startswith("ruff ") for r in rows):
+                try:
+                    found = kwarg_check.introduced_classes(self.originals[rel], self.current[rel])
+                except cst.ParserSyntaxError:
+                    continue
+                if found:
+                    swapped[rel] = found
+        if not swapped:
+            return
+        python = self.o.venv_dir / "bin" / "python" if self.o.venv_dir else None
+        if not (self.runner and python and python.exists()):
+            self.result.skipped.append("kwarg check not run: it needs the Airflow 3 test venv to read signatures")
+            return
+        sigs = kwarg_check.signatures(python, sorted({p for found in swapped.values() for p, _ in found.values()}))
+        unread = sorted(path for path, sig in sigs.items() if "error" in sig) if sigs else ["(the signature script failed)"]
+        if unread:
+            self.result.skipped.append("kwarg check couldn't read these classes on the target (provider not installed "
+                                       f"in the test venv?), so their calls weren't checked: {', '.join(unread)}")
+        for rel, found in swapped.items():
+            for p in kwarg_check.problems(self.current[rel], found, sigs):
+                self.result.manual.append(ManualItem(rel.as_posix(), p.line, "kwarg-check", p.reason))
+                self.rows[rel] = [dataclasses.replace(r, note=f"{r.note}; ⚠️ `{p.kwarg}=` isn't accepted by `{p.cls}` "
+                                                              "on Airflow 3 (see Needs manual migration)")
+                                  if r.rule_id.startswith("ruff ") and f"{p.cls}(" in r.after
+                                  and r.line <= p.line and r.line + r.after.count("\n") >= p.call_line  # overlaps the call
+                                  else r for r in self.rows[rel]]
+
     def checks(self, hits) -> None:
         """`fix: manual` rules: report every site, on the final text, for a human. Never patched."""
         for rule in self.ruleset.rules:
@@ -1035,6 +1068,7 @@ def run(options: Options, model: PatchModel | None = None, github=None) -> RunRe
     r.llm(hits)
     r.unverified_pass()
     r.checks(hits)
+    r.kwarg_check()
     r.dependencies(hits)
     r.render_annotate()
     result = r.finish()
