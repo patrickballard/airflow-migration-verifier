@@ -349,14 +349,17 @@ def _kw(call: cst.Call, name: str):
     return next((a.value for a in call.args if a.keyword is not None and a.keyword.value == name), None)
 
 
+NAIVE = "naive start_date"
+
+
 def _literal_timezone(start) -> str | None:
-    """The timezone Airflow 2 would schedule in, if it can be read off a literal start_date."""
+    """The timezone Airflow 2 would schedule in, if it can be read off a literal start_date (NAIVE: the default)."""
     if not isinstance(start, cst.Call):
         return None
     callee = _callee(start)
     if callee in ("datetime.datetime", "datetime", "dt.datetime"):
-        # naive datetime: Airflow uses [core] default_timezone, "utc" unless configured
-        return None if _kw(start, "tzinfo") is not None or len(start.args) > 7 else "UTC"
+        # naive datetime: Airflow uses [core] default_timezone
+        return None if _kw(start, "tzinfo") is not None or len(start.args) > 7 else NAIVE
     if callee in ("pendulum.datetime", "datetime"):
         tz = _kw(start, "tz")
         if tz is None:
@@ -368,8 +371,10 @@ def _literal_timezone(start) -> str | None:
 class _CronPin(cst.CSTTransformer):
     METADATA_DEPENDENCIES = (PositionProvider,)
 
-    def __init__(self, rewrite: bool):
+    def __init__(self, rewrite: bool, options: dict):
         self.rewrite = rewrite
+        self.default_tz = options.get("default_timezone", "UTC")
+        self.tz_problem = options.get("timezone_problem", "")
         self.det: list[Site] = []
         self.llm: list[Site] = []
         self.pinned = 0
@@ -394,7 +399,13 @@ class _CronPin(cst.CSTTransformer):
                 self._site(value, self.llm, "cron schedule, but the DAG's timezone can't be read off a literal "
                                             "start_date; pin CronDataIntervalTimetable(cron, timezone=...) by hand")
                 return updated
-            self._site(value, self.det)
+            reason = ""
+            if tz == NAIVE:
+                if not self.default_tz:
+                    self._site(value, self.llm, f"cron schedule with a naive start_date, but {self.tz_problem}")
+                    return updated
+                tz, reason = self.default_tz, f"{NAIVE}: [core] default_timezone = {self.default_tz}"
+            self._site(value, self.det, reason)
             if not self.rewrite:
                 return updated
             self.pinned += 1
@@ -438,18 +449,18 @@ class AirflowCronPin:
     name = "airflow_cron_pin"
     file_globs: tuple[str, ...] = ()
 
-    def _run(self, text: str, rewrite: bool):
-        t = _CronPin(rewrite)
+    def _run(self, text: str, rewrite: bool, options: dict):
+        t = _CronPin(rewrite, options)
         return MetadataWrapper(cst.parse_module(text)).visit(t).code, t
 
     def find(self, path: Path, text: str, options: dict, mode: str) -> list[Site]:
         if path.suffix != ".py":
             return []
-        _, t = self._run(text, rewrite=False)
+        _, t = self._run(text, rewrite=False, options=options)
         return t.det if mode == "deterministic" else t.llm
 
     def apply(self, path: Path, text: str, options: dict) -> str:
-        return text if path.suffix != ".py" else self._run(text, rewrite=True)[0]
+        return text if path.suffix != ".py" else self._run(text, rewrite=True, options=options)[0]
 
 
 PLUGINS = {p.name: p for p in (AirflowContextKeys(), AirflowTemplates(), AirflowCronPin())}

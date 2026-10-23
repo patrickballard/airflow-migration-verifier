@@ -24,7 +24,9 @@ from .codemod import Site, apply_deterministic, find_sites, missing_comments
 from .deps import plan_add_dependency
 from .llm import BudgetExhausted, PatchModel, PatchRequest
 from .pins import PinPlan, apply_pins, plan_pins
-from .plugins import PLUGINS
+from .airflow_config import ENV as ENV_TZ
+from .airflow_config import find_default_timezone
+from .plugins import NAIVE, PLUGINS
 from .report import Row, render_body
 from .rules import Rule, load_rules
 from .scanner import SKIP_DIRS, iter_python_files, scan_repo
@@ -155,6 +157,7 @@ class _Run:
         self.tests_unusable = False
         self.pin_minimum: Version | None = None
         self.inserted: list[tuple[Path, int]] = []  # (file, line) of whole lines added by dependency rules
+        self.tz = find_default_timezone(self.repo) if self.ruleset.verify == "airflow-dags" else None
 
     # -- helpers ------------------------------------------------------------
     def _write(self, rel: Path, text: str) -> None:
@@ -180,10 +183,34 @@ class _Run:
                     f"({plan.conflicts[0].reason})")
         return None
 
+    def _options(self, rule: Rule) -> dict:
+        if rule.match.plugin != "airflow_cron_pin" or self.tz is None:
+            return rule.options
+        tz = self.tz.tz or (None if self.tz.problem else "UTC")  # nothing set: Airflow's default, UTC
+        return {**rule.options, "default_timezone": tz, "timezone_problem": self.tz.problem}
+
+    def naive_pin_lines(self) -> set[tuple[Path, int]]:
+        """Current (file, line) of pinned schedules whose DAG has a naive start_date (zone = default_timezone)."""
+        rule = next((r for r in self.ruleset.rules if r.match.plugin == "airflow_cron_pin"), None)
+        if rule is None:
+            return set()
+        out = set()
+        for rel, text in self.originals.items():
+            if rel.suffix != ".py" or rel not in self.current:
+                continue
+            remap = _line_map(text, self.current[rel])
+            out |= {(rel, remap(s.line)) for s in PLUGINS[rule.match.plugin].find(rel, text, self._options(rule),
+                                                                                 "deterministic")
+                    if s.reason.startswith(NAIVE)}
+        return out
+
+    def _render_env(self) -> dict:
+        return {ENV_TZ: self.tz.tz} if self.tz and self.tz.tz else {}
+
     def _sites(self, text: str, rule: Rule, rel: Path) -> list[Site]:
         if rule.match.plugin:
             mode = "deterministic" if rule.fix == "deterministic" else "llm"
-            return PLUGINS[rule.match.plugin].find(rel, text, rule.options, mode)
+            return PLUGINS[rule.match.plugin].find(rel, text, self._options(rule), mode)
         return find_sites(text, rule)
 
     def _template_files(self) -> list[Path]:
@@ -336,7 +363,7 @@ class _Run:
                 continue
             for rel in hits[rule.id]:
                 if rule.match.plugin:
-                    new = PLUGINS[rule.match.plugin].apply(rel, self.current[rel], rule.options)
+                    new = PLUGINS[rule.match.plugin].apply(rel, self.current[rel], self._options(rule))
                     rows = _rows(rel, self.current[rel], new, rule.id, rule.changelog, rule.note)
                 else:
                     new, edits = apply_deterministic(self.current[rel], rule)
@@ -418,8 +445,8 @@ class _Run:
             return None
         files = sorted(f.as_posix() for f in self.sdk_files)
         try:
-            old = render_check.render(pythons[0], self._old_snapshot(), files)
-            new = render_check.render(pythons[1], self.repo, files)
+            old = render_check.render(pythons[0], self._old_snapshot(), files, env=self._render_env())
+            new = render_check.render(pythons[1], self.repo, files, env=self._render_env())
         except Exception as e:  # noqa: BLE001
             self.render_unavailable = f"render check failed to run: {e}"
             self.result.skipped.append(self.render_unavailable)
@@ -539,6 +566,9 @@ class _Run:
                     covering = by_row.get(id(r))
                     if not compared:
                         extra = f"not render-checked: {getattr(self, 'render_unavailable', 'unavailable')}"
+                    elif not covering and plugin == "airflow_cron_pin":
+                        extra = ("not render-checked (no template field of this DAG could be compared: none, "
+                                 "or only ones still using a removed variable)")
                     elif not covering:
                         extra = "not render-checked (no rendered template field uses this line)"
                     else:
@@ -794,6 +824,8 @@ class _Run:
             dag_target=(f"{self.ruleset.dist} {self.ruleset.target_version}"
                         if self.ruleset.verify == "airflow-dags" else None),
             llm_usage=res.llm_usage, llm_notes=res.llm_notes, render_results=res.render_results,
+            timezone=self.tz, naive_pins=[r for r in rows if r.rule_id == "airflow3-cron-timetable-pin"
+                                          and (Path(r.path), r.line) in self.naive_pin_lines()],
         )
         return res
 

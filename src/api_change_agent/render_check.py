@@ -7,6 +7,7 @@ way), and every changed template field must render identically on every pair.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
@@ -39,11 +40,12 @@ class FieldResult:
     dst: str = ""
 
 
-def render(python: Path, repo: Path, files: list[str], timeout: int = 1800) -> dict:
+def render(python: Path, repo: Path, files: list[str], timeout: int = 1800, env: dict | None = None) -> dict:
+    """`env` adds Airflow settings the repo's deployment uses (e.g. AIRFLOW__CORE__DEFAULT_TIMEZONE)."""
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "render.json"
         proc = subprocess.run([str(python), "-I", str(SCRIPT), "--repo", str(repo), "--files", *files, "--out", str(out)],
-                              capture_output=True, text=True, timeout=timeout)
+                              capture_output=True, text=True, timeout=timeout, env={**os.environ, **(env or {})})
         if proc.returncode or not out.exists():
             raise RuntimeError(f"render failed (exit {proc.returncode}): {proc.stderr.strip()[-800:]}")
         return json.loads(out.read_text())

@@ -63,15 +63,18 @@ def logical_date_sites(rows: list[Row]) -> tuple[list[tuple[str, int, str]], lis
     return renamed, other
 
 
+def _link(path, line, blob_base) -> str:
+    loc = f"{path}:{line}"
+    return f"[`{loc}`]({blob_base}/{path}#L{line})" if blob_base else f"`{loc}`"
+
+
 def _manual_runs_section(rows: list[Row], blob_base: str | None) -> list[str]:
     renamed, other = logical_date_sites(rows)
     if not renamed and not other:
         return []
 
     def item(path, line, code):
-        loc = f"{path}:{line}"
-        loc = f"[`{loc}`]({blob_base}/{path}#L{line})" if blob_base else f"`{loc}`"
-        return f"- {loc} <code>{html.escape(code[:160], quote=False)}</code>"
+        return f"- {_link(path, line, blob_base)} <code>{html.escape(code[:160], quote=False)}</code>"
 
     out = ["### ⚠️ Manual runs", "",
            "In Airflow 3 a manually triggered run can have **no logical date**, and then `logical_date` is `None`. "
@@ -104,6 +107,23 @@ TIMETABLE_PIN = (
     "derives from its run. To keep the old behaviour for all DAGs instead of per DAG, set "
     "`[scheduler] create_cron_data_intervals = True` (env `AIRFLOW__SCHEDULER__CREATE_CRON_DATA_INTERVALS=True`) and "
     "drop the pins; either choice preserves Airflow 2's run dates.")
+
+
+def _timezone_section(tz, naive_pins, blob_base) -> list[str]:
+    """Which zone the pins of DAGs with a naive start_date use, and why; loud when it was assumed."""
+    if not naive_pins or tz is None:
+        return []
+    if tz.tz:
+        return [f"DAGs with a naive `start_date` are scheduled in `[core] default_timezone`. This repo sets "
+                f"`default_timezone = {tz.tz}` ({tz.where()}), so their pins use `timezone=\"{tz.tz}\"`, and the "
+                "render check ran with the same setting.", ""]
+    sites = [f"- {_link(r.path, r.line, blob_base)}" for r in naive_pins]
+    return ["### ⚠️ Timezone assumed: UTC", "",
+            "These DAGs have a naive `start_date`, so Airflow schedules them in `[core] default_timezone`. No such "
+            "setting was found in this repo (`airflow.cfg`, or `AIRFLOW__CORE__DEFAULT_TIMEZONE` in `.env` files, "
+            "docker-compose, Helm values or Dockerfiles), so their pins assume **`UTC`**, Airflow's default. "
+            "If your deployment sets another zone, change `timezone=` in each of these pins to it before merging, "
+            "or the DAGs will fire at different times than they do on Airflow 2:", "", *sites, ""]
 
 
 def _render_section(results) -> list[str]:
@@ -143,7 +163,7 @@ def _dag_table(before, after, target) -> list[str]:
 def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes, skipped_rules, skipped, manual,
                 unparsable, tests_baseline, tests_after, new_failures, blob_base, rules_path,
                 rule_notes=None, dep_notes=(), title="", tools=(), dag_target=None, llm_usage=None,
-                llm_notes=(), render_results=()) -> str:
+                llm_notes=(), render_results=(), timezone=None, naive_pins=()) -> str:
     rule_notes = rule_notes or {}
     applied = sorted({r.rule_id for r in rows})
     parts = [
@@ -157,6 +177,7 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
     if dag_target:
         if any(r.rule_id == "airflow3-cron-timetable-pin" for r in rows):
             parts += [TIMETABLE_PIN, ""]
+            parts += _timezone_section(timezone, naive_pins, blob_base)
         parts += _manual_runs_section(rows, blob_base)
         if render_results:
             parts += _render_section(render_results)
