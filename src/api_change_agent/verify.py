@@ -211,7 +211,7 @@ def main(argv) -> int:
     p.add_argument("--output", help="write report.md and result.json here")
     a = p.parse_args(argv)
     rules = Path(a.rules)
-    if not rules.exists():
+    if not rules.is_file():  # a bundled ruleset by name, even next to an airflow/ folder
         rules = BUNDLED_RULES.parent / f"{a.rules}.yaml"
     res, dags = verify(Path(a.before), Path(a.after), rules_path=rules, venv=Path(a.venv),
                        old_venv=Path(a.old_venv) if a.old_venv else None, dag_test=a.dag_test)

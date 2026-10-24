@@ -104,9 +104,9 @@ def main(argv=None) -> int:
     args = parse_args(argv)
     repo = Path(args.repo).resolve()
     rules = Path(args.rules) if args.rules else BUNDLED_RULES
-    if args.rules and (BUNDLED_RULES.parent / f"{args.rules}.yaml").exists() and not rules.exists():
-        rules = BUNDLED_RULES.parent / f"{args.rules}.yaml"  # bundled ruleset by name
-    elif not rules.is_absolute() and not rules.exists():
+    if args.rules and (BUNDLED_RULES.parent / f"{args.rules}.yaml").exists() and not rules.is_file():
+        rules = BUNDLED_RULES.parent / f"{args.rules}.yaml"  # bundled ruleset by name (an airflow/ folder isn't one)
+    elif not rules.is_absolute() and not rules.is_file():
         rules = repo / rules
     branch = args.branch or (DEFAULT_BRANCH if rules == BUNDLED_RULES else f"api-change-agent/{load_rules(rules).package}")
 

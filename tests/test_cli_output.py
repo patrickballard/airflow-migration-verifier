@@ -2,6 +2,8 @@
 import json
 import subprocess
 
+import pytest
+
 from api_change_agent.cli import main
 from api_change_agent.testrun import TestRunner
 from conftest import RULES
@@ -73,3 +75,17 @@ def test_collection_errors_do_not_stop_the_suite(tmp_path):
     assert out.executed == 2  # test_ok ran despite test_broken failing to import
     assert out.failures == {"::test_broken", "test_ok::test_b"}
     assert out.summary() == "1 passed, 1 failing, 1 collection error"
+
+
+def test_bundled_ruleset_name_wins_over_a_directory_of_that_name(tmp_path, monkeypatch):
+    # found running the agent from inside real repos: `--rules airflow` in a repo with an airflow/ folder
+    # loaded the folder as a rules file and crashed (IsADirectoryError)
+    from api_change_agent import cli
+    (tmp_path / "airflow").mkdir()
+    monkeypatch.chdir(tmp_path)
+    seen = {}
+    monkeypatch.setattr(cli, "run", lambda options, model=None, github=None: seen.setdefault("rules", options.rules_path)
+                        and (_ for _ in ()).throw(SystemExit(0)))
+    with pytest.raises(SystemExit):
+        cli.main(["--repo", str(tmp_path), "--rules", "airflow", "--dry-run", "--test-command", "none"])
+    assert seen["rules"] == cli.BUNDLED_RULES.parent / "airflow.yaml"
