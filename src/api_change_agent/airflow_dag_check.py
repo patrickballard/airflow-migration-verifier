@@ -131,6 +131,7 @@ def main(argv=None) -> int:
     p.add_argument("--timeout", type=int, default=600)
     p.add_argument("--child", nargs="+")
     p.add_argument("--files", nargs="+", help="check only these DAG files (paths relative to --repo)")
+    p.add_argument("--import-only", action="store_true", help="DagBag import only, no dag.test()")
     a = p.parse_args(argv)
     if a.child:
         child(a.child[0], a.child[1] if len(a.child) > 1 else None)
@@ -153,7 +154,7 @@ def main(argv=None) -> int:
             continue
         res, out = run_child([str(f)], env, a.timeout, repo)
         cases.append({"id": f"{rel}::import", "ok": res["ok"], "error": res.get("error") or first_cause(out, "import failed")})
-        if not res["ok"]:
+        if not res["ok"] or a.import_only:
             continue
         for dag_id in res["dags"]:
             r, out = run_child([str(f), dag_id], env, a.timeout, repo)

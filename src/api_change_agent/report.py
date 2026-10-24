@@ -41,7 +41,8 @@ def render_table(rows: list[Row], blob_base: str | None) -> str:
         change = f"{_cell(r.before, empty='(not declared)')} → {_cell(r.after)}"
         if r.note:
             change += f"<br><sub>{html.escape(r.note, quote=False).replace('|', '&#124;')}</sub>"
-        out.append(f"| {loc} | {change} | `{r.rule_id}` | [changelog]({r.changelog}) |")
+        link = f"[changelog]({r.changelog})" if r.changelog else "—"
+        out.append(f"| {loc} | {change} | `{r.rule_id}` | {link} |")
     return "\n".join(out)
 
 

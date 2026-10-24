@@ -131,3 +131,78 @@ def find_default_timezone(repo: Path) -> TzFinding:
                                      f"({', '.join(f'`{s.path}:{s.line}`' for s in used)}); pin "
                                      "`CronDataIntervalTimetable(cron, timezone=...)` with the deployed one by hand")
     return TzFinding(zones[0], used)
+
+
+# --------------------------------------------------------------------------
+# any [section] key, the same places (verify mode: what the "after" tree configures)
+
+
+@dataclass
+class Setting:
+    section: str
+    key: str
+    value: str | None                  # None: the tree doesn't set it
+    sources: list[TzSource] = field(default_factory=list)
+
+    @property
+    def env(self) -> str:
+        return f"AIRFLOW__{self.section.upper()}__{self.key.upper()}"
+
+    def is_true(self) -> bool:
+        return (self.value or "").strip().lower() in ("true", "1", "yes", "on")
+
+    def where(self) -> str:
+        return ", ".join(f"`{s.path}:{s.line}`" for s in self.sources)
+
+
+def find_setting(repo: Path, section: str, key: str) -> Setting:
+    """Where a repo sets `[section] key`: airflow.cfg, or AIRFLOW__SECTION__KEY in env files, compose files,
+    Dockerfiles and Helm values (also the chart's `config: section: key:`). The environment wins."""
+    env = f"AIRFLOW__{section.upper()}__{key.upper()}"
+    env_line = re.compile(rf"(?:^|[\s\-])(?:export\s+|ENV\s+)?{env}\s*(?:[:=]\s*|\s+){VALUE}")
+    helm_name = re.compile(rf"""^\s*-?\s*name:\s*["']?{env}["']?\s*$""")
+    cfg_key = re.compile(rf"^\s*{re.escape(key)}\s*=\s*{VALUE}")
+    sources: list[TzSource] = []
+    for dirpath, dirnames, filenames in os.walk(repo):
+        dirnames[:] = sorted(d for d in dirnames if d not in SKIP)
+        for name in sorted(filenames):
+            path = Path(dirpath) / name
+            rel = path.relative_to(repo).as_posix()
+            is_cfg = name == "airflow.cfg" or name.endswith(".cfg") and "airflow" in name
+            if not is_cfg and not any(fnmatch.fnmatch(name, g) for g in ENV_FILES):
+                continue
+            try:
+                text = path.read_text(errors="replace")
+            except OSError:
+                continue
+            lines = text.splitlines()
+            if is_cfg:
+                current = None
+                for i, line in enumerate(lines):
+                    if m := re.match(r"^\s*\[([^\]]+)\]", line):
+                        current = m.group(1).strip().lower()
+                    elif current == section and (m := cfg_key.match(line)):
+                        sources.append(TzSource(rel, i + 1, m.group(1), "cfg"))
+                continue
+            if env in text:
+                for i, line in enumerate(lines):
+                    if line.lstrip().startswith("#"):
+                        continue
+                    if m := env_line.search(line):
+                        sources.append(TzSource(rel, i + 1, m.group(1), "env"))
+                    elif helm_name.match(line):
+                        nxt = next((j for j in range(i + 1, len(lines)) if lines[j].strip()), None)
+                        if nxt is not None and (m := HELM_VALUE.match(lines[nxt])):
+                            sources.append(TzSource(rel, nxt + 1, m.group(1), "env"))
+            if name.endswith((".yaml", ".yml")) and key in text:
+                try:
+                    docs = list(yaml.safe_load_all(text))
+                except yaml.YAMLError:
+                    docs = []
+                for doc in docs:
+                    sect = (doc.get("config") or {}).get(section) if isinstance(doc, dict) else None
+                    if isinstance(sect, dict) and key in sect and not isinstance(sect[key], (dict, list)):
+                        line = next((i + 1 for i, ln in enumerate(lines) if re.match(rf"\s*{re.escape(key)}\s*:", ln)), 0)
+                        sources.append(TzSource(rel, line, str(sect[key]), "cfg"))
+    used = [s for s in sources if s.kind == "env"] or sources  # the environment variable wins, as in Airflow
+    return Setting(section, key, used[0].value if used else None, used)

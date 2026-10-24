@@ -96,6 +96,11 @@ def parse_args(argv=None) -> argparse.Namespace:
 
 
 def main(argv=None) -> int:
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if argv[:1] == ["verify"]:  # verify-only mode: check a tree migrated by anything (see verify.py)
+        from .verify import main as verify_main
+
+        return verify_main(argv[1:])
     args = parse_args(argv)
     repo = Path(args.repo).resolve()
     rules = Path(args.rules) if args.rules else BUNDLED_RULES

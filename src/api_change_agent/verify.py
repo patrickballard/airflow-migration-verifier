@@ -1,0 +1,226 @@
+"""Verify-only mode: check an Airflow 3 tree migrated by anything against the Airflow 2 tree it came from.
+
+    api-change-agent verify --before A2_TREE --after A3_TREE --venv AIRFLOW3_VENV --old-venv AIRFLOW2_VENV
+
+Nothing is changed. It runs what the agent runs to check its own work, on someone else's:
+
+- DagBag import of every DAG file on Airflow 3, for both trees (`--dag-test` adds dag.test());
+- DAG methods Airflow 3 removed, and keyword arguments a newly imported class doesn't accept on Airflow 3;
+- the render check: every template field of every DAG, old tree on Airflow 2 vs new tree on Airflow 3,
+  runs paired by the moment they fire;
+- cron / timedelta schedules left on Airflow 3's new default timetables ("Run dates will shift").
+
+What the "after" tree configures is respected: `default_timezone`, and `[scheduler] create_cron_data_intervals`
+/ `create_delta_data_intervals`. Setting those flags is the global way to keep Airflow 2's run dates, so a
+tree that sets them gets no shift warning, and its Airflow 3 render runs with them.
+"""
+from __future__ import annotations
+
+import json
+import shlex
+from pathlib import Path
+
+from . import kwarg_check, render_check
+from .agent import DAG_CHECK, ManualItem, RunResult, Unverified, _rows
+from .airflow_config import ENV as ENV_TZ
+from .airflow_config import find_default_timezone, find_setting
+from .plugins import PLUGINS, SHIFT
+from .report import render_body
+from .rules import load_rules
+from .scanner import SKIP_DIRS, scan_repo
+from .testrun import TestRunner
+
+TEXT_SUFFIXES = {".py", ".sql", ".sh", ".hql", ".j2", ".jinja2", ".txt", ".cfg", ".toml", ".yaml", ".yml", ".json"}
+FLAGS = (("scheduler", "create_cron_data_intervals"), ("scheduler", "create_delta_data_intervals"))
+
+
+def _text_files(root: Path) -> dict[str, str]:
+    out = {}
+    for p in root.rglob("*"):
+        if not p.is_file() or set(p.relative_to(root).parts) & (SKIP_DIRS | {".git"}) or p.suffix not in TEXT_SUFFIXES:
+            continue
+        try:
+            if p.stat().st_size < 1_000_000:
+                out[p.relative_to(root).as_posix()] = p.read_text(errors="replace")
+        except OSError:
+            continue
+    return out
+
+
+def _dag_check(tree: Path, venv: Path, dag_test: bool, timeout: int, log):
+    cmd = f"python {shlex.quote(str(DAG_CHECK))} --repo . --junitxml {{junit}} --timeout {timeout}"
+    return TestRunner(tree, cmd + ("" if dag_test else " --import-only"), None, venv, log=log).run()
+
+
+def verify(before: Path, after: Path, *, rules_path: Path, venv: Path, old_venv: Path | None,
+           dag_test: bool = False, timeout: int = 45, log=print) -> tuple[RunResult, dict]:
+    before, after = Path(before).resolve(), Path(after).resolve()
+    ruleset = load_rules(rules_path)
+    res = RunResult()
+    target = f"{ruleset.dist} {ruleset.target_version}"
+
+    # what the after tree configures
+    tz_before, tz_after = find_default_timezone(before), find_default_timezone(after)
+    flags = {key: find_setting(after, section, key) for section, key in FLAGS}
+    env_after = {ENV_TZ: tz_after.tz} if tz_after.tz else {}
+    env_after.update({s.env: s.value for s in flags.values() if s.value is not None})
+    for s in flags.values():
+        if s.value is not None:
+            res.skipped.append(f"the after tree sets `[{s.section}] {s.key} = {s.value}` ({s.where()}); "
+                               "its Airflow 3 render ran with it")
+
+    # what changed
+    old_text, new_text = _text_files(before), _text_files(after)
+    rows = []
+    for rel in sorted(set(old_text) | set(new_text)):
+        a, b = old_text.get(rel, ""), new_text.get(rel, "")
+        if a != b:
+            rows += _rows(Path(rel), a, b, "external change", "", "")
+    res.changed_files = sorted(r for r in set(old_text) | set(new_text) if old_text.get(r) != new_text.get(r))
+
+    # 1. DAG import on Airflow 3, before and after
+    log("DAG check: before tree")
+    res.tests_baseline = _dag_check(before, venv, dag_test, timeout, log)
+    log("DAG check: after tree")
+    res.tests_after = _dag_check(after, venv, dag_test, timeout, log)
+    imports_after = {i.split("::")[0] for i in res.tests_after.ids if i.endswith("::import")}
+    for f in sorted(imports_after):
+        if f"{f}::import" in res.tests_after.failures:
+            err = res.tests_after.messages.get(f"{f}::import", "import failed")
+            res.unverified.append(Unverified(f, err))
+
+    # 2. removed DAG methods, rejected kwargs
+    rules = {r.id: r for r in ruleset.rules}
+    files = [rel.as_posix() for rel in scan_repo(after, ruleset.package).files]
+    methods = rules.get("airflow3-removed-dag-methods")
+    for rel in files:
+        text = new_text.get(rel) or (after / rel).read_text(errors="replace")
+        if methods:
+            for site in PLUGINS["airflow_removed_dag_methods"].find(Path(rel), text, methods.options, "llm"):
+                res.manual.append(ManualItem(rel, site.line, methods.id, site.reason))
+    swapped = {}
+    for rel in files:
+        if rel in old_text and rel in new_text:
+            try:
+                found = kwarg_check.introduced_classes(old_text[rel], new_text[rel])
+            except Exception:  # noqa: BLE001 - unparsable: the DAG check reports it
+                continue
+            if found:
+                swapped[rel] = found
+    if swapped:
+        sigs = kwarg_check.signatures(Path(venv) / "bin" / "python",
+                                      sorted({p for f in swapped.values() for p, _ in f.values()}))
+        for rel, found in swapped.items():
+            for p in kwarg_check.problems(new_text[rel], found, sigs):
+                res.manual.append(ManualItem(rel, p.line, "kwarg-check", p.reason))
+        unread = sorted(k for k, v in sigs.items() if "error" in v)
+        if unread:
+            res.skipped.append(f"kwarg check couldn't read these classes on the target: {', '.join(unread)}")
+
+    # 3. schedules left on Airflow 3's new defaults (unless the tree restores the old ones globally)
+    pin = rules.get("airflow3-cron-timetable-pin")
+    if pin:
+        opts = {**pin.options, "default_timezone": tz_after.tz or "UTC", "timezone_problem": tz_after.problem}
+        for rel in files:
+            text = new_text.get(rel) or (after / rel).read_text(errors="replace")
+            try:
+                sites = (PLUGINS["airflow_cron_pin"].find(Path(rel), text, opts, "deterministic")
+                         + PLUGINS["airflow_cron_pin"].find(Path(rel), text, opts, "llm"))
+            except Exception:  # noqa: BLE001
+                continue
+            for s in sites:
+                timedelta = "timedelta" in s.snippet or "timedelta" in s.reason
+                if (flags["create_delta_data_intervals"] if timedelta else flags["create_cron_data_intervals"]).is_true():
+                    continue
+                why = s.reason if s.reason.startswith(SHIFT) else (
+                    f"{SHIFT}: a cron schedule left on Airflow 3's default timetable; pin it, or set "
+                    "[scheduler] create_cron_data_intervals = True")
+                res.unpinned.append({"path": rel, "line": s.line, "schedule": s.snippet, "reason": why, "evidence": ""})
+
+    # 4. render check, every field, paired by fire time
+    if old_venv:
+        both = sorted(set(files) & {rel.as_posix() for rel in scan_repo(before, ruleset.package).files})
+        try:
+            old = render_check.render(Path(old_venv) / "bin" / "python", before, both,
+                                      env={ENV_TZ: tz_before.tz} if tz_before.tz else {})
+            new = render_check.render(Path(venv) / "bin" / "python", after, both, env=env_after)
+            res.render_results = render_check.compare(old, new, changed=set(), whole_dags=set(new["dags"]))
+        except Exception as e:  # noqa: BLE001
+            res.skipped.append(f"render check failed to run: {e}")
+            old = new = {"dags": {}}
+    else:
+        res.skipped.append("render check not run: pass --old-venv (an Airflow 2 venv)")
+        old = new = {"dags": {}}
+    for u in res.unpinned:
+        bad = [r for r in res.render_results if r.file == u["path"] and r.mismatches]
+        if bad:
+            u["evidence"] = f"{render_check.summary(bad[0])} (field {bad[0].dag_id}.{bad[0].task_id}.{bad[0].field})"
+
+    res.rows = rows
+    res.body = render_body(
+        package=ruleset.dist, rows=rows, rules=[], pin_minimum=None, pin_conflicts=[], lock_notes=[],
+        skipped_rules=[], skipped=res.skipped, manual=res.manual, unparsable=[], tests_baseline=res.tests_baseline,
+        tests_after=res.tests_after, new_failures=set(), blob_base=None, rules_path=f"verify: {after.name}",
+        title=f"verify {after.name} against {before.name} on {target}", dag_target=target,
+        render_results=res.render_results, unverified=res.unverified, unpinned=res.unpinned, timezone=tz_after)
+    return res, _per_dag(res, old, new)
+
+
+def _per_dag(res: RunResult, old: dict, new: dict) -> dict:
+    """One verdict per DAG: does it import on Airflow 3, and how did its templates render."""
+    out = {}
+    after = res.tests_after
+    for i in after.ids:
+        if "::dag:" in i or not i.endswith("::import"):
+            continue
+        f = i.split("::")[0]
+        # a file that fails on Airflow 3 has no DAG ids there: name its DAGs as Airflow 2 does
+        keys = ([k for k, d in new["dags"].items() if d["file"] == f]
+                or [k for k, d in old["dags"].items() if d["file"] == f] or [f"{f}::?"])
+        for key in keys:
+            fields = [r for r in res.render_results if f"{r.file}::{r.dag_id}" == key]
+            if i in after.failures:
+                render = "not reached"
+            elif any(r.mismatches for r in fields):
+                render = "mismatch"
+            elif any(not r.runs for r in fields):
+                render = "not render-checked"
+            elif fields:
+                render = "identical"
+            else:
+                render = "no template fields" if key in new["dags"] else "not rendered"
+            out[key] = {"imports": i not in after.failures, "render": render,
+                        "fields": len(fields), "mismatched_fields": sum(1 for r in fields if r.mismatches),
+                        "example": next((f"{r.task_id}.{r.field}: {render_check.summary(r)}" for r in fields
+                                         if r.mismatches), "")}
+    return out
+
+
+def main(argv) -> int:
+    import argparse
+
+    from .cli import BUNDLED_RULES
+
+    p = argparse.ArgumentParser(prog="api-change-agent verify", description=__doc__.split("\n\n")[0])
+    p.add_argument("--before", required=True, help="the Airflow 2 tree")
+    p.add_argument("--after", required=True, help="the same tree after migration to Airflow 3")
+    p.add_argument("--rules", default="airflow")
+    p.add_argument("--venv", required=True, help="an Airflow 3 venv (DAG import, render, signatures)")
+    p.add_argument("--old-venv", help="an Airflow 2 venv (render of the before tree)")
+    p.add_argument("--dag-test", action="store_true", help="also run dag.test() per DAG (slow)")
+    p.add_argument("--output", help="write report.md and result.json here")
+    a = p.parse_args(argv)
+    rules = Path(a.rules)
+    if not rules.exists():
+        rules = BUNDLED_RULES.parent / f"{a.rules}.yaml"
+    res, dags = verify(Path(a.before), Path(a.after), rules_path=rules, venv=Path(a.venv),
+                       old_venv=Path(a.old_venv) if a.old_venv else None, dag_test=a.dag_test)
+    print(res.body)
+    if a.output:
+        out = Path(a.output)
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "report.md").write_text(res.body + "\n")
+        summary = res.summary()
+        summary["dags"] = dags
+        (out / "result.json").write_text(json.dumps(summary, indent=2, default=str) + "\n")
+    return 0
