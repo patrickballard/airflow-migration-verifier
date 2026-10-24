@@ -56,11 +56,13 @@ These were dry runs on cloned repos. Nothing was pushed to them.
 
 ## Quickstart
 
-Both workflows below go on your **default branch**. The action needs nothing installed and no secrets.
+Both workflows below go on your **default branch**: commit them there, or merge a PR that adds them. Nothing needs installing, and no secret is required (the Anthropic key is optional).
+
+**Naming:** the action was called *api-change-agent* until v1.3.0. Its Python package, CLI, bot branch and the test repo linked above keep that name.
 
 ### Verify a migration pull request (made by anything)
 
-Add `.github/workflows/verify-airflow-3.yml`. It compares the PR's base commit (Airflow 2) with its head commit (Airflow 3) and changes nothing:
+Add `.github/workflows/verify-airflow-3.yml`. It compares the base branch (Airflow 2) with the PR merged into it (Airflow 3), so only the PR's own changes count. It changes nothing:
 
 ```yaml
 name: verify-airflow-3-migration
@@ -73,10 +75,9 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-        with: {ref: "${{ github.event.pull_request.base.sha }}", path: before}
-      - uses: actions/checkout@v7
-        with: {ref: "${{ github.event.pull_request.head.sha }}", path: after}
+      - uses: actions/checkout@v7        # the PR merged into its base branch
+        with: {path: after, fetch-depth: 2}
+      - run: git -C after worktree add --detach ../before HEAD^1   # the base branch, as the merge saw it
       - uses: actions/cache/restore@v6   # reuse the Airflow 2 and 3 venvs from earlier runs
         id: venvs
         with:
@@ -95,15 +96,15 @@ jobs:
           key: ${{ steps.venvs.outputs.cache-primary-key }}
 ```
 
-It runs on every PR opened or updated after you commit it. For a PR that's already open, push a commit to it, or close and reopen it.
+It runs on every PR opened or updated after you commit it. For a PR that's already open, push a commit to it, or close and reopen it. A PR with merge conflicts has no merge commit to check; resolve them first.
 
-**The report** is on the run's *Summary* page (Actions tab → the run), and in the action step's log. It lists:
+**The report** is on the run's *Summary* page (Actions tab → the run), and in the action step's log (`gh run view --log` from the command line). Each failure is also an annotation on the file and line in the PR. It lists:
 - each DAG file's import on Airflow 3, before and after;
 - every template field rendered on Airflow 2 (base) and Airflow 3 (head), run by run;
 - removed context keys and template variables still in use, removed DAG methods, and arguments Airflow 3 rejects;
 - cron and timedelta schedules whose run dates will shift.
 
-With `strict: "true"` the check fails on any of these except the schedules, which are reported as warnings. Verify mode imports each DAG file but doesn't run the DAGs: running someone's tasks in a PR check would run their side effects.
+With `strict: "true"` the check fails on any of these except the schedule list, which is a warning. A shift that changes what a template renders still fails, as a render mismatch. Verify mode imports each DAG file but doesn't run the DAGs: running someone's tasks in a PR check would run their side effects.
 
 **What it builds:** an Airflow 3 venv from the head's requirements, and an Airflow 2 venv at the base's `apache-airflow` pin (2.11.2 if there's none).
 
@@ -138,19 +139,20 @@ jobs:
           # dry-run: "true"                                     # report in the step summary only
 ```
 
-1. Enable *Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests*. Leave the default permissions on *Read*: the workflow's `permissions:` block grants what it needs.
+1. Enable *Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests*. The setting lets workflows approve PRs too; this action only opens them. Leave the default permissions on *Read*: the workflow's `permissions:` block grants what it needs.
 2. Run it: *Actions → airflow-3-migration → Run workflow*, or `gh workflow run airflow-3.yml`.
 
 **What it does:**
 - It raises your `apache-airflow` pin to 3.3.2.
 - It builds an Airflow 3 venv with the official constraints, plus an Airflow 2 venv at your original pin for the render check.
-- It pushes the branch `api-change-agent/airflow` and opens a PR whose description is the report.
+- It runs each DAG file's import and each DAG's `dag.test()`, before and after, inside the throwaway CI container, so your tasks really run there. `test-command: none` skips them, and with them the DAG checks.
+- It pushes the branch `api-change-agent/airflow` and opens a PR whose description is the report. The job log ends with the PR's link.
 
 **Without an Anthropic key,** judgment sites are listed for a human, and the report says so.
 
 **Your other checks on its PR:** GitHub holds workflow runs on a PR opened by the job's token until you approve them. Open the PR and click *Approve and run* to run your CI and the verify workflow on it. To skip that, pass a personal access token or a GitHub App token as `github-token`.
 
-**The cache:** later runs reuse both venvs while your requirements stay the same. On the fixture repo that brought a run down from 2m12s to 1m19s.
+**The cache:** later runs reuse both venvs while your requirements stay the same. On the fixture repo that brought a run down from 2m12s to 1m19s. `${{ runner.temp }}/_github_home` is where the action's `/github/home` (and so `venv-dir`) lives on the runner. GitHub keeps a cache saved on a PR to that PR: its re-runs and new commits start warm, but each new PR starts cold.
 
 ### Inputs
 
@@ -168,10 +170,8 @@ jobs:
 | `branch`, `base-branch` | `api-change-agent/<package>`, the default branch | migrate: the bot branch and the PR's base. |
 | `test-command`, `install-command` | `auto` | The DAG checks and how the test venv is installed. |
 | `exclude` | | Globs to skip. |
-| `venv-dir` | `/github/home/aca-venv` | Where the venvs go (the cache paths above). |
+| `venv-dir` | `/github/home/aca-venv` | Where the venvs go: `${{ runner.temp }}/_github_home/aca-venv*` in the cache steps above. |
 | `github-token` | `${{ github.token }}` | migrate: pushes the branch and opens the PR. |
-
-**Naming:** the action was called *api-change-agent* until v1.3.0. Its Python package, CLI and bot branch keep that name.
 
 ### Run it locally
 
