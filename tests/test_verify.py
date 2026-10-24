@@ -83,6 +83,7 @@ def test_our_output_verifies_clean(tmp_path):
     assert etl["imports"] and etl["render"] == "identical", etl
     assert "### ⚠️ Run dates will shift" not in report
     assert "### Render check" in report and "### DAG checks on" in report
+    assert "Every row links to the changelog" not in report  # verify rows come from a diff, not from rules
 
 
 @needs_both

@@ -200,7 +200,8 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
     parts = [
         f"## api-change-agent: {title}" if title else f"## api-change-agent: `{package}` SDK migration",
         "",
-        f"{len(rows)} change(s) from `{rules_path}`. Every row links to the changelog entry behind it.",
+        f"{len(rows)} change(s) from `{rules_path}`."
+        + (" Every row links to the changelog entry behind it." if rows and all(r.changelog for r in rows) else ""),
         "",
     ]
     if rows:
