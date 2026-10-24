@@ -1,5 +1,7 @@
 **Airflow Migration Verifier** verifies any Airflow 2→3 migration, including ones done by other tools, by rendering your templates on both versions — no tests needed.
 
+[![CI](https://github.com/patrickballard/api-change-agent-test/actions/workflows/ci.yml/badge.svg)](https://github.com/patrickballard/api-change-agent-test/actions/workflows/ci.yml)
+
 ## Airflow 3 silently changes the date your cron DAGs process
 
 Take an `@daily` DAG whose task runs `process {{ ds }}`, and the run that fires at 2024-05-02 00:00 UTC:
@@ -157,7 +159,7 @@ Each comes with a pin bump and a test gate. See [`rules/openai.yaml`](rules/open
 
 ## Development
 
-CI (unit tests on Python 3.10–3.12, the real-Airflow integration tests and the render-check mutation tests) runs nightly from a separate repo, because a Marketplace action's repo can't contain workflow files.
+CI (unit tests on Python 3.10–3.12, the real-Airflow integration tests and the render-check mutation tests) runs nightly from [a separate repo](https://github.com/patrickballard/api-change-agent-test/actions/workflows/ci.yml), because a Marketplace action's repo can't contain workflow files.
 
 ```bash
 pip install -e '.[test]' && pytest
