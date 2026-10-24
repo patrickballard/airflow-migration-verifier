@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/patrickballard/api-change-agent-test/actions/workflows/ci.yml/badge.svg)](https://github.com/patrickballard/api-change-agent-test/actions/workflows/ci.yml)
 
+<sub>Formerly *api-change-agent*: the Python package, CLI, bot branch and test repo keep that name.</sub>
+
 ## Airflow 3 silently changes the date your cron DAGs process
 
 Take an `@daily` DAG whose task runs `process {{ ds }}`, and the run that fires at 2024-05-02 00:00 UTC:
@@ -56,9 +58,7 @@ These were dry runs on cloned repos. Nothing was pushed to them.
 
 ## Quickstart
 
-Both workflows below go on your **default branch**: commit them there, or merge a PR that adds them. Nothing needs installing, and no secret is required (the Anthropic key is optional).
-
-**Naming:** the action was called *api-change-agent* until v1.3.0. Its Python package, CLI, bot branch and the test repo linked above keep that name.
+Both workflows below go on your **default branch**: commit them there or merge a PR that adds them, either works. Nothing needs installing, and no secret is required (the Anthropic key is optional).
 
 ### Verify a migration pull request (made by anything)
 
@@ -96,9 +96,9 @@ jobs:
           key: ${{ steps.venvs.outputs.cache-primary-key }}
 ```
 
-It runs on every PR opened or updated after you commit it. For a PR that's already open, push a commit to it, or close and reopen it. A PR with merge conflicts has no merge commit to check; resolve them first.
+It runs on every PR opened or updated after you commit it. For a PR that's already open, push a commit to it, or close and reopen it (which notifies its watchers). A PR with merge conflicts has no merge commit to check; resolve them first.
 
-**The report** is on the run's *Summary* page (Actions tab → the run), and in the action step's log (`gh run view --log` from the command line). Each failure is also an annotation on the file and line in the PR. It lists:
+**The report** is on the run's *Summary* page (Actions tab → the run), and in the action step's log: from the command line, `gh run view <run-id> --log` and search for `## Airflow Migration Verifier`. Each failure is also an annotation on the file and line in the PR. It lists:
 - each DAG file's import on Airflow 3, before and after;
 - every template field rendered on Airflow 2 (base) and Airflow 3 (head), run by run;
 - removed context keys and template variables still in use, removed DAG methods, and arguments Airflow 3 rejects;
@@ -139,18 +139,20 @@ jobs:
           # dry-run: "true"                                     # report in the step summary only
 ```
 
-1. Enable *Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests*. The setting lets workflows approve PRs too; this action only opens them. Leave the default permissions on *Read*: the workflow's `permissions:` block grants what it needs.
+1. Enable *Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests*. The setting lets workflows approve PRs too; this action only opens them. Leave the default permissions on *Read*: the workflow's `permissions:` block grants what it needs. From the command line: `gh api -X PUT repos/OWNER/REPO/actions/permissions/workflow -F can_approve_pull_request_reviews=true -f default_workflow_permissions=read`.
 2. Run it: *Actions → airflow-3-migration → Run workflow*, or `gh workflow run airflow-3.yml`.
 
 **What it does:**
 - It raises your `apache-airflow` pin to 3.3.2.
 - It builds an Airflow 3 venv with the official constraints, plus an Airflow 2 venv at your original pin for the render check.
 - It runs each DAG file's import and each DAG's `dag.test()`, before and after, inside the throwaway CI container, so your tasks really run there. `test-command: none` skips them, and with them the DAG checks.
-- It pushes the branch `api-change-agent/airflow` and opens a PR whose description is the report. The job log ends with the PR's link.
+- It pushes the branch `api-change-agent/airflow` and opens a PR whose description is the report. The job log prints its link (`pull request: …`).
 
 **Without an Anthropic key,** judgment sites are listed for a human, and the report says so.
 
-**Your other checks on its PR:** GitHub holds workflow runs on a PR opened by the job's token until you approve them. Open the PR and click *Approve and run* to run your CI and the verify workflow on it. To skip that, pass a personal access token or a GitHub App token as `github-token`.
+**If someone already opened a migration PR,** verify it first. Migrate mode opens its own PR rather than changing theirs, so close whichever one you don't merge.
+
+**Your other checks on its PR:** GitHub holds workflow runs on a PR opened by the job's token until you approve them. Open the PR and click *Approve and run* to run your CI and the verify workflow on it, or `gh api -X POST repos/OWNER/REPO/actions/runs/RUN_ID/approve`. To skip that, pass a personal access token or a GitHub App token as `github-token`.
 
 **The cache:** later runs reuse both venvs while your requirements stay the same. On the fixture repo that brought a run down from 2m12s to 1m19s. `${{ runner.temp }}/_github_home` is where the action's `/github/home` (and so `venv-dir`) lives on the runner. GitHub keeps a cache saved on a PR to that PR: its re-runs and new commits start warm, but each new PR starts cold.
 
