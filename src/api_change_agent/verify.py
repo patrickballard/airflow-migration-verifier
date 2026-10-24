@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import shlex
 from pathlib import Path
+from typing import NamedTuple
 
 from . import kwarg_check, render_check
 from .agent import DAG_CHECK, ManualItem, RunResult, Unverified, _rows
@@ -70,15 +71,33 @@ def build_venvs(before: Path, after: Path, ruleset, venv: Path, log=print) -> tu
     return venv, old_venv
 
 
-def strict_problems(summary: dict) -> list[str]:
+class Problem(NamedTuple):
+    path: str  # relative to the tree, so it matches the PR's diff
+    line: int | None
+    text: str
+
+
+def strict_problems(summary: dict) -> list[Problem]:
     """What --strict fails on: a DAG that doesn't import on Airflow 3 or renders differently, a removed DAG
     method, a removed context key or template variable, a rejected kwarg."""
-    out = [f"{k}: does not import on Airflow 3" for k, d in summary["dags"].items() if not d["imports"]]
-    out += [f"{k}: renders differently from Airflow 2" for k, d in summary["dags"].items() if d["render"] == "mismatch"]
-    out += [f"{m['path']}:{m['line']}: {m['reason']}" for m in summary["manual"]
+    dags = summary["dags"].items()
+    out = [Problem(k.split("::")[0], None, f"{k}: does not import on Airflow 3") for k, d in dags if not d["imports"]]
+    out += [Problem(k.split("::")[0], None, f"{k}: renders differently from Airflow 2")
+            for k, d in dags if d["render"] == "mismatch"]
+    out += [Problem(m["path"], m["line"], m["reason"]) for m in summary["manual"]
             if m["rule_id"] in ("kwarg-check", "airflow3-removed-dag-methods", "airflow3-context-keys",
                                 "airflow3-templates")]
     return out
+
+
+def annotation(p: Problem) -> str:
+    """A GitHub `::error` workflow command, so the check annotates the file (and line) in the PR."""
+    def esc(v: str, prop: bool = False) -> str:
+        v = v.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        return v.replace(":", "%3A").replace(",", "%2C") if prop else v
+    where = f"file={esc(p.path, True)}" + (f",line={p.line}" if p.line else "")
+    msg = p.text if p.line is None else f"{p.path}:{p.line}: {p.text}"
+    return f"::error {where},title=Airflow 3 migration::{esc(msg)}"
 
 
 def _text_files(root: Path) -> dict[str, str]:
@@ -306,6 +325,6 @@ def main(argv) -> int:
         with open(step, "a") as f:
             f.write(res.body + "\n")
     problems = strict_problems(summary) if a.strict else []
-    for line in problems:
-        print(f"::error::{line}")
+    for problem in problems:
+        print(annotation(problem))
     return 1 if problems else 0

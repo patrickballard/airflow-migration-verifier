@@ -129,7 +129,7 @@ def test_removed_context_keys_left_in_python_are_listed(tmp_path):
     code, res, report = verify(tmp_path, after, "context")
     from api_change_agent.verify import strict_problems
     assert any(m["rule_id"] == "airflow3-context-keys" and m["path"] == "dags/partitions.py" for m in res["manual"])
-    assert any("execution_date" in p for p in strict_problems(res))
+    assert any("execution_date" in p.text and p.path == "dags/partitions.py" and p.line for p in strict_problems(res))
     assert "execution_date" in report.split("### Needs manual migration", 1)[1]
 
 
@@ -203,4 +203,13 @@ def test_strict_fails_on_problems_only():
     assert strict_problems(ok) == []
     bad = {"dags": {"a::a": {"imports": True, "render": "mismatch"}, "b::b": {"imports": False, "render": "not reached"}},
            "manual": [{"rule_id": "kwarg-check", "path": "a", "line": 1, "reason": "x"}]}
-    assert len(strict_problems(bad)) == 3
+    problems = strict_problems(bad)
+    assert len(problems) == 3
+    from api_change_agent.verify import annotation
+    # GitHub puts each one on the file (and line) it names, in the PR's diff
+    assert [annotation(p) for p in problems] == [
+        "::error file=b,title=Airflow 3 migration::b::b: does not import on Airflow 3",
+        "::error file=a,title=Airflow 3 migration::a::a: renders differently from Airflow 2",
+        "::error file=a,line=1,title=Airflow 3 migration::a:1: x"]
+    assert annotation(type(problems[0])("d.py", 2, "100%: a\nb")) == (
+        "::error file=d.py,line=2,title=Airflow 3 migration::d.py:2: 100%25: a%0Ab")
