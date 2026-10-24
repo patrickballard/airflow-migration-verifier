@@ -15,7 +15,11 @@ Take an `@daily` DAG whose task runs `process {{ ds }}`, and the run that fires 
 
 There is no error and no warning. In Airflow 3 a cron run's logical date is the moment it fires, not the start of the interval it covers. So `{{ ds }}`, `logical_date` and every partition path built from them move by one interval. Both rows were rendered on the real versions.
 
-This GitHub Action checks a migration the same way, whoever made it: a person, ruff, another tool or an AI agent. It renders every template field with the old code on Airflow 2 and the new code on Airflow 3, run by run, and checks that each DAG imports and uses nothing Airflow 3 removed. It can also do the migration itself, in a pull request, proving each change the same way. Whatever it can't prove, it labels as unverified. [See a real PR it opened.](https://github.com/patrickballard/api-change-agent-test/pull/2)
+This GitHub Action checks a migration the same way, whoever made it: a person, ruff, another tool or an AI agent. It renders every template field with the old code on Airflow 2 and the new code on Airflow 3, run by run, and checks that each DAG imports and uses nothing Airflow 3 removed. It can also do the migration itself, in a pull request, proving each change the same way. Whatever it can't prove, it labels as unverified.
+
+**Demo: failing vs passing.** [airflow-verifier-trial](https://github.com/patrickballard/airflow-verifier-trial) is a small Airflow 2 repo with two migration PRs, each checked by the verify workflow from the Quickstart:
+- ❌ [PR #1](https://github.com/patrickballard/airflow-verifier-trial/pull/1), migrated with ruff alone, **fails** ([run](https://github.com/patrickballard/airflow-verifier-trial/actions/runs/40110340024)). `{{ ds }}` renders a day later on 25 of 25 runs, `days_ago` no longer imports, and `context["execution_date"]` is still read.
+- ✅ [PR #5](https://github.com/patrickballard/airflow-verifier-trial/pull/5), opened by this action's migrate mode, **passes** ([run](https://github.com/patrickballard/airflow-verifier-trial/actions/runs/40110745663)).
 
 ## What it does
 
