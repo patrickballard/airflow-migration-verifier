@@ -1053,6 +1053,7 @@ class _Run:
         else:
             pr = self.github.create_pr(head=self.o.branch, base=base, title=title, body=res.body)
         res.pr_url = pr.get("html_url")
+        self.log(f"pull request: {res.pr_url}")
 
 
 def run(options: Options, model: PatchModel | None = None, github=None) -> RunResult:

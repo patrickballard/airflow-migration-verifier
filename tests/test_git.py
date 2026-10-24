@@ -27,7 +27,8 @@ def test_end_to_end_opens_pr_and_never_touches_main(git_repo):
     repo, remote = git_repo
     main_before = git(remote, "rev-parse", "main")
     gh = FakeGitHub()
-    result = run(options(repo), model=FileModel(FIXTURES / "llm" / "weather_good.py"), github=gh)
+    logged = []
+    result = run(options(repo, log=logged.append), model=FileModel(FIXTURES / "llm" / "weather_good.py"), github=gh)
 
     assert git(remote, "rev-parse", "main") == main_before
     branch_sha = git(remote, "rev-parse", "api-change-agent/openai")
@@ -41,6 +42,7 @@ def test_end_to_end_opens_pr_and_never_touches_main(git_repo):
     assert git(remote, "log", "-1", "--format=%an", branch_sha) == "github-actions[bot]"
 
     assert result.pr_url == "https://github.com/acme/app/pull/7"
+    assert any("https://github.com/acme/app/pull/7" in line for line in logged)  # the job log says where the PR is
     (pr,) = gh.created
     assert (pr["head"], pr["base"]) == ("api-change-agent/openai", "main")
     body = pr["body"]
