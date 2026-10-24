@@ -230,7 +230,7 @@ def test_agent_on_fixture_without_tests(tmp_path):
         ("dags/partitions.py", "airflow3-context-judgment"), ("dags/partitions.py", "airflow3-template-judgment")]
     ruff_rows = [r for r in result.rows if r.rule_id.startswith("ruff ")]
     assert all(r.note.startswith("fixed by ruff AIR3") for r in ruff_rows)
-    assert "fixed by ruff AIR301" in result.body and "## api-change-agent: Airflow 2 → 3" in result.body
+    assert "fixed by ruff AIR301" in result.body and "## Airflow Migration Verifier: Airflow 2 → 3" in result.body
 
 
 def test_held_airflow_pin_skips_the_upgrade(tmp_path):

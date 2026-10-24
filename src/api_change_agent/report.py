@@ -146,13 +146,16 @@ def _unpinned_section(unpinned, blob_base) -> list[str]:
     return out + [""]
 
 
-def _unverified_section(unverified, blob_base) -> list[str]:
+def _unverified_section(unverified, blob_base, verify=False) -> list[str]:
     if not unverified:
         return []
-    out = ["### ⚠️ Unverified files", "",
+    why = ("These files fail to import on Airflow 3 both before and after this change, so nothing that needs the "
+           "import could be checked in them (render check, removed methods). Fix the import error below."
+           if verify else
            "These files fail to import on Airflow 3 both before and after this PR, so nothing in them could be "
            "checked (DagBag import, `dag.test()`, render check). Their changes above are marked unverified; ruff's "
-           "unsafe fixes and Claude's patches were not applied to them. Fix the error and run the agent again.", ""]
+           "unsafe fixes and Claude's patches were not applied to them. Fix the error and run the agent again.")
+    out = ["### ⚠️ Unverified files", "", why, ""]
     out += [f"- `{u.path}`: <code>{html.escape(u.error[:300], quote=False)}</code>" for u in unverified]
     return out + [""]
 
@@ -181,10 +184,13 @@ def _dag_status(outcome, test_id) -> str:
     return "✅"
 
 
-def _dag_table(before, after, target) -> list[str]:
+def _dag_table(before, after, target, verify=False) -> list[str]:
     ids = list(dict.fromkeys([*before.ids, *(after.ids if after else ())]))
+    ran_dags = any("::import" not in i for i in ids)  # dag.test() rows exist only when it ran
+    what = ("Each DAG file is imported (DagBag) and each DAG run with `dag.test()`" if ran_dags
+            else "Each DAG file is imported (DagBag); DAGs aren't run")
     lines = [f"### DAG checks on {target}", "",
-             "Each DAG file is imported (DagBag) and each DAG run with `dag.test()`, before and after this PR.", "",
+             f"{what}, before and after {'the change' if verify else 'this PR'}.", "",
              "| Check | Before | After |", "|---|---|---|"]
     for test_id in ids:
         lines.append(f"| `{test_id}` | {_dag_status(before, test_id)} | {_dag_status(after, test_id)} |")
@@ -194,11 +200,13 @@ def _dag_table(before, after, target) -> list[str]:
 def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes, skipped_rules, skipped, manual,
                 unparsable, tests_baseline, tests_after, new_failures, blob_base, rules_path,
                 rule_notes=None, dep_notes=(), title="", tools=(), dag_target=None, llm_usage=None,
-                llm_notes=(), render_results=(), timezone=None, naive_pins=(), unverified=(), unpinned=()) -> str:
+                llm_notes=(), render_results=(), timezone=None, naive_pins=(), unverified=(), unpinned=(),
+                verify=False) -> str:
     rule_notes = rule_notes or {}
     applied = sorted({r.rule_id for r in rows})
+    name = "Airflow Migration Verifier" if dag_target else "api-change-agent"
     parts = [
-        f"## api-change-agent: {title}" if title else f"## api-change-agent: `{package}` SDK migration",
+        f"## {name}: {title}" if title else f"## {name}: `{package}` SDK migration",
         "",
         f"{len(rows)} change(s) from `{rules_path}`."
         + (" Every row links to the changelog entry behind it." if rows and all(r.changelog for r in rows) else ""),
@@ -211,7 +219,7 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
             parts += [TIMETABLE_PIN, ""]
             parts += _timezone_section(timezone, naive_pins, blob_base)
         parts += _unpinned_section(unpinned, blob_base)
-        parts += _unverified_section(unverified, blob_base)
+        parts += _unverified_section(unverified, blob_base, verify)
         parts += _manual_runs_section(rows, blob_base)
         if render_results:
             parts += _render_section(render_results)
@@ -243,7 +251,11 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
         parts.append("")
 
     if dag_target and tests_baseline is not None:
-        parts += _dag_table(tests_baseline, tests_after, dag_target)
+        parts += _dag_table(tests_baseline, tests_after, dag_target, verify)
+
+    if verify:  # the DAG checks table is the test result; nothing was changed, so "new failures" says nothing
+        parts += _verify_tail(manual, skipped)
+        return "\n".join(parts)
 
     parts.append("### Tests")
     if tests_after is None and tests_baseline is None:
@@ -293,5 +305,14 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
         parts.append(f"<sub>Claude: {llm_usage['calls']} call(s), ${llm_usage['usd']:.4f}{budget} "
                      f"({', '.join(llm_usage['models'])}).</sub>")
         parts.append("")
-    parts.append("<sub>Opened by api-change-agent. It only pushes to its own branch, never to the default branch.</sub>")
+    parts.append(f"<sub>Opened by {name}. It only pushes to its own branch, never to the default branch.</sub>")
     return "\n".join(parts)
+
+
+def _verify_tail(manual, skipped) -> list[str]:
+    out = []
+    if manual:
+        out += ["### Needs manual migration", *(f"- `{m.path}:{m.line}` (`{m.rule_id}`): {m.reason}" for m in manual), ""]
+    if skipped:
+        out += ["### Other notes", *(f"- {s}" for s in skipped), ""]
+    return out + ["<sub>Airflow Migration Verifier, verify mode: nothing in either tree was changed.</sub>"]

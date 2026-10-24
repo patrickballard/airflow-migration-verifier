@@ -227,7 +227,8 @@ def verify(before: Path, after: Path, *, rules_path: Path, venv: Path, old_venv:
         skipped_rules=[], skipped=res.skipped, manual=res.manual, unparsable=[], tests_baseline=res.tests_baseline,
         tests_after=res.tests_after, new_failures=set(), blob_base=None, rules_path=f"verify: {after.name}",
         title=f"verify {after.name} against {before.name} on {target}", dag_target=target,
-        render_results=res.render_results, unverified=res.unverified, unpinned=res.unpinned, timezone=tz_after)
+        render_results=res.render_results, unverified=res.unverified, unpinned=res.unpinned, timezone=tz_after,
+        verify=True)
     return res, _per_dag(res, old, new)
 
 
