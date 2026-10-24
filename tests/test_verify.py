@@ -138,11 +138,13 @@ def test_the_report_describes_verify_mode(tmp_path):
     after = tmp_path / "untouched"
     shutil.copytree(FIXTURES / "airflow_repo", after)
     code, res, report = verify(tmp_path, after, "wording")
-    assert report.startswith("## Airflow Migration Verifier: verify")
+    assert report.startswith("## Airflow Migration Verifier: verify an Airflow 2 → 3 change")
+    assert "external change" not in report and "`verify: " not in report  # no rule/changelog table for a diff
     dag_checks = report.split("### DAG checks on", 1)[1].split("###", 1)[0]
     assert "imported (DagBag)" in dag_checks and "dag.test()" not in dag_checks  # verify runs import-only
     unverified = report.split("### ⚠️ Unverified files", 1)[1].split("###", 1)[0]
     assert "run the agent again" not in unverified and "Claude" not in unverified
+    assert "Migrate mode fixes common causes" in unverified
     assert "No new test failures" not in report  # it failed before and after: say so, don't reassure
     assert "Opened by" not in report  # verify opens nothing
 

@@ -634,7 +634,7 @@ class _Run:
                 plugin = self._plugin_of(r.rule_id)
                 extra = None
                 if plugin == "airflow_context_keys" and r.path.endswith(".py"):
-                    extra = "not render-checked (Python context reads are out of scope for v0)"
+                    extra = "not render-checked: only templates are rendered, not Python context reads"
                 elif plugin in ("airflow_templates", *WHOLE_DAG):
                     covering = by_row.get(id(r))
                     in_unpinned = any(f == r.path for f, _ in unpinned_dags)

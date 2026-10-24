@@ -150,7 +150,8 @@ def _unverified_section(unverified, blob_base, verify=False) -> list[str]:
     if not unverified:
         return []
     why = ("These files fail to import on Airflow 3 both before and after this change, so nothing that needs the "
-           "import could be checked in them (render check, removed methods). Fix the import error below."
+           "import could be checked in them (render check, removed methods). Fix the import error below. "
+           "Migrate mode fixes common causes, such as moved imports and `days_ago`."
            if verify else
            "These files fail to import on Airflow 3 both before and after this PR, so nothing in them could be "
            "checked (DagBag import, `dag.test()`, render check). Their changes above are marked unverified; ruff's "
@@ -205,14 +206,15 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
     rule_notes = rule_notes or {}
     applied = sorted({r.rule_id for r in rows})
     name = "Airflow Migration Verifier" if dag_target else "api-change-agent"
-    parts = [
-        f"## {name}: {title}" if title else f"## {name}: `{package}` SDK migration",
-        "",
-        f"{len(rows)} change(s) from `{rules_path}`."
-        + (" Every row links to the changelog entry behind it." if rows and all(r.changelog for r in rows) else ""),
-        "",
-    ]
-    if rows:
+    parts = [f"## {name}: {title}" if title else f"## {name}: `{package}` SDK migration", ""]
+    if verify:  # the rows are a plain diff, with no rule or changelog behind them: the PR's diff shows them better
+        files = len({r.path for r in rows})
+        parts += [f"{len(rows)} changed line(s) in {files} file(s) between `{rules_path}`, checked below.", ""]
+    else:
+        parts += [f"{len(rows)} change(s) from `{rules_path}`."
+                  + (" Every row links to the documentation behind it." if rows and all(r.changelog for r in rows)
+                     else ""), ""]
+    if rows and not verify:
         parts += [render_table(rows, blob_base), ""]
     if dag_target:
         if any(r.rule_id == "airflow3-cron-timetable-pin" for r in rows):
