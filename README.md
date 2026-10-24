@@ -43,22 +43,24 @@ These were dry runs on cloned repos. Nothing was pushed to them.
 - the *Data Pipelines with Apache Airflow* book code
 - 8 others
 
-[research/airflow-real-world/SCORECARD.md](research/airflow-real-world/SCORECARD.md) has the per-repo table, the diffs' verdicts and the scripts.
+[research/airflow-real-world/SCORECARD.md](https://github.com/patrickballard/airflow-migration-verifier/blob/main/research/airflow-real-world/SCORECARD.md) has the per-repo table, the diffs' verdicts and the scripts.
 
 - **161 DAGs** load on Airflow 2.11.2 and fail to import on Airflow 3.3.2 as written.
 - After the agent, **155 of them import on Airflow 3**. Two of those call `DAG.following_schedule`, which Airflow 3 removed; the agent flags them as manual.
 - **105** of the other 153 have template fields. **75** of those run on a schedule and were render-checked. **73 render identically** to Airflow 2 on every sampled run. The other 2 are real breaks the agent reports instead of guessing: one uses `prev_ds`, which has no exact equivalent, and one uses `dag_run.external_trigger`, which Airflow 3 removed.
 - **30** have no schedule (`schedule=None`), so there are no runs to compare. They're reported as not render-checked and aren't counted as proven.
 - **Headline: 121 of 161 (75%)** import, render identically and call no removed method. Claude's patches in it cost $0.60; the rest are rule-based.
-- An earlier version of this page said 144. That was measured with a render check that counted unscheduled DAGs, and DAGs whose sampled runs never lined up, as identical. Both are fixed; see [findings](research/airflow-real-world/findings.md).
-- **Other tools' migrations, verified the same way:** on the same 161 DAGs, ruff alone, airflow-v2-to-v3 and airflow-migration-helper each pass all checks for 24–25. See [the competitor check](research/competitor-check/REPORT.md), which also says what they do better.
+- An earlier version of this page said 144. That was measured with a render check that counted unscheduled DAGs, and DAGs whose sampled runs never lined up, as identical. Both are fixed; see [findings](https://github.com/patrickballard/airflow-migration-verifier/blob/main/research/airflow-real-world/findings.md).
+- **Other tools' migrations, verified the same way:** on the same 161 DAGs, ruff alone, airflow-v2-to-v3 and airflow-migration-helper each pass all checks for 24–25. See [the competitor check](https://github.com/patrickballard/airflow-migration-verifier/blob/main/research/competitor-check/REPORT.md), which also says what they do better.
 - **Diffs reviewed by hand:** no wrong change in any verified file. One wrong ruff fix keeps `mysql_conn_id=` when it swaps `MySqlOperator` for `SQLExecuteQueryOperator`. It sits in a file that fails on Airflow 3 before and after, and the PR labels it unverified. Since v1.1.0 the kwarg check also flags it directly: 37 rejected `mysql_conn_id=` arguments in 9 files, re-checked on that repo's saved tree.
 
 ## Quickstart
 
+Both workflows below go on your **default branch**. The action needs nothing installed and no secrets.
+
 ### Verify a migration pull request (made by anything)
 
-Add `.github/workflows/verify-airflow-3.yml`. It compares the PR's base (Airflow 2) with its head (Airflow 3) and changes nothing:
+Add `.github/workflows/verify-airflow-3.yml`. It compares the PR's base commit (Airflow 2) with its head commit (Airflow 3) and changes nothing:
 
 ```yaml
 name: verify-airflow-3-migration
@@ -71,11 +73,12 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: {ref: "${{ github.event.pull_request.base.sha }}", path: before}
-      - uses: actions/checkout@v4
-        with: {path: after}
-      - uses: actions/cache@v4     # keep the Airflow 2 and 3 venvs between runs
+      - uses: actions/checkout@v7
+        with: {ref: "${{ github.event.pull_request.head.sha }}", path: after}
+      - uses: actions/cache/restore@v6   # reuse the Airflow 2 and 3 venvs from earlier runs
+        id: venvs
         with:
           path: ${{ runner.temp }}/_github_home/aca-venv*
           key: aca-venvs-v1-${{ hashFiles('before/**/requirements*.txt', 'after/**/requirements*.txt') }}
@@ -84,16 +87,31 @@ jobs:
           mode: verify
           before: before
           after: after
-          strict: "true"           # fail the check on a DAG that doesn't import or renders differently
+          strict: "true"           # fail the check when the migration breaks something (list below)
+      - uses: actions/cache/save@v6      # saved even when the check fails, so a re-run starts warm
+        if: always() && steps.venvs.outputs.cache-hit != 'true'
+        with:
+          path: ${{ runner.temp }}/_github_home/aca-venv*
+          key: ${{ steps.venvs.outputs.cache-primary-key }}
 ```
 
-The report goes to the job's step summary.
-- **What it builds:** an Airflow 3 venv from the head's requirements, and an Airflow 2 venv at the base's pin.
-- **Scheduler setting:** if the head sets `[scheduler] create_cron_data_intervals = True`, in `airflow.cfg`, an env file, compose, a Dockerfile or Helm values, it's respected. That's the global way to keep Airflow 2's run dates.
+It runs on every PR opened or updated after you commit it. For a PR that's already open, push a commit to it, or close and reopen it.
+
+**The report** is on the run's *Summary* page (Actions tab → the run), and in the action step's log. It lists:
+- each DAG file's import on Airflow 3, before and after;
+- every template field rendered on Airflow 2 (base) and Airflow 3 (head), run by run;
+- removed context keys and template variables still in use, removed DAG methods, and arguments Airflow 3 rejects;
+- cron and timedelta schedules whose run dates will shift.
+
+With `strict: "true"` the check fails on any of these except the schedules, which are reported as warnings. Verify mode imports each DAG file but doesn't run the DAGs: running someone's tasks in a PR check would run their side effects.
+
+**What it builds:** an Airflow 3 venv from the head's requirements, and an Airflow 2 venv at the base's `apache-airflow` pin (2.11.2 if there's none).
+
+**Scheduler setting:** if the head sets `[scheduler] create_cron_data_intervals = True`, in `airflow.cfg`, an env file, compose, a Dockerfile or Helm values, it's respected. That's the global way to keep Airflow 2's run dates.
 
 ### Migrate your repo
 
-In your repo, add `.github/workflows/airflow-3.yml`:
+Add `.github/workflows/airflow-3.yml`:
 
 ```yaml
 name: airflow-3-migration
@@ -107,8 +125,8 @@ jobs:
   migrate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/cache@v4     # keep the Airflow 3 test venv and Airflow 2 render venv between runs
+      - uses: actions/checkout@v7
+      - uses: actions/cache@v6     # keep the Airflow 3 test venv and Airflow 2 render venv between runs
         with:
           path: ${{ runner.temp }}/_github_home/aca-venv*
           key: aca-venvs-v1-airflow-3.3.2-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}
@@ -120,12 +138,47 @@ jobs:
           # dry-run: "true"                                     # report in the step summary only
 ```
 
-You also need to enable *Settings → Actions → General → Allow GitHub Actions to create and approve pull requests*. The action raises your `apache-airflow` pin to 3.3.2. It builds an Airflow 3 venv with the official constraints, plus an Airflow 2 venv at your original pin for the render check. It pushes `api-change-agent/airflow` and opens the PR. With the `actions/cache` step, later runs reuse both venvs while your requirements stay the same. On the fixture repo that brought a run down from 2m12s to 1m19s.
+1. Enable *Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests*. Leave the default permissions on *Read*: the workflow's `permissions:` block grants what it needs.
+2. Run it: *Actions → airflow-3-migration → Run workflow*, or `gh workflow run airflow-3.yml`.
 
-To run it locally:
+**What it does:**
+- It raises your `apache-airflow` pin to 3.3.2.
+- It builds an Airflow 3 venv with the official constraints, plus an Airflow 2 venv at your original pin for the render check.
+- It pushes the branch `api-change-agent/airflow` and opens a PR whose description is the report.
+
+**Without an Anthropic key,** judgment sites are listed for a human, and the report says so.
+
+**Your other checks on its PR:** GitHub holds workflow runs on a PR opened by the job's token until you approve them. Open the PR and click *Approve and run* to run your CI and the verify workflow on it. To skip that, pass a personal access token or a GitHub App token as `github-token`.
+
+**The cache:** later runs reuse both venvs while your requirements stay the same. On the fixture repo that brought a run down from 2m12s to 1m19s.
+
+### Inputs
+
+| Input | Default | |
+|---|---|---|
+| `mode` | `migrate` | `migrate` opens a PR; `verify` compares `before` with `after` and changes nothing. |
+| `before`, `after` | | verify: the Airflow 2 and Airflow 3 trees, as paths in the workspace. |
+| `strict` | `"false"` | verify: fail the step on a break (see above). |
+| `rules` | `openai` | migrate: set it to `airflow`. Verify defaults to `airflow`. |
+| `anthropic-api-key` | | migrate: enables Claude for judgment sites. |
+| `max-llm-usd` | `"5"` | migrate: hard cap on Claude spend for the run. |
+| `model` | `claude-opus-5-5` | migrate: the Claude model. |
+| `max-llm-attempts` | `"2"` | migrate: attempts per file; each mismatch or test failure is fed back. |
+| `dry-run` | `"false"` | migrate: report in the step summary only; no branch, no PR. |
+| `branch`, `base-branch` | `api-change-agent/<package>`, the default branch | migrate: the bot branch and the PR's base. |
+| `test-command`, `install-command` | `auto` | The DAG checks and how the test venv is installed. |
+| `exclude` | | Globs to skip. |
+| `venv-dir` | `/github/home/aca-venv` | Where the venvs go (the cache paths above). |
+| `github-token` | `${{ github.token }}` | migrate: pushes the branch and opens the PR. |
+
+**Naming:** the action was called *api-change-agent* until v1.3.0. Its Python package, CLI and bot branch keep that name.
+
+### Run it locally
 
 ```bash
+pip install "git+https://github.com/patrickballard/airflow-migration-verifier@v1"
 python -m api_change_agent --repo . --rules airflow --dry-run --output out --install-command auto --venv /tmp/af3
+python -m api_change_agent verify --before ../before --after . --install-command auto --output out
 ```
 
 ## Limitations
@@ -164,7 +217,7 @@ No. The imports, `dag.test()` and the template rendering all run inside your Git
 
 ### How is this different from ruff, airflow-v2-to-v3, Astronomer's skill or pytest-airflow-in-a-box?
 
-The others change your code or run your tests. This renders your templates on both versions and compares them, whoever made the change. [The competitor check](research/competitor-check/REPORT.md) ran each tool on the same 161 real DAGs and verified every output the same way:
+The others change your code or run your tests. This renders your templates on both versions and compares them, whoever made the change. [The competitor check](https://github.com/patrickballard/airflow-migration-verifier/blob/main/research/competitor-check/REPORT.md) ran each tool on the same 161 real DAGs and verified every output the same way:
 - ruff alone, airflow-v2-to-v3 and airflow-migration-helper: 24–25 pass every check;
 - this action: 120;
 - Astronomer's skill with Claude Code, on 3 of the repos: 13 of 18 (this action: 15).
@@ -191,7 +244,7 @@ More under [Limitations](#limitations).
 - `functions=` → `tools=`, with Claude;
 - declaring `httpx` once openai 3.x stops installing it.
 
-Each comes with a pin bump and a test gate. See [`rules/openai.yaml`](rules/openai.yaml), [`research/openai-breaks/`](research/openai-breaks/) and [`research/real-world/SCORECARD.md`](research/real-world/SCORECARD.md).
+Each comes with a pin bump and a test gate. See [`rules/openai.yaml`](https://github.com/patrickballard/airflow-migration-verifier/blob/main/rules/openai.yaml), [`research/openai-breaks/`](https://github.com/patrickballard/airflow-migration-verifier/tree/main/research/openai-breaks/) and [`research/real-world/SCORECARD.md`](https://github.com/patrickballard/airflow-migration-verifier/blob/main/research/real-world/SCORECARD.md).
 
 ## Development
 
