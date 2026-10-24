@@ -148,6 +148,42 @@ python -m api_change_agent --repo . --rules airflow --dry-run --output out --ins
 - **The kwarg check needs to import the new class.** If its provider isn't installed in the test venv, the PR names the class and says its calls weren't checked.
 - **GitHub Actions coverage.** The Airflow path has run end to end in GitHub Actions on a small fixture repo. A `@v1` dry run takes 2m12s with a cold cache and 1m19s with a warm one ([cold](https://github.com/patrickballard/api-change-agent-test/actions/runs/39999359662), [warm](https://github.com/patrickballard/api-change-agent-test/actions/runs/39999714583)). The [real PR](https://github.com/patrickballard/api-change-agent-test/pull/2) came from a run that wasn't a dry run. The 10 real repos above were run locally, not in Actions.
 
+## FAQ
+
+### Why not just set `create_cron_data_intervals = True`?
+
+You can, and verify mode respects it when your repo sets it. But:
+- **It has to be set before you upgrade.** Once a DAG has runs from Airflow 3's default `CronTriggerTimetable`, switching it to `CronDataIntervalTimetable` skips one scheduled run ([apache/airflow#66441](https://github.com/apache/airflow/pull/66441) documents this). The per-DAG pin this action writes follows the same rule: merge it together with the upgrade, not after it.
+- **It only keeps the run dates.** `days_ago`, `execution_date` and the other removed context keys, removed DAG methods, and arguments Airflow 3 rejects all still break. The verifier checks those too.
+
+### Does my code leave my CI?
+
+No. The imports, `dag.test()` and the template rendering all run inside your GitHub Actions job, which downloads Airflow and your requirements from PyPI.
+- **GitHub:** migrate mode uses the job's `GITHUB_TOKEN` to push its branch and open the PR in your repo.
+- **Claude:** it's called only if you add your own `anthropic-api-key`. Then each file that has a judgment site is sent to Anthropic's API under your key, within `max-llm-usd`. Verify mode never calls Claude.
+
+### How is this different from ruff, airflow-v2-to-v3, Astronomer's skill or pytest-airflow-in-a-box?
+
+The others change your code or run your tests. This renders your templates on both versions and compares them, whoever made the change. [The competitor check](research/competitor-check/REPORT.md) ran each tool on the same 161 real DAGs and verified every output the same way:
+- ruff alone, airflow-v2-to-v3 and airflow-migration-helper: 24–25 pass every check;
+- this action: 120;
+- Astronomer's skill with Claude Code, on 3 of the repos: 13 of 18 (this action: 15).
+
+What they do better:
+- **ruff** makes the import and rename fixes; this action runs it first and credits it.
+- **[Astronomer's skill](https://github.com/astronomer/agents)** migrates the deployment too (image, compose services, Postgres, tests) and refactors operators this action leaves for a human.
+- **[airflow-v2-to-v3](https://github.com/rajeshkbathula/airflow-v2-to-v3)** has argument renames this action lacks (`concurrency` → `max_active_tasks`, `fail_stop` → `fail_fast`).
+- **[airflow-migration-helper](https://pypi.org/project/airflow-migration-helper/)** lints `airflow.cfg` against the new version, and checks dependencies and the DB migration.
+- **[pytest-airflow-in-a-box](https://github.com/nredd/pytest-airflow-in-a-box)** is a full DAG-testing toolkit: trigger rules, branch skips, connection resolution. Its `airflow-migration-diff` runs your test suite on Airflow 2 and 3 and diffs the outcomes, so it finds what your tests cover. This action renders every template field without needing tests. The two work well together.
+
+### What can't it check?
+
+- **DAGs with no schedule** (`schedule=None`): there are no scheduled runs to compare, so they're reported as not render-checked.
+- **Python context reads**, such as `context["execution_date"]` in a callable. They're rewritten where Airflow documents the same value, and listed, but not run and compared.
+- **Runtime-only behaviour:** XCom values, what tasks do with connections and external systems, and DAGs that need a connection, variable or private package just to import. Those are reported as unverified.
+
+More under [Limitations](#limitations).
+
 ## Also: OpenAI Python SDK rules
 
 `rules: openai` (the action's default) migrates deprecated `openai` SDK usage the same way. There are three rules:
