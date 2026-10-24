@@ -135,3 +135,43 @@ def test_import_only_checker_runs_no_dag_test():
                          timeout=600).stdout
     ids = [line.split()[1] for line in out.splitlines() if line.startswith(("PASS", "FAIL"))]
     assert ids and all(i.endswith("::import") for i in ids)
+
+
+# --- the Action's verify mode ---------------------------------------------------------------------
+
+def test_verify_builds_both_airflow_venvs_from_the_trees(tmp_path):
+    from api_change_agent.verify import install_commands
+    before, after = tmp_path / "before", tmp_path / "after"
+    write(before, "requirements.txt", "apache-airflow==2.9.3\npandas\n")
+    write(after, "requirements.txt", "apache-airflow==3.3.2\npandas\n")
+    from api_change_agent.rules import load_rules
+    new, old = install_commands(before, after, load_rules(AIRFLOW_RULES))
+    assert "constraints-3.3.2" in new and "apache-airflow==3.3.2" in new and "-r requirements.txt" in new
+    assert "constraints-2.9.3" in old and "apache-airflow==2.9.3" in old and "-r requirements.txt" in old
+    write(before, "requirements.txt", "pandas\n")  # no pin: the ruleset's source version
+    assert "apache-airflow==2.11.2" in install_commands(before, after, load_rules(AIRFLOW_RULES))[1]
+
+
+def test_action_inputs_select_verify_mode(tmp_path, monkeypatch):
+    from api_change_agent import cli, verify
+    seen = {}
+    monkeypatch.setattr(verify, "main", lambda argv: seen.setdefault("argv", argv) and 0)
+    monkeypatch.chdir(tmp_path)
+    for k, v in {"MODE": "verify", "BEFORE": "base", "AFTER": "head", "VENV-DIR": "/github/home/aca-venv",
+                 "STRICT": "true"}.items():
+        monkeypatch.setenv(f"INPUT_{k}", v)
+    assert cli.main([]) == 0
+    argv = seen["argv"]
+    assert argv[argv.index("--before") + 1] == str(tmp_path / "base")
+    assert argv[argv.index("--after") + 1] == str(tmp_path / "head")
+    assert "--install-command" in argv and argv[argv.index("--install-command") + 1] == "auto"
+    assert "--strict" in argv
+
+
+def test_strict_fails_on_problems_only():
+    from api_change_agent.verify import strict_problems
+    ok = {"dags": {"a::a": {"imports": True, "render": "identical"}}, "manual": [], "new_failures": []}
+    assert strict_problems(ok) == []
+    bad = {"dags": {"a::a": {"imports": True, "render": "mismatch"}, "b::b": {"imports": False, "render": "not reached"}},
+           "manual": [{"rule_id": "kwarg-check", "path": "a", "line": 1, "reason": "x"}]}
+    assert len(strict_problems(bad)) == 3

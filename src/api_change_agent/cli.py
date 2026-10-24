@@ -97,10 +97,23 @@ def parse_args(argv=None) -> argparse.Namespace:
 
 def main(argv=None) -> int:
     argv = sys.argv[1:] if argv is None else list(argv)
-    if argv[:1] == ["verify"]:  # verify-only mode: check a tree migrated by anything (see verify.py)
-        from .verify import main as verify_main
+    if argv[:1] == ["verify"] or (not argv and _input("mode", "migrate") == "verify"):
+        # verify-only mode: check a tree migrated by anything (see verify.py); from the Action, via inputs
+        from . import verify
 
-        return verify_main(argv[1:])
+        if argv[:1] == ["verify"]:
+            return verify.main(argv[1:])
+        before, after = _input("before"), _input("after")
+        if not before or not after:
+            print("::error::mode: verify needs the `before` and `after` inputs (the two checked-out trees)")
+            return 2
+        args = ["--before", str(Path(before).resolve()), "--after", str(Path(after).resolve()),
+                "--rules", _input("rules", "airflow"), "--venv", _input("venv-dir", "/github/home/aca-venv")]
+        if _input("install-command", "auto") == "auto":
+            args += ["--install-command", "auto"]
+        if _bool(_input("strict", "false")):
+            args.append("--strict")
+        return verify.main(args)
     args = parse_args(argv)
     repo = Path(args.repo).resolve()
     rules = Path(args.rules) if args.rules else BUNDLED_RULES

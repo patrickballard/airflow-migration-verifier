@@ -1,10 +1,22 @@
-name: api-change-agent
-description: Migrate Airflow 2 DAGs to Airflow 3 (or openai SDK usage) in a PR, each change proven by a render check.
-author: api-change-agent
+name: Airflow 3 Migration Verifier
+description: Verifies any Airflow 2→3 migration by rendering your templates on both versions; can migrate your DAGs too, in a PR.
+author: patrickballard
 branding:
-  icon: git-pull-request
-  color: purple
+  icon: check-circle
+  color: blue
 inputs:
+  mode:
+    description: "`migrate` (default): migrate the repo and open a PR. `verify`: check a migration done by anything, comparing the `before` and `after` trees; changes nothing."
+    default: migrate
+  before:
+    description: "mode: verify. Path (in the workspace) of the Airflow 2 tree, e.g. the PR's base checked out to `before/`."
+    required: false
+  after:
+    description: "mode: verify. Path of the migrated Airflow 3 tree, e.g. the PR's head checked out to `after/`."
+    required: false
+  strict:
+    description: "mode: verify. Fail the step if a DAG doesn't import on Airflow 3, renders differently, or uses a removed DAG method or rejected kwarg."
+    default: "false"
   github-token:
     description: Token used to push the bot branch and open the PR (needs contents + pull-requests write).
     default: ${{ github.token }}

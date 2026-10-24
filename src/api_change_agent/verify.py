@@ -28,10 +28,56 @@ from .plugins import PLUGINS, SHIFT
 from .report import render_body
 from .rules import load_rules
 from .scanner import SKIP_DIRS, scan_repo
-from .testrun import TestRunner
+from .testrun import TestRunner, default_install_command
 
 TEXT_SUFFIXES = {".py", ".sql", ".sh", ".hql", ".j2", ".jinja2", ".txt", ".cfg", ".toml", ".yaml", ".yml", ".json"}
 FLAGS = (("scheduler", "create_cron_data_intervals"), ("scheduler", "create_delta_data_intervals"))
+
+
+def _constraints(url: str) -> str:
+    """pip -c argument; `{python}` becomes the venv's X.Y, as in the agent's own installs."""
+    py = "$(python -c 'import sys; print(\"%d.%d\" % sys.version_info[:2])')"
+    return f' -c "{url.replace("{python}", py)}"' if url else ""
+
+
+def install_commands(before: Path, after: Path, ruleset) -> tuple[str, str]:
+    """(Airflow 3 venv, Airflow 2 venv) install commands, from what each tree declares."""
+    import re
+
+    target = str(ruleset.target_version)
+    new_c = ruleset.install_constraints.replace("{version}", target)
+    new = (f"python -m pip install -q --upgrade pip && python -m pip install -q '{ruleset.dist}=={target}'"
+           f"{_constraints(new_c)} && " + default_install_command(after, None, new_c))
+    req = Path(before) / "requirements.txt"
+    pin = re.search(r"^\s*apache[-_.]airflow(?:\[[^\]]*\])?==([\w.]+)", req.read_text(errors="replace"), re.M | re.I) \
+        if req.exists() else None
+    version = pin.group(1) if pin else str(ruleset.source_version)
+    old_c = ruleset.install_constraints.replace("{version}", version)
+    old = (f"python -m pip install -q --upgrade pip && python -m pip install -q '{ruleset.dist}=={version}'"
+           f"{_constraints(old_c)} && " + default_install_command(before, None, old_c))
+    return new, old
+
+
+def build_venvs(before: Path, after: Path, ruleset, venv: Path, log=print) -> tuple[Path, Path]:
+    """The Airflow 3 venv at `venv`, the Airflow 2 one next to it (`<venv>-airflow2`): the same places the
+    agent uses, so a workflow's actions/cache keeps both."""
+    new, old = install_commands(before, after, ruleset)
+    old_venv = venv.with_name(venv.name + "-airflow2")
+    log(f"verify: Airflow {ruleset.target_version} venv at {venv}")
+    TestRunner(after, "true", new, venv, log=log).setup()
+    log(f"verify: Airflow 2 venv at {old_venv}")
+    TestRunner(before, "true", old, old_venv, log=log).setup()
+    return venv, old_venv
+
+
+def strict_problems(summary: dict) -> list[str]:
+    """What --strict fails on: a DAG that doesn't import on Airflow 3 or renders differently, a removed DAG
+    method, a rejected kwarg."""
+    out = [f"{k}: does not import on Airflow 3" for k, d in summary["dags"].items() if not d["imports"]]
+    out += [f"{k}: renders differently from Airflow 2" for k, d in summary["dags"].items() if d["render"] == "mismatch"]
+    out += [f"{m['path']}:{m['line']}: {m['reason']}" for m in summary["manual"]
+            if m["rule_id"] in ("kwarg-check", "airflow3-removed-dag-methods")]
+    return out
 
 
 def _text_files(root: Path) -> dict[str, str]:
@@ -205,22 +251,41 @@ def main(argv) -> int:
     p.add_argument("--before", required=True, help="the Airflow 2 tree")
     p.add_argument("--after", required=True, help="the same tree after migration to Airflow 3")
     p.add_argument("--rules", default="airflow")
-    p.add_argument("--venv", required=True, help="an Airflow 3 venv (DAG import, render, signatures)")
-    p.add_argument("--old-venv", help="an Airflow 2 venv (render of the before tree)")
+    p.add_argument("--venv", help="an Airflow 3 venv (DAG import, render, signatures); built with --install-command auto")
+    p.add_argument("--old-venv", help="an Airflow 2 venv (render of the before tree); default <venv>-airflow2 when built")
+    p.add_argument("--install-command", choices=["auto"], help="build both venvs from what each tree declares")
     p.add_argument("--dag-test", action="store_true", help="also run dag.test() per DAG (slow)")
+    p.add_argument("--strict", action="store_true",
+                   help="exit 1 if a DAG doesn't import on Airflow 3 or renders differently, or a removed DAG "
+                        "method or rejected kwarg is used")
     p.add_argument("--output", help="write report.md and result.json here")
     a = p.parse_args(argv)
     rules = Path(a.rules)
     if not rules.is_file():  # a bundled ruleset by name, even next to an airflow/ folder
         rules = BUNDLED_RULES.parent / f"{a.rules}.yaml"
-    res, dags = verify(Path(a.before), Path(a.after), rules_path=rules, venv=Path(a.venv),
-                       old_venv=Path(a.old_venv) if a.old_venv else None, dag_test=a.dag_test)
+    venv = Path(a.venv) if a.venv else None
+    old_venv = Path(a.old_venv) if a.old_venv else None
+    if a.install_command == "auto":
+        venv, old_venv = build_venvs(Path(a.before), Path(a.after), load_rules(rules),
+                                     venv or Path("/tmp/aca-verify-venv"))
+    if venv is None:
+        p.error("pass --venv (an Airflow 3 venv) or --install-command auto")
+    res, dags = verify(Path(a.before), Path(a.after), rules_path=rules, venv=venv, old_venv=old_venv,
+                       dag_test=a.dag_test)
     print(res.body)
+    summary = res.summary()
+    summary["dags"] = dags
     if a.output:
         out = Path(a.output)
         out.mkdir(parents=True, exist_ok=True)
         (out / "report.md").write_text(res.body + "\n")
-        summary = res.summary()
-        summary["dags"] = dags
         (out / "result.json").write_text(json.dumps(summary, indent=2, default=str) + "\n")
-    return 0
+    import os
+
+    if step := os.environ.get("GITHUB_STEP_SUMMARY"):
+        with open(step, "a") as f:
+            f.write(res.body + "\n")
+    problems = strict_problems(summary) if a.strict else []
+    for line in problems:
+        print(f"::error::{line}")
+    return 1 if problems else 0
