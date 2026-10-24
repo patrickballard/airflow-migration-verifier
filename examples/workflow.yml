@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4        # keep persist-credentials (default) so the push works
-      - uses: your-org/api-change-agent@v1
+      - uses: patrickballard/airflow-migration-verifier@v1
         with:
           anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
           # test-command: python -m pytest -q tests/unit
