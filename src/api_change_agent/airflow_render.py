@@ -135,13 +135,26 @@ def _snap(tt, t):
 
     t = pendulum.from_timestamp(t.timestamp(), tz="UTC")  # Airflow's timetables want pendulum datetimes
 
-    restriction = TimeRestriction(earliest=t - dt.timedelta(days=1), latest=None, catchup=True)
-    last = None
-    for _ in range(100000):
-        info = tt.next_dagrun_info(last_automated_data_interval=last, restriction=restriction)
-        if info is None or info.run_after >= t:
+    def runs(earliest):
+        restriction = TimeRestriction(earliest=earliest, latest=None, catchup=True)
+        last = None
+        for _ in range(200000):
+            info = tt.next_dagrun_info(last_automated_data_interval=last, restriction=restriction)
+            if info is None:
+                return
+            yield info
+            last = info.data_interval
+
+    # The run that fires first at or after `t`. An interval timetable (Airflow 2's default) fires at the end of
+    # an interval that started up to one interval earlier, a trigger timetable (Airflow 3's) at the cron point
+    # itself; looking back one day only found the same run on both for schedules at least daily. Look back
+    # one and a half times the spacing of runs (monthly crons vary) plus a day.
+    probe = runs(t - dt.timedelta(days=1))
+    first, second = next(probe, None), next(probe, None)
+    span = (second.run_after - first.run_after) if first and second else dt.timedelta(0)
+    for info in runs(t - span * 1.5 - dt.timedelta(days=1)):
+        if info.run_after >= t:
             return info
-        last = info.data_interval
     return None
 
 

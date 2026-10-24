@@ -60,8 +60,14 @@ MUTANTS = {
     "unscheduled_wrong": ("None", "run {{ ds }}", "None", "run {{ macros.ds_add(ds, 1) }}"),
     # fails to render on Airflow 3
     "removed_key_left": ('"@daily"', "run {{ next_ds }}", pin("@daily"), "run {{ next_ds }}"),
+    # sparser than daily, unpinned: the shift must show in paired runs, not as runs on one side only
+    "unpinned_weekly_ds": ('"0 4 * * 0"', "run {{ ds }}", '"0 4 * * 0"', "run {{ ds }}"),
 }
 CONTROLS = {
+    # unpinned, but nothing in the field depends on the date: both versions fire at the same cron points
+    "unpinned_weekly_constant": ('"0 4 * * 0"', "echo hello", '"0 4 * * 0"', "echo hello"),
+    "unpinned_monthly_constant": ('"0 6 1 * *"', "echo hello", '"0 6 1 * *"', "echo hello"),
+    "pinned_weekly": ('"0 4 * * 0"', "run {{ ds }}", pin("0 4 * * 0"), "run {{ ds }}"),
     "pinned_daily": ('"@daily"', "run {{ ds }}", pin("@daily"), "run {{ ds }}"),
     "pinned_next_ds": ('"@daily"', "run {{ next_ds }}", pin("@daily"), "run {{ data_interval_end | ds }}"),
     "pinned_yesterday": ('"@daily"', "run {{ yesterday_ds }}", pin("@daily"), "run {{ macros.ds_add(ds, -1) }}"),
@@ -103,4 +109,12 @@ def test_wrong_migration_is_never_identical(results, name):
 @pytest.mark.parametrize("name", sorted(CONTROLS))
 def test_correct_migration_is_identical(results, name):
     res = results[name]
-    assert not res.mismatches and not res.unpaired and res.runs >= 20, render_check.summary(res)
+    floor = 8 if "monthly" in name else 20  # a monthly cron has few distinct runs in a sample year
+    assert not res.mismatches and not res.unpaired and res.runs >= floor, render_check.summary(res)
+
+
+def test_an_unpinned_sparse_schedule_shifts_in_paired_runs(results):
+    # regression: the sampler looked back one day, so for a weekly cron Airflow 2 (interval timetable)
+    # and Airflow 3 (trigger timetable) snapped the same sample moment to different runs
+    res = results["unpinned_weekly_ds"]
+    assert res.mismatches and not any("no run fires" in (m.old + m.new) for m in res.mismatches)
