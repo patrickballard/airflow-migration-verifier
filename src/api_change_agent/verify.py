@@ -72,11 +72,12 @@ def build_venvs(before: Path, after: Path, ruleset, venv: Path, log=print) -> tu
 
 def strict_problems(summary: dict) -> list[str]:
     """What --strict fails on: a DAG that doesn't import on Airflow 3 or renders differently, a removed DAG
-    method, a rejected kwarg."""
+    method, a removed context key or template variable, a rejected kwarg."""
     out = [f"{k}: does not import on Airflow 3" for k, d in summary["dags"].items() if not d["imports"]]
     out += [f"{k}: renders differently from Airflow 2" for k, d in summary["dags"].items() if d["render"] == "mismatch"]
     out += [f"{m['path']}:{m['line']}: {m['reason']}" for m in summary["manual"]
-            if m["rule_id"] in ("kwarg-check", "airflow3-removed-dag-methods")]
+            if m["rule_id"] in ("kwarg-check", "airflow3-removed-dag-methods", "airflow3-context-keys",
+                                "airflow3-templates")]
     return out
 
 
@@ -144,6 +145,24 @@ def verify(before: Path, after: Path, *, rules_path: Path, venv: Path, old_venv:
         if methods:
             for site in PLUGINS["airflow_removed_dag_methods"].find(Path(rel), text, methods.options, "llm"):
                 res.manual.append(ManualItem(rel, site.line, methods.id, site.reason))
+    # removed context keys / template variables still in use: import fine, fail when the task runs
+    for rule_id, plugin, what in (("airflow3-context-keys", "airflow_context_keys", "a task-context key"),
+                                  ("airflow3-templates", "airflow_templates", "a template variable")):
+        rule = rules.get(rule_id)
+        if not rule:
+            continue
+        for rel, text in sorted(new_text.items()):
+            try:
+                det = PLUGINS[plugin].find(Path(rel), text, rule.options, "deterministic")
+                judgment = PLUGINS[plugin].find(Path(rel), text, rule.options, "llm")
+            except Exception:  # noqa: BLE001 - unparsable: the DAG check reports it
+                continue
+            for s in det:
+                res.manual.append(ManualItem(rel, s.line, rule_id, f"`{s.snippet}` uses {what} Airflow 3 removed; "
+                                             "migrate mode rewrites it to the documented equivalent"))
+            for s in judgment:
+                why = s.reason if s.reason.startswith("`") else f"`{s.snippet}`: {s.reason}"
+                res.manual.append(ManualItem(rel, s.line, rule_id, f"uses {what} Airflow 3 removed. {why}"))
     swapped = {}
     for rel in files:
         if rel in old_text and rel in new_text:

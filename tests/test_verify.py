@@ -120,6 +120,19 @@ def test_removed_methods_and_rejected_kwargs_are_listed(tmp_path):
 
 
 @needs_both
+def test_removed_context_keys_left_in_python_are_listed(tmp_path):
+    # imports fine and nothing renders differently, but the task fails at run time on Airflow 3
+    after = migrated_by_us(tmp_path)
+    p = after / "dags" / "partitions.py"
+    p.write_text(p.read_text() + '\n\ndef hour(**context):\n    return context["execution_date"].hour\n')
+    code, res, report = verify(tmp_path, after, "context")
+    from api_change_agent.verify import strict_problems
+    assert any(m["rule_id"] == "airflow3-context-keys" and m["path"] == "dags/partitions.py" for m in res["manual"])
+    assert any("execution_date" in p for p in strict_problems(res))
+    assert "execution_date" in report.split("### Needs manual migration", 1)[1]
+
+
+@needs_both
 def test_a_file_that_still_fails_is_unverified(tmp_path):
     after = tmp_path / "untouched"
     shutil.copytree(FIXTURES / "airflow_repo", after)  # "migrated" by nothing
