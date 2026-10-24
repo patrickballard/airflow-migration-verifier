@@ -188,10 +188,14 @@ def _dag_status(outcome, test_id) -> str:
 def _dag_table(before, after, target, verify=False) -> list[str]:
     ids = list(dict.fromkeys([*before.ids, *(after.ids if after else ())]))
     ran_dags = any("::import" not in i for i in ids)  # dag.test() rows exist only when it ran
-    what = ("Each DAG file is imported (DagBag) and each DAG run with `dag.test()`" if ran_dags
-            else "Each DAG file is imported (DagBag); DAGs aren't run")
-    lines = [f"### DAG checks on {target}", "",
-             f"{what}, before and after {'the change' if verify else 'this PR'}.", "",
+    if verify:
+        what = (f"Each DAG file is imported (DagBag) on {target}, before and after the change; DAGs aren't run. "
+                "*Before* is the original Airflow 2 code, so it's expected to fail there.")
+    elif ran_dags:
+        what = "Each DAG file is imported (DagBag) and each DAG run with `dag.test()`, before and after this PR."
+    else:
+        what = "Each DAG file is imported (DagBag), before and after this PR; DAGs aren't run."
+    lines = [f"### DAG checks on {target}", "", what, "",
              "| Check | Before | After |", "|---|---|---|"]
     for test_id in ids:
         lines.append(f"| `{test_id}` | {_dag_status(before, test_id)} | {_dag_status(after, test_id)} |")
@@ -231,7 +235,7 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
         for tool in tools:
             n = sum(1 for r in rows if r.rule_id.startswith("ruff "))
             parts.append(f"- `{tool.id}` (tool: `{tool.tool} --select {tool.select}`, "
-                         f"{'applied' if n else 'not applied'}): {n} change(s), credited per rule below.")
+                         f"{'applied' if n else 'not applied'}): {n} change(s), credited in the table above.")
         for rule in rules:
             mark = "applied" if rule.id in applied else "not applied"
             needs = (f"Needs `{package}>={rule.min_sdk_version}`." if rule.needs_sdk_bump

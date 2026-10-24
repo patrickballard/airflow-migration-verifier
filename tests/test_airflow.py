@@ -406,6 +406,8 @@ def test_report_says_why_judgment_rules_didnt_run_and_what_the_pin_is(tmp_path):
     body = run(Options(repo=repo, rules_path=AIRFLOW_RULES, dry_run=True, test_command=None), model=None).body
     judgment = [ln for ln in body.splitlines() if ln.startswith("- `airflow3-") and "(llm, not applied)" in ln]
     assert judgment and all("No Anthropic API key was given" in ln for ln in judgment), judgment
+    assert "credited in the table above" in body  # there is no per-rule credit below the Rules line
+    assert "any sites are listed under" not in body  # don't point at a section that may not exist
     assert "v0" not in body  # the action is v1; say what isn't checked, not which version skips it
     assert "Every row links to the documentation behind it." in body  # ruff rows link to ruff's docs, not a changelog
     # the pin is written `==3.3.2` here; the report mustn't call it `>=3.3.2`
