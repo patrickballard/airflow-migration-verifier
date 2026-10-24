@@ -65,7 +65,8 @@ def migrated_by_us(tmp_path) -> Path:
 def unpin(tree: Path) -> None:
     for f in (tree / "dags").glob("*.py"):
         text = re.sub(r'CronDataIntervalTimetable\(("[^"]+"), timezone="UTC"\)', r"\1", f.read_text())
-        f.write_text(text.replace("from airflow.sdk import CronDataIntervalTimetable\n", ""))
+        f.write_text(text.replace("from airflow.sdk import CronDataIntervalTimetable\n", "")
+                     .replace(", CronDataIntervalTimetable\n", "\n"))
 
 
 def verify(tmp_path, after: Path, name: str):

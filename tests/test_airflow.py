@@ -348,11 +348,11 @@ def test_manual_runs_warning_lists_every_execution_date_site(tmp_path):
                          repo_slug="acme/dags", branch="api-change-agent/airflow"), model=None)
     section = _manual_runs(result.body)
     blob = "https://github.com/acme/dags/blob/api-change-agent/airflow"
-    for path, line in [("dags/etl_daily.py", 11), ("dags/etl_daily.py", 17), ("dags/etl_daily.py", 35),
+    for path, line in [("dags/etl_daily.py", 10), ("dags/etl_daily.py", 16), ("dags/etl_daily.py", 34),
                        ("dags/scripts/report.sh", 3), ("dags/sql/summary.sql", 3)]:
         assert f"[`{path}:{line}`]({blob}/{path}#L{line})" in section
     assert "These 5 line(s) now read `logical_date` where they read `execution_date`" in section
-    assert "etl_daily.py:18" not in section          # yesterday_ds -> macros.ds_add: no logical_date
+    assert "etl_daily.py:17" not in section          # yesterday_ds -> macros.ds_add: no logical_date
     assert "partitions.py" not in section            # left for judgment, not changed
     assert FALLBACK in section and "{{ logical_date or dag_run.run_after }}" in section
     assert "can have **no logical date**" in section
@@ -373,8 +373,8 @@ def test_manual_runs_warning_includes_claude_patches(tmp_path):
 
     result = run(Options(repo=repo, rules_path=AIRFLOW_RULES, dry_run=True, test_command=None), model=JudgmentModel())
     section = _manual_runs(result.body)
-    assert "`dags/partitions.py:12`" in section.split("in place of another removed key")[0]  # execution_date -> logical_date
-    assert "`dags/partitions.py:21`" in section.split("in place of another removed key")[1]  # next_ds -> logical_date + 1h
+    assert "`dags/partitions.py:11`" in section.split("in place of another removed key")[0]  # execution_date -> logical_date
+    assert "`dags/partitions.py:20`" in section.split("in place of another removed key")[1]  # next_ds -> logical_date + 1h
     assert "These 6 line(s)" in section and "These 1 line(s)" in section
 
 

@@ -150,9 +150,9 @@ def test_task_spans():
 
 @pytest.mark.parametrize("src, expected", [
     ('import datetime\nfrom airflow.sdk import DAG\n\nwith DAG("d", schedule="@daily", start_date=datetime.datetime(2024, 1, 1)) as dag:\n    pass\n',
-     'import datetime\nfrom airflow.sdk import DAG\nfrom airflow.sdk import CronDataIntervalTimetable\n\nwith DAG("d", schedule=CronDataIntervalTimetable("@daily", timezone="UTC"), start_date=datetime.datetime(2024, 1, 1)) as dag:\n    pass\n'),
+     'import datetime\nfrom airflow.sdk import DAG, CronDataIntervalTimetable\n\nwith DAG("d", schedule=CronDataIntervalTimetable("@daily", timezone="UTC"), start_date=datetime.datetime(2024, 1, 1)) as dag:\n    pass\n'),
     ('import pendulum\nfrom airflow.sdk import DAG\nDAG("d", schedule="0 6 * * 1-5", start_date=pendulum.datetime(2024, 1, 1, tz="Europe/Amsterdam"))\n',
-     'import pendulum\nfrom airflow.sdk import DAG\nfrom airflow.sdk import CronDataIntervalTimetable\nDAG("d", schedule=CronDataIntervalTimetable("0 6 * * 1-5", timezone="Europe/Amsterdam"), start_date=pendulum.datetime(2024, 1, 1, tz="Europe/Amsterdam"))\n'),
+     'import pendulum\nfrom airflow.sdk import DAG, CronDataIntervalTimetable\nDAG("d", schedule=CronDataIntervalTimetable("0 6 * * 1-5", timezone="Europe/Amsterdam"), start_date=pendulum.datetime(2024, 1, 1, tz="Europe/Amsterdam"))\n'),
 ])
 def test_pin_rewrites_cron_schedules(src, expected):
     assert PIN.find(Path("d.py"), src, PIN_OPTS, "llm") == []

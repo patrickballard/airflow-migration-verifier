@@ -104,7 +104,7 @@ def test_agent_warns_loudly_when_it_assumes_utc(tmp_path):
     assert 'timezone="UTC"' in (repo / "dags/etl_daily.py").read_text()
     warning = result.body.split("### ⚠️ Timezone assumed: UTC", 1)[1].split("\n### ", 1)[0]
     assert "default_timezone" in warning and "AIRFLOW__CORE__DEFAULT_TIMEZONE" in warning
-    assert "`dags/etl_daily.py:27`" in warning and "`dags/partitions.py:19`" in warning
+    assert "`dags/etl_daily.py:26`" in warning and "`dags/partitions.py:18`" in warning
 
 
 def test_agent_leaves_naive_dags_manual_on_conflicting_settings(tmp_path):

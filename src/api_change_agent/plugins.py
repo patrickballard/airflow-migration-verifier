@@ -555,6 +555,14 @@ class _CronPin(cst.CSTTransformer):
         if not self.pinned or "CronDataIntervalTimetable" in _imported_names(original):
             return updated
         body = list(updated.body)
+        for i, st in enumerate(body):  # join an existing `from airflow.sdk import ...` rather than add a second one
+            if (isinstance(st, cst.SimpleStatementLine) and len(st.body) == 1 and isinstance(st.body[0], cst.ImportFrom)
+                    and st.body[0].module is not None and _EMPTY.code_for_node(st.body[0].module) == "airflow.sdk"
+                    and isinstance(st.body[0].names, (list, tuple)) and not st.body[0].lpar):
+                names = [*st.body[0].names[:-1], st.body[0].names[-1].with_changes(comma=cst.Comma(
+                    whitespace_after=cst.SimpleWhitespace(" "))), cst.ImportAlias(name=cst.Name("CronDataIntervalTimetable"))]
+                body[i] = st.with_changes(body=[st.body[0].with_changes(names=names)])
+                return updated.with_changes(body=body)
         last = max((i for i, st in enumerate(body) if isinstance(st, cst.SimpleStatementLine)
                     and any(isinstance(x, (cst.Import, cst.ImportFrom)) for x in st.body)), default=-1)
         imp = cst.parse_statement("from airflow.sdk import CronDataIntervalTimetable\n")

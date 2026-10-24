@@ -279,3 +279,30 @@ def test_rebuilding_an_unverified_file_keeps_the_render_checks_reverts(tmp_path,
     assert not [r for r in result.rows if r.path == "dags/relative.py" and r.rule_id in
                 ("airflow3-days-ago", "airflow3-cron-timetable-pin")]
     assert any(m.path == "dags/relative.py" and "render mismatch" in m.reason for m in result.manual)
+
+
+def test_pin_import_joins_an_existing_airflow_sdk_import():
+    src = code('''
+        from datetime import datetime
+
+        from airflow.sdk import DAG
+
+        with DAG("d", start_date=datetime(2024, 1, 1), schedule="@daily"):
+            pass
+    ''')
+    out = PIN.apply(Path("d.py"), src, {"default_timezone": "UTC"})
+    assert "from airflow.sdk import DAG, CronDataIntervalTimetable\n" in out
+    assert out.count("from airflow.sdk import") == 1
+
+
+def test_pin_import_is_added_when_airflow_sdk_isnt_imported():
+    src = code('''
+        from datetime import datetime
+
+        from airflow import DAG
+
+        with DAG("d", start_date=datetime(2024, 1, 1), schedule="@daily"):
+            pass
+    ''')
+    out = PIN.apply(Path("d.py"), src, {"default_timezone": "UTC"})
+    assert "from airflow import DAG\nfrom airflow.sdk import CronDataIntervalTimetable\n" in out
