@@ -185,7 +185,7 @@ python -m api_change_agent verify --before ../before --after . --install-command
 
 ## Limitations
 
-- **Python context reads aren't render-checked.** `context["execution_date"]` → `context["logical_date"]` is the documented equivalent, but only templates are rendered and compared. In Airflow 3 a manually triggered run can have no logical date; the PR lists each such site with a one-line fallback.
+- **Python context reads aren't render-checked.** `context["execution_date"]` → `context["logical_date"]` is the documented equivalent, but only templates are rendered and compared. In Airflow 3 a manually triggered run can have no logical date; migrate mode's PR lists each such site with a one-line fallback.
 - **Some things are always manual:**
   - operators removed from their providers (`PostgresOperator`, `SnowflakeOperator`, `SubDagOperator`, …);
   - `prev_ds` / `next_ds` without a key;
