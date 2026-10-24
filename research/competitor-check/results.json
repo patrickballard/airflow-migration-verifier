@@ -1,0 +1,121 @@
+{
+ "ruff": {
+  "repos": 10,
+  "dags": 161,
+  "imports": 65,
+  "identical": 14,
+  "no_fields": 10,
+  "mismatch": 22,
+  "not_render_checked": 19,
+  "not_rendered": 0,
+  "headline": 24,
+  "removed_method_dags": 0,
+  "kwarg_problems": 60,
+  "unverified_files": 139,
+  "unpinned_schedules": 157,
+  "examples": [
+   "DaliGuerfali airflow/dags/satellite_monitoring.py::satellite_monitoring: check_positions_freshness.op_kwargs: render mismatch on 14 of 25 runs, e.g. the run firing 2024-01-16 00:00 UTC (from the 23:00 sample): Airflow 2 rendered '{\"ds\": \"2024-01-15\"}', the new template renders '{\"ds\": \"2024-01-16\"}'",
+   "DaliGuerfali airflow/dags/satellite_weekly_pipeline.py::satellite_weekly_pipeline: calculate_week_range.op_kwargs: render mismatch on 21 of 21 runs, e.g. the run firing 2024-01-21 04:00 UTC (from the 23:00 sample): Airflow 2 rendered '{\"reference_date\": \"2024-01-14\"}', the new template renders '{\"reference_date\": \"2024-01-21\"}'",
+   "DaliGuerfali airflow/dags/satellite_daily_pipeline.py::satellite_daily_pipeline: check_hdfs_data.op_kwargs: render mismatch on 25 of 25 runs, e.g. the run firing 2024-01-16 02:00 UTC (from the 23:00 sample): Airflow 2 rendered '{\"date\": \"2024-01-15\"}', the new template renders '{\"date\": \"2024-01-16\"}'"
+  ]
+ },
+ "v2v3": {
+  "repos": 10,
+  "dags": 161,
+  "imports": 67,
+  "identical": 14,
+  "no_fields": 11,
+  "mismatch": 21,
+  "not_render_checked": 21,
+  "not_rendered": 0,
+  "headline": 25,
+  "removed_method_dags": 0,
+  "kwarg_problems": 15,
+  "unverified_files": 137,
+  "unpinned_schedules": 157,
+  "examples": [
+   "BasPH chapter07/insideairbnb/dags/chapter7_insideairbnb_pythonoperator.py::chapter7_insideairbnb: download_from_postgres._query: render mismatch on 10 of 10 runs, e.g. the run firing 2016-02-01 00:00 UTC (from the 23:00 sample): Airflow 2 rendered \"SELECT * FROM listings WHERE download_date BETWEEN '2015-12-01' AND '2016-01-01'\", the new template renders \"RENDER ERROR UndefinedError: 'prev_ds' i",
+   "DaliGuerfali airflow/dags/satellite_monitoring.py::satellite_monitoring: check_positions_freshness.op_kwargs: render mismatch on 14 of 25 runs, e.g. the run firing 2024-01-16 00:00 UTC (from the 23:00 sample): Airflow 2 rendered '{\"ds\": \"2024-01-15\"}', the new template renders '{\"ds\": \"2024-01-16\"}'",
+   "DaliGuerfali airflow/dags/satellite_weekly_pipeline.py::satellite_weekly_pipeline: calculate_week_range.op_kwargs: render mismatch on 21 of 21 runs, e.g. the run firing 2024-01-21 04:00 UTC (from the 23:00 sample): Airflow 2 rendered '{\"reference_date\": \"2024-01-14\"}', the new template renders '{\"reference_date\": \"2024-01-21\"}'"
+  ]
+ },
+ "mhelper": {
+  "repos": 10,
+  "dags": 161,
+  "imports": 65,
+  "identical": 14,
+  "no_fields": 10,
+  "mismatch": 23,
+  "not_render_checked": 18,
+  "not_rendered": 0,
+  "headline": 24,
+  "removed_method_dags": 0,
+  "kwarg_problems": 37,
+  "unverified_files": 140,
+  "unpinned_schedules": 157,
+  "examples": [
+   "BasPH chapter07/insideairbnb/dags/chapter7_insideairbnb_pythonoperator.py::chapter7_insideairbnb: download_from_postgres._query: render mismatch on 10 of 10 runs, e.g. the run firing 2016-02-01 00:00 UTC (from the 23:00 sample): Airflow 2 rendered \"SELECT * FROM listings WHERE download_date BETWEEN '2015-12-01' AND '2016-01-01'\", the new template renders \"RENDER ERROR UndefinedError: 'prev_ds' i",
+   "DaliGuerfali airflow/dags/satellite_monitoring.py::satellite_monitoring: check_positions_freshness.op_kwargs: render mismatch on 14 of 25 runs, e.g. the run firing 2024-01-16 00:00 UTC (from the 23:00 sample): Airflow 2 rendered '{\"ds\": \"2024-01-15\"}', the new template renders '{\"ds\": \"2024-01-16\"}'",
+   "DaliGuerfali airflow/dags/satellite_weekly_pipeline.py::satellite_weekly_pipeline: calculate_week_range.op_kwargs: render mismatch on 21 of 21 runs, e.g. the run firing 2024-01-21 04:00 UTC (from the 23:00 sample): Airflow 2 rendered '{\"reference_date\": \"2024-01-14\"}', the new template renders '{\"reference_date\": \"2024-01-21\"}'"
+  ]
+ },
+ "mhelper-unsafe": {
+  "repos": 10,
+  "dags": 161,
+  "imports": 68,
+  "identical": 14,
+  "no_fields": 10,
+  "mismatch": 23,
+  "not_render_checked": 21,
+  "not_rendered": 0,
+  "headline": 24,
+  "removed_method_dags": 0,
+  "kwarg_problems": 60,
+  "unverified_files": 136,
+  "unpinned_schedules": 157,
+  "examples": [
+   "BasPH chapter07/insideairbnb/dags/chapter7_insideairbnb_pythonoperator.py::chapter7_insideairbnb: download_from_postgres._query: render mismatch on 10 of 10 runs, e.g. the run firing 2016-02-01 00:00 UTC (from the 23:00 sample): Airflow 2 rendered \"SELECT * FROM listings WHERE download_date BETWEEN '2015-12-01' AND '2016-01-01'\", the new template renders \"RENDER ERROR UndefinedError: 'prev_ds' i",
+   "DaliGuerfali airflow/dags/satellite_monitoring.py::satellite_monitoring: check_positions_freshness.op_kwargs: render mismatch on 14 of 25 runs, e.g. the run firing 2024-01-16 00:00 UTC (from the 23:00 sample): Airflow 2 rendered '{\"ds\": \"2024-01-15\"}', the new template renders '{\"ds\": \"2024-01-16\"}'",
+   "DaliGuerfali airflow/dags/satellite_weekly_pipeline.py::satellite_weekly_pipeline: calculate_week_range.op_kwargs: render mismatch on 21 of 21 runs, e.g. the run firing 2024-01-21 04:00 UTC (from the 23:00 sample): Airflow 2 rendered '{\"reference_date\": \"2024-01-14\"}', the new template renders '{\"reference_date\": \"2024-01-21\"}'"
+  ]
+ },
+ "ours": {
+  "repos": 10,
+  "dags": 161,
+  "imports": 154,
+  "identical": 72,
+  "no_fields": 50,
+  "mismatch": 2,
+  "not_render_checked": 30,
+  "not_rendered": 0,
+  "headline": 120,
+  "removed_method_dags": 2,
+  "kwarg_problems": 38,
+  "unverified_files": 66,
+  "unpinned_schedules": 15,
+  "examples": [
+   "BasPH chapter07/insideairbnb/dags/chapter7_insideairbnb_pythonoperator.py::chapter7_insideairbnb: download_from_postgres._query: render mismatch on 10 of 10 runs, e.g. the run firing 2016-02-01 00:00 UTC (from the 23:00 sample): Airflow 2 rendered \"SELECT * FROM listings WHERE download_date BETWEEN '2015-12-01' AND '2016-01-01'\", the new template renders \"RENDER ERROR UndefinedError: 'prev_ds' i",
+   "mozilla dags/update_orphaning_dashboard_etl.py::update_orphaning_dashboard_etl: update_orphaning_dashboard_etl.namespace: render mismatch on 20 of 20 runs, e.g. the run firing 2020-01-20 02:00 UTC (from the 23:00 sample): Airflow 2 rendered 'default', the new template renders \"RENDER ERROR UndefinedError: 'airflow.sdk.api.datamodels._generated.DagRun object' has no attribute 'e"
+  ]
+ },
+ "astro-skill": {
+  "repos": 3,
+  "dags": 18,
+  "imports": 18,
+  "identical": 6,
+  "no_fields": 7,
+  "mismatch": 3,
+  "not_render_checked": 2,
+  "not_rendered": 0,
+  "headline": 13,
+  "removed_method_dags": 0,
+  "kwarg_problems": 0,
+  "unverified_files": 0,
+  "unpinned_schedules": 12,
+  "examples": [
+   "eliasbenaddou dags/monzo_transactions.py::monzo_transactions: trigger_dag.logical_date: render mismatch on 25 of 25 runs, e.g. the run firing 2024-01-16 09:00 UTC (from the 23:00 sample): Airflow 2 rendered '2024-01-15', the new template renders '2024-01-16'",
+   "made-ml-in-prod-2021 dags/11_docker.py::11_docker: docker-airflow-download.command: render mismatch on 24 of 24 runs, e.g. the run firing 2028-01-02 00:00 UTC (from the ordinary 13 sample): Airflow 2 rendered '/data/raw/2028-01-01', the new template renders '/data/raw/2028-01-02'",
+   "made-ml-in-prod-2021 dags/07_templating.py::07_templating: get_data.op_kwargs: render mismatch on 30 of 30 runs, e.g. the run firing 2028-01-01 09:00 UTC (from the ordinary 13 sample): Airflow 2 rendered '{\"day\": \"1\", \"hour\": \"8\", \"month\": \"1\", \"output_dir\": \"/opt/airflow/data\", \"year\": \"2028\"}', the new template renders '{\"day\": \"1\", \"hour\": \"9\", \"month\": "
+  ]
+ }
+}
