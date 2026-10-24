@@ -51,6 +51,7 @@ class FieldResult:
     dst: str = ""
     timetable: str = ""  # the migrated DAG's, as Airflow 3's scheduler sees it
     unpaired: str = ""  # why nothing was compared: no run fires at the same moment on both versions
+    static: bool = False  # no Jinja on either side: every run renders the raw value, so "identical" proves nothing
 
     @property
     def unpinned(self) -> bool:
@@ -137,7 +138,8 @@ def compare(old: dict, new: dict, changed: set, whole_dags: set[str] = frozenset
                     continue
                 res = FieldResult(ndag["file"], ndag["dag_id"], task_id, name, len(usable) + len(lone),
                                   [r["label"] for r, _, _ in usable] + [r["label"] for r, _ in lone],
-                                  dst=ndag.get("dst", ""), timetable=ndag.get("timetable", ""))
+                                  dst=ndag.get("dst", ""), timetable=ndag.get("timetable", ""),
+                                  static=_static(of) and _static(nf))
                 for run, side in lone:
                     value = (of if side == "old" else nf)["rendered"][(o_at if side == "old" else n_at)[run["fires"]]]
                     missing = f"(no run fires at this moment on Airflow {'3' if side == 'old' else '2'})"
@@ -149,6 +151,10 @@ def compare(old: dict, new: dict, changed: set, whole_dags: set[str] = frozenset
                         res.mismatches.append(Mismatch(run["label"], run["fires"], of["rendered"][oi], nf["rendered"][ni]))
                 results.append(res)
     return results
+
+
+def _static(f: dict) -> bool:
+    return "{{" not in f["raw"] and "{%" not in f["raw"] and all(v == f["raw"] for v in f["rendered"])
 
 
 def summary(res: FieldResult) -> str:
@@ -168,7 +174,8 @@ def summary(res: FieldResult) -> str:
         covered.append("leap day")
     dst = res.dst.split(" (")[0] if res.dst.startswith("DST: n/a") else res.dst
     covered.append(dst)
-    return f"render-checked: identical across {res.runs} runs (incl. {', '.join(c for c in covered if c)})"
+    text = f"render-checked: identical across {res.runs} runs (incl. {', '.join(c for c in covered if c)})"
+    return text + ("; the field holds no Jinja, so nothing in it can shift" if res.static else "")
 
 
 def _when(fires: str) -> str:

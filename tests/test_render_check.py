@@ -141,6 +141,17 @@ def test_summary_text():
     assert render_check.summary(res) == "render-checked: identical across 1 runs (incl. 23:00, DST: n/a)"
 
 
+def test_a_field_without_jinja_says_its_check_proves_nothing():
+    runs = [("23:00", "2024-01-15T23:00:00+00:00")]
+    static = side("2", runs, {"c": {"raw": '"find /tmp -delete"', "rendered": ['"find /tmp -delete"']}})
+    (res,) = render_check.compare(static, static, changed={("d.py", "d", "t", "c")})
+    assert render_check.summary(res).endswith("the field holds no Jinja, so nothing in it can shift")
+    # a template file reference renders to the file's contents: that is real templating
+    ref = side("2", runs, {"c": {"raw": '"scripts/r.sh"', "rendered": ['"echo 2024-01-15"']}})
+    (res,) = render_check.compare(ref, ref, changed={("d.py", "d", "t", "c")})
+    assert "no Jinja" not in render_check.summary(res)
+
+
 def test_task_spans():
     src = 'a = 1\nwith DAG("d") as dag:\n    t = BashOperator(\n        task_id="report",\n        bash_command="x",\n    )\n'
     assert render_check.task_spans(src) == {"report": (3, 6)}
