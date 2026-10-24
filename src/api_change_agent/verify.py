@@ -176,9 +176,19 @@ def verify(before: Path, after: Path, *, rules_path: Path, venv: Path, old_venv:
                 judgment = PLUGINS[plugin].find(Path(rel), text, rule.options, "llm")
             except Exception:  # noqa: BLE001 - unparsable: the DAG check reports it
                 continue
+            fixed = []
+            if det:  # the rewrite migrate mode would make, line by line, so the reader can make it by hand
+                try:
+                    fixed = PLUGINS[plugin].apply(Path(rel), text, rule.options).splitlines()
+                except Exception:  # noqa: BLE001
+                    fixed = []
+                if len(fixed) != len(text.splitlines()):
+                    fixed = []
             for s in det:
-                res.manual.append(ManualItem(rel, s.line, rule_id, f"`{s.snippet}` uses {what} Airflow 3 removed; "
-                                             "migrate mode rewrites it to the documented equivalent"))
+                fix = (f"; with its documented equivalent, write the line as `{fixed[s.line - 1].strip()}`"
+                       if fixed and fixed[s.line - 1] != text.splitlines()[s.line - 1] else
+                       "; migrate mode rewrites it to the documented equivalent")
+                res.manual.append(ManualItem(rel, s.line, rule_id, f"`{s.snippet}` uses {what} Airflow 3 removed{fix}"))
             for s in judgment:
                 why = s.reason if s.reason.startswith("`") else f"`{s.snippet}`: {s.reason}"
                 res.manual.append(ManualItem(rel, s.line, rule_id, f"uses {what} Airflow 3 removed. {why}"))

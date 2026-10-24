@@ -131,6 +131,9 @@ def test_removed_context_keys_left_in_python_are_listed(tmp_path):
     assert any(m["rule_id"] == "airflow3-context-keys" and m["path"] == "dags/partitions.py" for m in res["manual"])
     assert any("execution_date" in p.text and p.path == "dags/partitions.py" and p.line for p in strict_problems(res))
     assert "execution_date" in report.split("### Needs manual migration", 1)[1]
+    # says what to write, not just that migrate mode would: the PR may be someone else's
+    assert any(m["path"] == "dags/partitions.py" and "write the line as `return context[\"logical_date\"].hour`"
+               in m["reason"] for m in res["manual"])
 
 
 @needs_both
