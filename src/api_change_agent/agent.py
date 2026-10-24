@@ -691,6 +691,9 @@ class _Run:
 
     def llm(self, hits) -> None:
         for rule in self.ruleset.rules:
+            if rule.fix == "llm" and self.model is None:
+                self.result.rule_notes.setdefault(rule.id, "No Anthropic API key was given, so Claude wasn't asked; "
+                                                  "any sites are listed under Needs manual migration.")
             if rule.fix != "llm" or rule.id not in hits:
                 continue
             if reason := self._pin_blocker(rule):

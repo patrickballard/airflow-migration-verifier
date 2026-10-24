@@ -241,7 +241,7 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
     if pin_minimum or pin_conflicts or lock_notes or dep_notes:
         parts.append("### Dependencies")
         if pin_minimum:
-            parts.append(f"Pins raised to allow only `{package}>={pin_minimum}` (rows above).")
+            parts.append(f"`{package}` pins raised to {pin_minimum} (rows above).")
         for c in pin_conflicts:
             parts.append(f"- ⚠️ `{c.path}:{c.line}` `{c.text}`: {c.reason}")
         for n in lock_notes:

@@ -398,3 +398,13 @@ def test_templates_split_across_concatenated_literals(src, expected):
 def test_a_closing_brace_alone_is_not_a_template():
     src = 'msg = "execution_date: }"\n'
     assert TPL.apply(Path("dag.py"), src, OPTS) == src
+
+
+def test_report_says_why_judgment_rules_didnt_run_and_what_the_pin_is(tmp_path):
+    repo = tmp_path / "repo"
+    shutil.copytree(AIRFLOW_REPO, repo)
+    body = run(Options(repo=repo, rules_path=AIRFLOW_RULES, dry_run=True, test_command=None), model=None).body
+    judgment = [ln for ln in body.splitlines() if ln.startswith("- `airflow3-") and "(llm, not applied)" in ln]
+    assert judgment and all("No Anthropic API key was given" in ln for ln in judgment), judgment
+    # the pin is written `==3.3.2` here; the report mustn't call it `>=3.3.2`
+    assert ">=3.3.2" not in body and "`apache-airflow` pins raised to 3.3.2" in body
