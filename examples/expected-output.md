@@ -6,7 +6,7 @@ Checked `examples/` as it is: what breaks if it runs on apache-airflow 3.3.2 unc
 
 ### ⚠️ Run dates will shift: 1 schedule(s) not pinned
 
-Airflow 3 runs cron schedules on `CronTriggerTimetable` and timedelta schedules on `DeltaTriggerTimetable`, where a run's logical date is the moment it fires; Airflow 2 used the interval timetables, where it is the start of the interval that just ended. For these DAGs every date derived from the run (`{{ ds }}`, `logical_date`, partition paths) moves by one interval unless you pin them as in Timetable pin, or restore the old defaults for all DAGs with `[scheduler] create_cron_data_intervals = True` and `create_delta_data_intervals = True`.
+Airflow 3 runs cron schedules on `CronTriggerTimetable` and timedelta schedules on `DeltaTriggerTimetable`, where a run's logical date is the moment it fires; Airflow 2 used the interval timetables, where it is the start of the interval that just ended. For these DAGs every date derived from the run (`{{ ds }}`, `logical_date`, partition paths) moves by one interval, and `data_interval_start` and `data_interval_end` become the same moment: a task that processes the rows between them processes none. Pin each DAG to the interval timetable (`CronDataIntervalTimetable` / `DeltaDataIntervalTimetable`, as migrate mode does), or restore the old defaults for all DAGs with `[scheduler] create_cron_data_intervals = True` and `create_delta_data_intervals = True`.
 
 - `broken_dag.py:24` <code>"@daily"</code>: a cron schedule left on Airflow 3's default timetable; pin it, or set [scheduler] create_cron_data_intervals = True
 
