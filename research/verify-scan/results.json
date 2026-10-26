@@ -1,0 +1,259 @@
+[
+ {
+  "repo": "BasPH/data-pipelines-with-apache-airflow",
+  "commit": "d5b18a70d3be23d64e4ec2d3134db9d12445688e",
+  "airflow_2": "apache-airflow~=2.0.0",
+  "dag_files": 87,
+  "import_on_airflow_3": 0,
+  "fail_on_airflow_3": 78,
+  "fail_on_both": 9,
+  "deprecated_not_counted": 0,
+  "breaks": 451,
+  "by_kind": {
+   "removed API": 210,
+   "moved to a provider": 154,
+   "removed template variable": 53,
+   "removed context key": 28,
+   "removed DAG method": 6
+  },
+  "date_shifts": 81,
+  "render_mismatch_dags": 0
+ },
+ {
+  "repo": "DaliGuerfali/big-data",
+  "commit": "df84c1fd1d17bc5f40780588a8c9b5437c5def0b",
+  "airflow_2": "apache-airflow==2.8.1",
+  "dag_files": 3,
+  "import_on_airflow_3": 0,
+  "fail_on_airflow_3": 3,
+  "fail_on_both": 0,
+  "deprecated_not_counted": 0,
+  "breaks": 4,
+  "by_kind": {
+   "removed API": 3,
+   "removed context key": 1
+  },
+  "date_shifts": 3,
+  "render_mismatch_dags": 0
+ },
+ {
+  "repo": "anilkulkarni87/airflow-docker",
+  "commit": "8b87bef72b199f4951dde59114ee4328d77778dd",
+  "airflow_2": "apache/airflow:2.7.3 image",
+  "dag_files": 6,
+  "import_on_airflow_3": 0,
+  "fail_on_airflow_3": 6,
+  "fail_on_both": 0,
+  "deprecated_not_counted": 1,
+  "breaks": 8,
+  "by_kind": {
+   "removed API": 6,
+   "moved to a provider": 2
+  },
+  "date_shifts": 0,
+  "render_mismatch_dags": 0
+ },
+ {
+  "repo": "eliasbenaddou/personal_finance_de_project",
+  "commit": "e34718bb7b429b40aadc3ea2151c284b599aebd6",
+  "airflow_2": "apache/airflow:2.2.4 image",
+  "dag_files": 5,
+  "import_on_airflow_3": 0,
+  "fail_on_airflow_3": 4,
+  "fail_on_both": 1,
+  "deprecated_not_counted": 0,
+  "breaks": 7,
+  "by_kind": {
+   "removed API": 7
+  },
+  "date_shifts": 3,
+  "render_mismatch_dags": 0
+ },
+ {
+  "repo": "made-ml-in-prod-2021/airflow-examples",
+  "commit": "96aaf7b55a119439de4c2c0d9933a37129222c64",
+  "airflow_2": "apache/airflow:2.3.0 image",
+  "dag_files": 10,
+  "import_on_airflow_3": 0,
+  "fail_on_airflow_3": 10,
+  "fail_on_both": 0,
+  "deprecated_not_counted": 0,
+  "breaks": 44,
+  "by_kind": {
+   "removed API": 21,
+   "moved to a provider": 17,
+   "removed template variable": 4,
+   "removed context key": 2
+  },
+  "date_shifts": 9,
+  "render_mismatch_dags": 0
+ },
+ {
+  "repo": "mozilla/telemetry-airflow",
+  "commit": "cf609dd650a1597c99d41dcdb438ee84b58f696c",
+  "airflow_2": "apache-airflow==2.10.5",
+  "dag_files": 58,
+  "import_on_airflow_3": 7,
+  "fail_on_airflow_3": 50,
+  "fail_on_both": 1,
+  "deprecated_not_counted": 1,
+  "breaks": 73,
+  "by_kind": {
+   "removed API": 64,
+   "removed template variable": 8,
+   "removed context key": 1
+  },
+  "date_shifts": 48,
+  "render_mismatch_dags": 0
+ },
+ {
+  "repo": "sanchitvj/sports_betting_analytics_engine",
+  "commit": "855a744daa9c6f44858099990df4aafc34789c0f",
+  "airflow_2": "apache-airflow>=2.10.1 (no upper bound)",
+  "dag_files": 8,
+  "import_on_airflow_3": 0,
+  "fail_on_airflow_3": 1,
+  "fail_on_both": 7,
+  "deprecated_not_counted": 0,
+  "breaks": 27,
+  "by_kind": {
+   "removed API": 27
+  },
+  "date_shifts": 3,
+  "render_mismatch_dags": 0
+ },
+ {
+  "repo": "4lcatrust/deso-query",
+  "commit": "185f49835f42302bc040afd906082d09e2939b09",
+  "airflow_2": "apache-airflow==2.10.5",
+  "dag_files": 9,
+  "import_on_airflow_3": 2,
+  "fail_on_airflow_3": 1,
+  "fail_on_both": 6,
+  "deprecated_not_counted": 0,
+  "breaks": 3,
+  "by_kind": {
+   "removed API": 3
+  },
+  "date_shifts": 2,
+  "render_mismatch_dags": 0
+ },
+ {
+  "repo": "DEDSEC0708/orchestrated-warehouse",
+  "commit": "ddc4a16f93eeee225329bf3f20eb6f4bc08c8793",
+  "airflow_2": "apache-airflow==2.10.5",
+  "dag_files": 5,
+  "import_on_airflow_3": 1,
+  "fail_on_airflow_3": 4,
+  "fail_on_both": 0,
+  "deprecated_not_counted": 0,
+  "breaks": 1,
+  "by_kind": {
+   "removed API": 1
+  },
+  "date_shifts": 3,
+  "render_mismatch_dags": 0
+ },
+ {
+  "repo": "Chirag-Kathuria-009/DORA-Pipeline",
+  "commit": "a0e2adf0e11b67f730952ddadad91c4d1a24cddf",
+  "airflow_2": "apache-airflow==2.8.0",
+  "dag_files": 1,
+  "import_on_airflow_3": 1,
+  "fail_on_airflow_3": 0,
+  "fail_on_both": 0,
+  "deprecated_not_counted": 0,
+  "breaks": 0,
+  "by_kind": {},
+  "date_shifts": 1,
+  "render_mismatch_dags": 1
+ },
+ {
+  "repo": "DhanushPillay/tx-recon",
+  "commit": "85af5fffaaae43b9f88499036d161d0629474106",
+  "airflow_2": "apache-airflow==2.11.2",
+  "dag_files": 1,
+  "import_on_airflow_3": 1,
+  "fail_on_airflow_3": 0,
+  "fail_on_both": 0,
+  "deprecated_not_counted": 0,
+  "breaks": 0,
+  "by_kind": {},
+  "date_shifts": 1,
+  "render_mismatch_dags": 0
+ },
+ {
+  "repo": "Diego-Oliveira-SS/airflow",
+  "commit": "ca3a79474795a7831232e712685df9c4c62f0b27",
+  "airflow_2": "apache/airflow:2.9.3 image",
+  "dag_files": 4,
+  "import_on_airflow_3": 0,
+  "fail_on_airflow_3": 4,
+  "fail_on_both": 0,
+  "deprecated_not_counted": 0,
+  "breaks": 7,
+  "by_kind": {
+   "removed API": 4,
+   "moved to a provider": 3
+  },
+  "date_shifts": 4,
+  "render_mismatch_dags": 0
+ },
+ {
+  "repo": "leadwithnav/airflow-training",
+  "commit": "a1f74673f90a2209131d2aa644c5f4a650c9bbae",
+  "airflow_2": "apache/airflow:2.3.0 image",
+  "dag_files": 103,
+  "import_on_airflow_3": 7,
+  "fail_on_airflow_3": 65,
+  "fail_on_both": 31,
+  "deprecated_not_counted": 0,
+  "breaks": 314,
+  "by_kind": {
+   "moved to a provider": 161,
+   "removed API": 146,
+   "removed context key": 6,
+   "removed template variable": 1
+  },
+  "date_shifts": 83,
+  "render_mismatch_dags": 0
+ },
+ {
+  "repo": "Boaz-Airflow/boaz-airflow-study",
+  "commit": "978804d2afb3e5ce531ac9129ace841891da5322",
+  "airflow_2": "apache/airflow:2.5.1 image",
+  "dag_files": 53,
+  "import_on_airflow_3": 2,
+  "fail_on_airflow_3": 45,
+  "fail_on_both": 6,
+  "deprecated_not_counted": 0,
+  "breaks": 339,
+  "by_kind": {
+   "moved to a provider": 147,
+   "removed API": 145,
+   "removed template variable": 27,
+   "removed context key": 15,
+   "removed DAG method": 5
+  },
+  "date_shifts": 52,
+  "render_mismatch_dags": 0
+ },
+ {
+  "repo": "rshukla0101/ApacheAirflow",
+  "commit": "19c5bc5b3aebf0b0bea5423420af1d15c356d577",
+  "airflow_2": "apache/airflow:2.5.1 image",
+  "dag_files": 21,
+  "import_on_airflow_3": 2,
+  "fail_on_airflow_3": 17,
+  "fail_on_both": 2,
+  "deprecated_not_counted": 1,
+  "breaks": 51,
+  "by_kind": {
+   "removed API": 27,
+   "moved to a provider": 22,
+   "removed context key": 2
+  },
+  "date_shifts": 18,
+  "render_mismatch_dags": 0
+ }
+]

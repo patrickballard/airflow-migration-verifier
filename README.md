@@ -84,7 +84,18 @@ Full text: [`examples/expected-output.md`](examples/expected-output.md). CI fail
    - A cron DAG left unpinned is listed under *Run dates will shift*, with the render mismatch as evidence.
 6. **Your own rules.** Patterns specific to your codebase, such as an internal helper or a renamed connection, can be added as one `.py` file each in `.airflow-verifier/rules/`. They get the same checks as the bundled rules. See [Writing a custom rule](docs/writing-rules.md).
 
-## Proof: 10 public repos
+## Proof on public repos
+
+### Verify mode: 15 Airflow 2 repos, as written
+
+What breaks if DAGs written for Airflow 2 run on Airflow 3.3.2 unchanged. These were read-only runs on 15 public repos that pin an Airflow 2 version or run an Airflow 2 image:
+- **288 of 374 DAG files (77%) don't import** on Airflow 3.3.2.
+- **1,329 code sites** use a removed API, context key or template variable.
+- **311 schedules** would silently shift their run dates.
+
+Running it on real code also turned up four kinds of false positives in the verifier itself. All four are fixed, with tests. [docs/real-world-results.md](docs/real-world-results.md) has the per-repo table, the false positives and what's still uncertain.
+
+### Migrate mode: 10 repos
 
 These were dry runs on cloned repos. Nothing was pushed to them.
 - [mozilla/telemetry-airflow](https://github.com/mozilla/telemetry-airflow)

@@ -1,0 +1,16 @@
+# Public repos with Airflow 2 DAGs, and the Airflow 2 version each pins or runs (requirements, Docker image).
+BasPH/data-pipelines-with-apache-airflow    apache-airflow~=2.0.0
+DaliGuerfali/big-data                       apache-airflow==2.8.1
+anilkulkarni87/airflow-docker               apache/airflow:2.7.3 image
+eliasbenaddou/personal_finance_de_project   apache/airflow:2.2.4 image
+made-ml-in-prod-2021/airflow-examples       apache/airflow:2.3.0 image
+mozilla/telemetry-airflow                   apache-airflow==2.10.5
+sanchitvj/sports_betting_analytics_engine   apache-airflow>=2.10.1 (no upper bound)
+4lcatrust/deso-query                        apache-airflow==2.10.5
+DEDSEC0708/orchestrated-warehouse           apache-airflow==2.10.5
+Chirag-Kathuria-009/DORA-Pipeline           apache-airflow==2.8.0
+DhanushPillay/tx-recon                      apache-airflow==2.11.2
+Diego-Oliveira-SS/airflow                   apache/airflow:2.9.3 image
+leadwithnav/airflow-training                apache/airflow:2.3.0 image
+Boaz-Airflow/boaz-airflow-study             apache/airflow:2.5.1 image
+rshukla0101/ApacheAirflow                   apache/airflow:2.5.1 image
