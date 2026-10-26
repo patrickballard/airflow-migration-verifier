@@ -411,3 +411,24 @@ def test_runs_on_only_one_side_are_mismatches_not_skipped():
     assert res.runs == 3 and len(res.mismatches) == 2
     assert {m.new for m in res.mismatches} >= {"(no run fires at this moment on Airflow 3)"}
     assert render_check.summary(res).startswith("render mismatch on 2 of 3 runs")
+
+
+@needs_both
+def test_run_start_dates_render_the_same_on_both_versions(tmp_path):
+    # found on a real repo: `--started {{ dag_run.start_date }}` rendered None on Airflow 2 only, a false mismatch
+    dag = ("import datetime\nfrom airflow import DAG\nfrom airflow.operators.bash import BashOperator\n"
+           "from airflow.timetables.interval import CronDataIntervalTimetable\n"
+           "with DAG('d', schedule={sched}, start_date=datetime.datetime(2024, 1, 1), catchup=False):\n"
+           "    BashOperator(task_id='t', bash_command='{{{{ dag_run.start_date }}}} {{{{ ti.start_date }}}}')\n")
+    old, new = tmp_path / "old", tmp_path / "new"
+    (old / "dags").mkdir(parents=True)
+    (new / "dags").mkdir(parents=True)
+    (old / "dags" / "d.py").write_text(dag.format(sched='"@daily"'))
+    (new / "dags" / "d.py").write_text(dag.format(sched='CronDataIntervalTimetable("@daily", timezone="UTC")')
+                                       .replace("from airflow.timetables.interval", "from airflow.sdk")
+                                       .replace("from airflow.operators.bash", "from airflow.providers.standard.operators.bash")
+                                       .replace("from airflow import DAG", "from airflow.sdk import DAG"))
+    a = render_check.render(Path(AF2) / "bin" / "python", old, ["dags/d.py"])
+    b = render_check.render(Path(AF3) / "bin" / "python", new, ["dags/d.py"])
+    [res] = render_check.compare(a, b, changed=set(), whole_dags=set(b["dags"]))
+    assert res.runs >= 25 and res.mismatches == [], res.mismatches[:1]

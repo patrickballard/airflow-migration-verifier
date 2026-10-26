@@ -168,9 +168,11 @@ def _render_af2(dag, task_id, info):
                 data_interval=(info.data_interval.start, info.data_interval.end),
                 run_type=DagRunType.SCHEDULED, external_trigger=False)
     dr.dag = dag
+    dr.start_date = info.run_after  # as on Airflow 3 (_render_af3): the run starts when it fires
     task = copy.deepcopy(dag.get_task(task_id))
     ti = TaskInstance(task, run_id=dr.run_id)
     ti.dag_run = dr
+    ti.start_date = info.run_after
     ti.render_templates(ti.get_template_context(ignore_param_exceptions=True))
     return task
 
