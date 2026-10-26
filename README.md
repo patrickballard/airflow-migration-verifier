@@ -54,7 +54,9 @@ It changes nothing in your repo and needs no secrets. Add `strict: "true"` to fa
 
 The report goes on the run's *Summary* page, and each problem is also annotated on its file and line. This is the real summary from this repo's CI, which runs the action on `examples/broken_dag.py`:
 
-<!-- job-summary screenshot -->
+![The job summary of a verify run on examples/broken_dag.py: 9 Airflow 3 problems found, each with its fix](docs/images/job-summary.png)
+
+<sub>From [this CI run](https://github.com/patrickballard/airflow-migration-verifier/actions/runs/40261042373) (the `example` job).</sub>
 
 Full text: [`examples/expected-output.md`](examples/expected-output.md). CI fails if the verifier's output ever drifts from that file.
 
