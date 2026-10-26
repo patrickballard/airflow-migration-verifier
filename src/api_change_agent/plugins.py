@@ -75,6 +75,19 @@ class _FunctionScope:
             name == "context" and name in self.params)
 
 
+def _keyword_args(module: cst.Module, keyword: str) -> list[cst.Arg]:
+    """Every `keyword=...` argument in the module's calls."""
+    found: list[cst.Arg] = []
+
+    class _Find(cst.CSTVisitor):
+        def visit_Arg(self, node: cst.Arg) -> None:
+            if node.keyword is not None and node.keyword.value == keyword:
+                found.append(node)
+
+    module.visit(_Find())
+    return found
+
+
 class _ContextKeys(cst.CSTTransformer):
     METADATA_DEPENDENCIES = (PositionProvider,)
 
@@ -95,11 +108,25 @@ class _ContextKeys(cst.CSTTransformer):
     def _site(self, node, bucket, reason=""):
         bucket.append(Site(self._line(node), _EMPTY.code_for_node(node), reason))
 
+    def visit_Module(self, node: cst.Module) -> None:
+        # functions this file hands to Airflow as callables: only those get context keys by parameter name
+        self.callables = {_EMPTY.code_for_node(a.value).rsplit(".", 1)[-1] for a in _keyword_args(node, "python_callable")}
+
+    def _may_be_callable(self, node: cst.FunctionDef, scope: _FunctionScope) -> bool:
+        """Whether Airflow may call this function with the task context as keyword arguments: it's passed as a
+        python_callable here, it's an @task, or it takes **kwargs and isn't a method (it may be passed elsewhere)."""
+        first = next(iter((*node.params.posonly_params, *node.params.params)), None)
+        if first is not None and first.name.value in ("self", "cls"):
+            return False
+        decorators = {_EMPTY.code_for_node(d.decorator).split("(")[0] for d in node.decorators}
+        return (node.name.value in self.callables or any(d == "task" or d.startswith("task.") for d in decorators)
+                or scope.star_kwargs is not None)
+
     def visit_FunctionDef(self, node: cst.FunctionDef) -> None:
         scope = _FunctionScope(node)
         self.scopes.append(scope)
         removed = set(self.rename) | set(self.expressions) | set(self.judgment)
-        for name in sorted(scope.params & removed):
+        for name in sorted(scope.params & removed if self._may_be_callable(node, scope) else ()):
             self._site(node.name, self.llm,
                        f"`{name}` is a parameter of `{node.name.value}`: Airflow 2 passed context keys to callables "
                        f"by parameter name, Airflow 3 no longer provides `{name}`")
