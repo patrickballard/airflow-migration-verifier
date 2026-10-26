@@ -26,3 +26,6 @@ secrets.*
 .DS_Store
 .idea/
 .vscode/
+
+# local Airflow venvs used by the research scripts
+.venvs/

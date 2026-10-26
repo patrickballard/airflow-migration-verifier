@@ -1,9 +1,0 @@
-Traceback (most recent call last):
-  File "./results/codemods/llamaindex/sample.py", line 4, in <module>
-    ctx = ServiceContext.from_defaults(llm=MockLLM(), embed_model=MockEmbedding(embed_dim=8))
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "./.venvs/llamaindex-1/lib/python3.12/site-packages/llama_index/core/service_context.py", line 33, in from_defaults
-    raise ValueError(
-ValueError: ServiceContext is deprecated. Use llama_index.settings.Settings instead, or pass in modules to local functions/methods/interfaces.
-See the docs for updated usage/migration: 
-https://docs.llamaindex.ai/en/stable/module_guides/supporting_modules/service_context_migration/

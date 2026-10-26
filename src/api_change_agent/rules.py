@@ -92,7 +92,9 @@ def load_rules(path: str | Path) -> RuleSet:
     data = yaml.safe_load(Path(path).read_text())
     if not isinstance(data, dict) or not isinstance(data.get("rules"), list):
         raise RuleError(f"{path}: expected a mapping with a 'rules' list")
-    package = data.get("package", "openai")
+    if not data.get("package"):
+        raise RuleError(f"{path}: needs `package`, the import name of the library being migrated")
+    package = str(data["package"])
     rules = tuple(_rule(r, i) for i, r in enumerate(data["rules"]))
     tools = tuple(_tool(t) for t in data.get("tools") or ())
     ids = [r.id for r in rules] + [t.id for t in tools]

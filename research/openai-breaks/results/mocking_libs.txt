@@ -1,7 +1,0 @@
-== mocking libraries under v1.109.1
-..                                                                       [100%]
-2 passed in 0.27s
-== mocking libraries under v3x
-FAILED test_pytest_httpx.py::test_models - openai.APIConnectionError: Connect...
-ERROR test_pytest_httpx.py::test_models - AssertionError: The following respo...
-1 failed, 1 passed, 1 error in 0.35s

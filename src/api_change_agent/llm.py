@@ -32,7 +32,7 @@ class PatchModel(Protocol):
 
 
 SYSTEM = """\
-You migrate Python code that uses the openai SDK. You get one file, the call \
+You migrate Python code to a new major version of a library. You get one file, the call \
 sites a migration rule flagged, and the rule's migration notes. Return the \
 complete updated file through the submit_patch tool.
 

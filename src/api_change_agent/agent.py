@@ -34,7 +34,7 @@ from .scanner import SKIP_DIRS, iter_python_files, scan_repo
 from .testrun import (TestOutcome, TestRunner, default_install_command, detect_test_command, merge_outcome,
                       new_failures)
 
-DEFAULT_BRANCH = "api-change-agent/openai"
+DEFAULT_BRANCH = "api-change-agent/airflow"
 DAG_CHECK = Path(__file__).with_name("airflow_dag_check.py")
 
 

@@ -1,4 +1,5 @@
-# Rules for the openai Python SDK. Each rule: match pattern, fix type,
+# TEST FIXTURE, not shipped: exercises the generic rule engine (patterns, pins, add_dependency, LLM flow)
+# with a small library whose breaks are easy to fake. Each rule: match pattern, fix type,
 # minimum SDK version that supports the new form, changelog link.
 package: openai
 rules:

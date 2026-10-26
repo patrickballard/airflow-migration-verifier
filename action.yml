@@ -27,7 +27,7 @@ inputs:
     description: Claude model for LLM patches.
     default: claude-opus-5-5
   rules:
-    description: "A bundled ruleset (openai, airflow) or a path to a rules YAML (repo-relative). Default: openai."
+    description: "A bundled ruleset (airflow) or a path to a rules YAML (repo-relative). Default: airflow."
     required: false
   test-command:
     description: "'auto' detects pytest; 'none' disables the test gate."

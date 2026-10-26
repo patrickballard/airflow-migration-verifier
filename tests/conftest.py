@@ -9,7 +9,8 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = ROOT / "tests" / "fixtures"
 SAMPLE_REPO = FIXTURES / "sample_repo"
-RULES = ROOT / "rules" / "openai.yaml"
+# A test-only ruleset for the generic rule engine (patterns, pins, add_dependency, LLM flow); not shipped.
+RULES = FIXTURES / "rules" / "openai.yaml"
 # Run the fixture repo's own suite with this interpreter (it has openai + pydantic).
 FIXTURE_TEST_COMMAND = f"{shlex.quote(sys.executable)} -m pytest -q -p no:cacheprovider"
 

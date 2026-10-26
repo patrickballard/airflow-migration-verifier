@@ -5,7 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "api-change-agent"
 version = "0.1.0"
-description = "GitHub Action that migrates deprecated openai SDK usage and opens a PR."
+description = "GitHub Action that verifies Airflow 2 to 3 DAG migrations by rendering templates on both versions."
+license = {text = "Apache-2.0"}
 requires-python = ">=3.10"
 dependencies = [
     "libcst>=1.4",

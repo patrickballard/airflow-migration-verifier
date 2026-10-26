@@ -19,8 +19,8 @@ from .rules import load_rules
 
 # src layout during development; /app/rules inside the action image
 _RULE_DIRS = (Path(__file__).resolve().parents[2] / "rules", Path("/app/rules"))
-BUNDLED_RULES = next((d / "openai.yaml" for d in _RULE_DIRS if (d / "openai.yaml").exists()),
-                     _RULE_DIRS[-1] / "openai.yaml")
+BUNDLED_RULES = next((d / "airflow.yaml" for d in _RULE_DIRS if (d / "airflow.yaml").exists()),
+                     _RULE_DIRS[-1] / "airflow.yaml")
 
 
 def _input(name: str, default: str | None = None) -> str | None:
@@ -72,7 +72,7 @@ def parse_args(argv=None) -> argparse.Namespace:
     p = argparse.ArgumentParser(prog="api-change-agent", description=__doc__)
     p.add_argument("--repo", default=os.environ.get("GITHUB_WORKSPACE", "."))
     p.add_argument("--rules", default=_input("rules"),
-                   help="rules YAML, or a bundled ruleset name: openai (default), airflow")
+                   help="rules YAML, or a bundled ruleset name: airflow (the default)")
     p.add_argument("--dry-run", action="store_true", default=_bool(_input("dry-run", "false")))
     p.add_argument("--test-command", default=_input("test-command", "auto"),
                    help="'auto' to detect pytest, 'none' to skip tests")
@@ -116,6 +116,10 @@ def main(argv=None) -> int:
         return verify.main(args)
     args = parse_args(argv)
     repo = Path(args.repo).resolve()
+    if args.rules == "openai":
+        print("::error::The OpenAI SDK ruleset was removed in v1.4.0; this action now migrates Airflow 2 → 3 only. "
+              "Pin patrickballard/airflow-migration-verifier@v1.3.3 to keep using it.")
+        return 2
     rules = Path(args.rules) if args.rules else BUNDLED_RULES
     if args.rules and (BUNDLED_RULES.parent / f"{args.rules}.yaml").exists() and not rules.is_file():
         rules = BUNDLED_RULES.parent / f"{args.rules}.yaml"  # bundled ruleset by name (an airflow/ folder isn't one)
