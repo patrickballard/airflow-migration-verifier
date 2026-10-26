@@ -1,27 +1,68 @@
-**Airflow Migration Verifier** verifies any Airflow 2→3 migration, including ones done by other tools, by rendering your templates on both versions — no tests needed.
+# Airflow Migration Verifier
 
-[![CI](https://github.com/patrickballard/api-change-agent-test/actions/workflows/ci.yml/badge.svg)](https://github.com/patrickballard/api-change-agent-test/actions/workflows/ci.yml)
+[![CI](https://github.com/patrickballard/airflow-migration-verifier/actions/workflows/ci.yml/badge.svg)](https://github.com/patrickballard/airflow-migration-verifier/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-<sub>Formerly *api-change-agent*: the Python package, CLI, bot branch and test repo keep that name.</sub>
+A GitHub Action that finds the Airflow 2 code that breaks on Airflow 3, including the silent run-date shift no linter sees, and proves a migration renders the same on both versions.
 
-## Airflow 3 silently changes the date your cron DAGs process
+## What it catches
 
-Take an `@daily` DAG whose task runs `process {{ ds }}`, and the run that fires at 2024-05-02 00:00 UTC:
+[`examples/broken_dag.py`](examples/broken_dag.py) is an ordinary Airflow 2 DAG. It runs fine on Airflow 2.11. On Airflow 3.3 it breaks in seven places, and the verifier reports all of them with a fix:
 
-| | Default timetable | The task runs |
+| Line | Airflow 2 code | On Airflow 3 |
+|---|---|---|
+| 10, 11 | `from airflow.operators.bash_operator import BashOperator` | `ModuleNotFoundError` when the DAG file is parsed |
+| 23 | `start_date=days_ago(2)` | `days_ago` was removed |
+| 24 | `schedule_interval="@daily"` | `TypeError`: the argument is now `schedule` |
+| 36 | `provide_context=True` | rejected when the DAG file is parsed |
+| 17 | `context["execution_date"]` | `KeyError`, but only when the task runs |
+| 31 | `{{ yesterday_ds }}` | the template variable was removed |
+| 24, 31 | `@daily` with `{{ ds }}` | **no error at all: the task processes the wrong day** |
+
+The last row is the dangerous one. Airflow 3 runs cron schedules on a new default timetable, where a run's logical date is the moment it fires instead of the start of the interval it covers. Here's the run that fires at 2024-05-02 00:00 UTC, rendered on the real versions:
+
+| | Default timetable | `process {{ ds }}` renders |
 |---|---|---|
 | Airflow 2.11.2 | `CronDataIntervalTimetable` | `process 2024-05-01` |
 | Airflow 3.3.2 | `CronTriggerTimetable` | `process 2024-05-02` |
 
-There is no error and no warning. In Airflow 3 a cron run's logical date is the moment it fires, not the start of the interval it covers. So `{{ ds }}`, `logical_date` and every partition path built from them move by one interval. Both rows were rendered on the real versions.
+`{{ ds }}`, `logical_date` and every partition path built from them move by one interval, silently. The verifier renders every template field with your Airflow 2 code on Airflow 2 and your migrated code on Airflow 3, run by run, and reports any field that changed.
 
-This GitHub Action checks a migration the same way, whoever made it: a person, ruff, another tool or an AI agent. It renders every template field with the old code on Airflow 2 and the new code on Airflow 3, run by run, and checks that each DAG imports and uses nothing Airflow 3 removed. It can also do the migration itself, in a pull request, proving each change the same way. Whatever it can't prove, it labels as unverified.
+## Install
 
-**Demo: failing vs passing.** [airflow-verifier-trial](https://github.com/patrickballard/airflow-verifier-trial) is a small Airflow 2 repo with two migration PRs, each checked by the verify workflow from the Quickstart:
+Save this as `.github/workflows/airflow-3.yml` on your default branch:
+
+```yaml
+on: pull_request
+jobs:
+  airflow-3:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with: {fetch-depth: 2}
+      - uses: patrickballard/airflow-migration-verifier@v1
+        with: {mode: verify}
+```
+
+Every pull request then gets a report comparing the PR with its base branch:
+- **Not migrated yet?** The report lists what breaks when your DAGs run on Airflow 3 as they are.
+- **Migration PR,** made by a person, ruff, another tool or an AI agent: the report checks it. Each DAG must import on Airflow 3, no removed API may remain, and every template must render as it did on Airflow 2.
+
+It changes nothing in your repo and needs no secrets. Add `strict: "true"` to fail the check on a break. [More setups](#more-setups) covers caching, strict mode and letting the action open the migration PR itself.
+
+## What the output looks like
+
+The report goes on the run's *Summary* page, and each problem is also annotated on its file and line. This is the real summary from this repo's CI, which runs the action on `examples/broken_dag.py`:
+
+<!-- job-summary screenshot -->
+
+Full text: [`examples/expected-output.md`](examples/expected-output.md). CI fails if the verifier's output ever drifts from that file.
+
+**Demo PRs.** [airflow-verifier-trial](https://github.com/patrickballard/airflow-verifier-trial) is a small Airflow 2 repo with two migration PRs, each checked by the verify workflow:
 - ❌ [PR #1](https://github.com/patrickballard/airflow-verifier-trial/pull/1), migrated with ruff alone, **fails** ([run](https://github.com/patrickballard/airflow-verifier-trial/actions/runs/40110340024)). `{{ ds }}` renders a day later on 25 of 25 runs, `days_ago` no longer imports, and `context["execution_date"]` is still read.
 - ✅ [PR #5](https://github.com/patrickballard/airflow-verifier-trial/pull/5), opened by this action's migrate mode, **passes** ([run](https://github.com/patrickballard/airflow-verifier-trial/actions/runs/40110745663)).
 
-## What it does
+## How it works
 
 1. **ruff's AIR3 fixes** (`--select AIR3 --preview`): imports, `schedule_interval`, moved operators. Every change ruff makes is credited in the PR table.
    - When ruff swaps in a different operator class, every call's keyword arguments are checked against that class's signature on Airflow 3. One it no longer accepts (`MySqlOperator(mysql_conn_id=...)` → `SQLExecuteQueryOperator`, which takes `conn_id=`) is listed for a human, because Airflow 3 rejects unknown arguments when it parses the DAG file.
@@ -60,13 +101,13 @@ These were dry runs on cloned repos. Nothing was pushed to them.
 - **Other tools' migrations, verified the same way:** on the same 161 DAGs, ruff alone, airflow-v2-to-v3 and airflow-migration-helper each pass all checks for 24–25. See [the competitor check](https://github.com/patrickballard/airflow-migration-verifier/blob/main/research/competitor-check/REPORT.md), which also says what they do better.
 - **Diffs reviewed by hand:** no wrong change in any verified file. One wrong ruff fix keeps `mysql_conn_id=` when it swaps `MySqlOperator` for `SQLExecuteQueryOperator`. It sits in a file that fails on Airflow 3 before and after, and the PR labels it unverified. Since v1.1.0 the kwarg check also flags it directly: 37 rejected `mysql_conn_id=` arguments in 9 files, re-checked on that repo's saved tree.
 
-## Quickstart
+## More setups
 
 Both workflows below go on your **default branch**: commit them there or merge a PR that adds them, either works. Nothing needs installing, and no secret is required (the Anthropic key is optional).
 
-### Verify a migration pull request (made by anything)
+### Verify, with caching and strict mode
 
-Add `.github/workflows/verify-airflow-3.yml`. It compares the base branch (Airflow 2) with the PR merged into it (Airflow 3), so only the PR's own changes count. It changes nothing:
+The [Install](#install) workflow builds an Airflow 2 and an Airflow 3 venv on every run. This one keeps them in the Actions cache between runs, and fails the check when a migration breaks something. Like the short one, it compares the base branch (Airflow 2) with the PR merged into it (Airflow 3), so only the PR's own changes count, and it changes nothing:
 
 ```yaml
 name: verify-airflow-3-migration
@@ -165,9 +206,9 @@ jobs:
 | Input | Default | |
 |---|---|---|
 | `mode` | `migrate` | `migrate` opens a PR; `verify` compares `before` with `after` and changes nothing. |
-| `before`, `after` | | verify: the Airflow 2 and Airflow 3 trees, as paths in the workspace. |
+| `before`, `after` | | verify: the Airflow 2 and Airflow 3 trees, as paths in the workspace. Leave both out to compare the checked-out commit with its parent (needs `fetch-depth: 2`). |
 | `strict` | `"false"` | verify: fail the step on a break (see above). |
-| `rules` | `openai` | migrate: set it to `airflow`. Verify defaults to `airflow`. |
+| `rules` | `airflow` | The bundled Airflow 2 → 3 ruleset, or a path to your own rules YAML. |
 | `anthropic-api-key` | | migrate: enables Claude for judgment sites. |
 | `max-llm-usd` | `"5"` | migrate: hard cap on Claude spend for the run. |
 | `model` | `claude-opus-5-5` | migrate: the Claude model. |
@@ -185,6 +226,7 @@ jobs:
 pip install "git+https://github.com/patrickballard/airflow-migration-verifier@v1"
 python -m api_change_agent --repo . --rules airflow --dry-run --output out --install-command auto --venv /tmp/af3
 python -m api_change_agent verify --before ../before --after . --install-command auto --output out
+python -m api_change_agent verify --before examples --after examples --install-command auto   # the example above
 ```
 
 ## Limitations
@@ -243,24 +285,17 @@ What they do better:
 
 More under [Limitations](#limitations).
 
-## Also: OpenAI Python SDK rules
-
-`rules: openai` (the action's default) migrates deprecated `openai` SDK usage the same way. There are three rules:
-- `client.beta.chat.completions.parse/stream` → GA, deterministic;
-- `functions=` → `tools=`, with Claude;
-- declaring `httpx` once openai 3.x stops installing it.
-
-Each comes with a pin bump and a test gate. See [`rules/openai.yaml`](https://github.com/patrickballard/airflow-migration-verifier/blob/main/rules/openai.yaml), [`research/openai-breaks/`](https://github.com/patrickballard/airflow-migration-verifier/tree/main/research/openai-breaks/) and [`research/real-world/SCORECARD.md`](https://github.com/patrickballard/airflow-migration-verifier/blob/main/research/real-world/SCORECARD.md).
-
 ## Development
 
-CI (unit tests on Python 3.10–3.12, the real-Airflow integration tests and the render-check mutation tests) runs nightly from [a separate repo](https://github.com/patrickballard/api-change-agent-test/actions/workflows/ci.yml), because a Marketplace action's repo can't contain workflow files.
+[CI](.github/workflows/ci.yml) runs on every pull request and nightly: unit tests on Python 3.10–3.12, the integration tests against real Airflow 2.11.2 and 3.3.2, the render-check mutation tests, a check that [`examples/expected-output.md`](examples/expected-output.md) is still what the verifier reports, and the action itself on [`examples/broken_dag.py`](examples/broken_dag.py).
+
+The Python package, CLI and migrate mode's bot branch are still called `api-change-agent`, the project's earlier name.
 
 ```bash
 pip install -e '.[test]' && pytest
 ACA_AIRFLOW2_VENV=.../airflow-2 ACA_AIRFLOW3_VENV=.../airflow-3 pytest   # + real-Airflow integration tests
 ```
 
----
+## License
 
-Need help migrating a larger Airflow estate? I offer verified migrations — [paddybefc@gmail.com](mailto:paddybefc@gmail.com)
+[Apache-2.0](LICENSE), the same as Apache Airflow.
