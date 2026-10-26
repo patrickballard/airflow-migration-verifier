@@ -112,7 +112,7 @@ With `strict: "true"` the check fails on any of these except the schedule list, 
 
 **What it builds:** an Airflow 3 venv from the head's requirements, and an Airflow 2 venv at the base's `apache-airflow` pin (2.11.2 if there's none).
 
-**Scheduler setting:** if the head sets `[scheduler] create_cron_data_intervals = True`, in `airflow.cfg`, an env file, compose, a Dockerfile or Helm values, it's respected. That's the global way to keep Airflow 2's run dates.
+**Scheduler setting:** if the head sets `[scheduler] create_cron_data_intervals = True`, in `airflow.cfg`, an env file, compose, a Dockerfile or Helm values, it's respected. That's the global way to keep Airflow 2's run dates. On Airflow 3 it covers timedelta schedules too; `create_delta_data_intervals` is never read ([apache/airflow#69868](https://github.com/apache/airflow/issues/69868)), so setting only that one changes nothing.
 
 ### Migrate your repo
 
