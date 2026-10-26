@@ -1,0 +1,51 @@
+name: Sponsor bug report
+description: "For $100/month sponsors: labelled sponsor-priority and triaged before other issues. Best effort; not an SLA or a fix guarantee."
+title: "[sponsor] "
+labels: [bug, sponsor-priority]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for sponsoring. This template adds the `sponsor-priority` label: the issue is triaged before non-sponsor issues, with a best-effort first response within 5 working days. That isn't an SLA, and it isn't a promise of a fix. [SPONSORS.md](https://github.com/patrickballard/airflow-migration-verifier/blob/main/SPONSORS.md) has the details.
+
+        If you're not a $100/month sponsor, please use the regular bug report. The label is removed from issues that aren't from an active sponsor.
+
+        This issue is public, so take secrets, hostnames and internal names out of anything you paste.
+  - type: input
+    id: sponsor
+    attributes:
+      label: Sponsoring account
+      description: The GitHub user or organization that sponsors at $100/month.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Action version
+      description: "What your workflow uses, e.g. `@v1` or `@v1.4.0`."
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Mode
+      options: [verify, migrate]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: snippet
+    attributes:
+      label: Smallest DAG snippet that shows it
+      render: python
+  - type: textarea
+    id: report
+    attributes:
+      label: The report or log lines
+      description: From the run's Summary page, or the step's log.
+      render: markdown

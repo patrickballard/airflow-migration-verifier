@@ -1,0 +1,52 @@
+name: Request a custom rule
+description: "Scope a custom migration rule ($1,000 one-time sponsor tier). Scoping happens here, before any payment."
+title: "[custom rule] "
+labels: [custom-rule]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A custom rule finds **one** deprecated pattern or internal convention in your DAGs, and optionally rewrites it. It's delivered as one rule file plus its tests, which you add to `.airflow-verifier/rules/` in your repo. [SPONSORS.md](https://github.com/patrickballard/airflow-migration-verifier/blob/main/SPONSORS.md#1000-one-time-one-custom-migration-rule) lists exactly what's included and the complexity limits.
+
+        We agree the scope in this issue first. Payment, through the one-time $1,000 tier on GitHub Sponsors, comes only after we both agree the rule is in scope.
+
+        This issue is public. Use sanitized examples: no secrets, hostnames or internal names you can't share.
+  - type: textarea
+    id: pattern
+    attributes:
+      label: The pattern
+      description: "What should the rule find, and why does it matter for your Airflow 3 migration? For example: \"our `acme_utils.notify` helper reads `context['execution_date']`\", or \"every DAG must set `owner` to a team\"."
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example DAG snippet
+      description: A short, sanitized snippet with the pattern in it. A second one that should NOT match helps a lot.
+      render: python
+    validations:
+      required: true
+  - type: textarea
+    id: fix
+    attributes:
+      label: Expected fix
+      description: What the code should look like afterwards. Leave it empty if you only want the pattern found.
+      render: python
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Find only, or find and rewrite?
+      options:
+        - Find and report it (detection only)
+        - Find it and rewrite it automatically, where the rewrite is mechanical
+    validations:
+      required: true
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: The pattern can be recognised from the source of one file (a DAG or template file), without running it or reaching a database or service.
+          required: true
+        - label: I've read the custom-rule section of SPONSORS.md, including what's out of scope.
+          required: true

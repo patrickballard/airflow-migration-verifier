@@ -1,0 +1,30 @@
+name: Bug report
+description: Something the verifier reported wrongly, missed, or crashed on.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: This issue is public, so take secrets, hostnames and internal names out of anything you paste.
+  - type: input
+    id: version
+    attributes:
+      label: Action version
+      description: "What your workflow uses, e.g. `@v1` or `@v1.4.0`."
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: snippet
+    attributes:
+      label: Smallest DAG snippet that shows it
+      render: python
+  - type: textarea
+    id: report
+    attributes:
+      label: The report or log lines
+      render: markdown

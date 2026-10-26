@@ -82,6 +82,7 @@ Full text: [`examples/expected-output.md`](examples/expected-output.md). CI fail
 5. **Nothing unproven is presented as done.**
    - A file that fails on Airflow 3 both before and after gets no unsafe fixes and no Claude patches, and is listed under *Unverified files* with its error.
    - A cron DAG left unpinned is listed under *Run dates will shift*, with the render mismatch as evidence.
+6. **Your own rules.** Patterns specific to your codebase, such as an internal helper or a renamed connection, can be added as one `.py` file each in `.airflow-verifier/rules/`. They get the same checks as the bundled rules. See [Writing a custom rule](docs/writing-rules.md).
 
 ## Proof: 10 public repos
 
@@ -219,6 +220,8 @@ jobs:
 | `exclude` | | Globs to skip. |
 | `venv-dir` | `/github/home/aca-venv` | Where the venvs go: `${{ runner.temp }}/_github_home/aca-venv*` in the cache steps above. |
 | `github-token` | `${{ github.token }}` | migrate: pushes the branch and opens the PR. |
+| `custom-rules` | `.airflow-verifier/rules` | Your own rules, one `.py` file each: see [Writing a custom rule](docs/writing-rules.md). Verify mode reads them from the `before` tree. `none` turns them off. |
+| `show-sponsor-link` | `"true"` | One line at the end of the job summary, only when problems were found, linking to [GitHub Sponsors](https://github.com/sponsors/patrickballard). `"false"` leaves it out. |
 
 ### Run it locally
 
@@ -284,6 +287,21 @@ What they do better:
 - **Runtime-only behaviour:** XCom values, what tasks do with connections and external systems, and DAGs that need a connection, variable or private package just to import. Those are reported as unverified.
 
 More under [Limitations](#limitations).
+
+## Sponsors
+
+Sponsorship funds keeping the rules current as each Airflow 3.x release ships. [Sponsor on GitHub](https://github.com/sponsors/patrickballard); [SPONSORS.md](SPONSORS.md) lists exactly what each tier includes and what it doesn't.
+
+| Tier | You get |
+|---|---|
+| $5/month | Sponsor badge on your GitHub profile |
+| $25/month | Your logo or name in this README |
+| $100/month | Bug reports prioritised: a `sponsor-priority` label, triaged first (best effort, not an SLA) |
+| $1,000 one-time | One custom migration rule built for your codebase, as a rule file plus tests |
+
+**$25/month sponsors**
+
+<a href="https://github.com/sponsors/patrickballard">Your logo here</a>
 
 ## Development
 
