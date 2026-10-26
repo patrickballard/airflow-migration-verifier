@@ -36,7 +36,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.2
       - uses: actions/cache@v6
         id: venvs
         with:
