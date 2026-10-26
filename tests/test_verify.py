@@ -221,3 +221,44 @@ def test_strict_fails_on_problems_only():
         "::error file=a,line=1,title=Airflow 3 migration::a:1: x"]
     assert annotation(type(problems[0])("d.py", 2, "100%: a\nb")) == (
         "::error file=d.py,line=2,title=Airflow 3 migration::d.py:2: 100%25: a%0Ab")
+
+
+def test_a_file_that_fails_on_airflow_2_too_is_not_an_airflow_3_problem(tmp_path, monkeypatch):
+    # found on real repos: a missing Variable, connection or package fails the import on both versions
+    from api_change_agent import verify as v
+    from api_change_agent.testrun import TestOutcome
+    write(tmp_path, "dags/needs_var.py", "from airflow.sdk import DAG, Variable\nDAG(Variable.get('X'), schedule=None)\n")
+    err = "KeyError: 'Variable X does not exist.'"
+    failed = TestOutcome("dag check", False, 1, frozenset({"dags/needs_var.py::import"}), True,
+                         ids=("dags/needs_var.py::import",), messages={"dags/needs_var.py::import": err})
+    monkeypatch.setattr(v, "_dag_check", lambda *a, **k: failed)
+    res, dags = v.verify(tmp_path, tmp_path, rules_path=AIRFLOW_RULES, venv=tmp_path / "af3",
+                         old_venv=tmp_path / "af2", log=lambda *_: None)
+    assert res.unverified == [] and "### ⚠️ Unverified files" not in res.body
+    assert any("doesn't import on Airflow 2 either" in s and "Variable X" in s for s in res.skipped)
+    summary = res.summary()
+    summary["dags"] = dags
+    assert v.strict_problems(summary) == []
+
+
+@pytest.mark.parametrize("airflow2, airflow3, env_only", [
+    # the same failure on both: the environment lacks something
+    ("KeyError: 'Variable X does not exist'", "KeyError: 'Variable X does not exist.'", True),
+    ("airflow.exceptions.AirflowNotFoundException: The conn_id `c` isn't defined",
+     "airflow.sdk.exceptions.AirflowNotFoundException: The conn_id `c` isn't defined", True),
+    # a library the environment can't run, in different places on each version
+    ("ImportError: cannot import name 'A' from 'kafka.errors' (/v/af2/kafka/errors.py)",
+     "ImportError: cannot import name 'B' from 'kafka.util' (/v/real-world-airflow/kafka/util.py)", True),
+    # Airflow 3 fails earlier, on something Airflow 3 changed: still an Airflow 3 problem
+    ("KeyError: 'Variable X does not exist'", "TypeError: DAG.__init__() got an unexpected keyword argument 'x'", False),
+    ("KeyError: 'Variable X does not exist'", "ModuleNotFoundError: No module named 'airflow.datasets'", False),
+    ("AirflowDagCycleException: Cycle detected in DAG: c", "ModuleNotFoundError: No module named 'airflow.operators.dummy'",
+     False),
+    # Airflow 3 rejects an operator argument: "Airflow" is part of the exception's name, not a word of its own
+    ("KeyError: 'Variable X does not exist'",
+     "AirflowException: Invalid arguments were passed to BashOperator (task_id: t). Invalid arguments were: "
+     "**kwargs: {'provide_context': True}", False),
+])
+def test_which_failures_on_both_versions_are_the_environment(airflow2, airflow3, env_only):
+    from api_change_agent.verify import environment_only
+    assert environment_only(airflow2, airflow3) is env_only

@@ -17,6 +17,7 @@ tree that sets them gets no shift warning, and its Airflow 3 render runs with th
 from __future__ import annotations
 
 import json
+import re
 import shlex
 from pathlib import Path
 from typing import NamedTuple
@@ -33,6 +34,24 @@ from .testrun import TestRunner, default_install_command
 
 TEXT_SUFFIXES = {".py", ".sql", ".sh", ".hql", ".j2", ".jinja2", ".txt", ".cfg", ".toml", ".yaml", ".yml", ".json"}
 FLAGS = (("scheduler", "create_cron_data_intervals"), ("scheduler", "create_delta_data_intervals"))
+
+
+def _error_key(err: str) -> tuple[str, str]:
+    """(exception class, message) of an error's first line, without module prefixes, file paths or punctuation."""
+    first = next((ln for ln in err.strip().splitlines() if ln.strip()), "")
+    first = re.sub(r"\s*\((?:/|[A-Za-z]:\\)[^)]*\)", "", first)  # "(/path/to/site-packages/...)"
+    cls, _, msg = first.partition(":")
+    return cls.rsplit(".", 1)[-1].strip(), re.sub(r"[\"'`]", "", msg).strip().rstrip(".")
+
+
+def environment_only(airflow2_error: str, airflow3_error: str) -> bool:
+    """A DAG file failed on both versions: is its Airflow 3 failure just the Airflow 2 one again (a package,
+    Variable or connection the environment lacks), or an Airflow 3 break that happens before it?"""
+    if _error_key(airflow2_error) == _error_key(airflow3_error):
+        return True
+    cls, msg = _error_key(airflow3_error)
+    # "airflow" anywhere, not as a word: AirflowException (an argument Airflow 3 rejects) is Airflow's own
+    return not re.search(r"airflow|\bDAG\b", f"{cls}: {msg}", re.I)
 
 
 def _constraints(url: str) -> str:
@@ -81,7 +100,8 @@ def strict_problems(summary: dict) -> list[Problem]:
     """What --strict fails on: a DAG that doesn't import on Airflow 3 or renders differently, a removed DAG
     method, a removed context key or template variable, a rejected kwarg."""
     dags = summary["dags"].items()
-    out = [Problem(k.split("::")[0], None, f"{k}: does not import on Airflow 3") for k, d in dags if not d["imports"]]
+    out = [Problem(k.split("::")[0], None, f"{k}: does not import on Airflow 3") for k, d in dags
+           if not d["imports"] and not d.get("fails_on_airflow2")]
     out += [Problem(k.split("::")[0], None, f"{k}: renders differently from Airflow 2")
             for k, d in dags if d["render"] == "mismatch"]
     out += [Problem(m["path"], m["line"], m["reason"]) for m in summary["manual"]
@@ -149,11 +169,23 @@ def verify(before: Path, after: Path, *, rules_path: Path, venv: Path, old_venv:
     res.tests_baseline = _dag_check(before, venv, dag_test, timeout, log)
     log("DAG check: after tree")
     res.tests_after = _dag_check(after, venv, dag_test, timeout, log)
+    # a file that doesn't import on Airflow 2 either, the same way, fails for a reason of its own (a package,
+    # Variable or connection this environment doesn't have), not because of Airflow 3: it isn't counted
+    on_airflow2 = _dag_check(before, old_venv, False, timeout, log) if old_venv else None
+    env_failures = {}
     imports_after = {i.split("::")[0] for i in res.tests_after.ids if i.endswith("::import")}
     for f in sorted(imports_after):
         if f"{f}::import" in res.tests_after.failures:
             err = res.tests_after.messages.get(f"{f}::import", "import failed")
-            res.unverified.append(Unverified(f, err))
+            if on_airflow2 and f"{f}::import" in on_airflow2.failures and environment_only(
+                    on_airflow2.messages.get(f"{f}::import", ""), err):
+                env_failures[f] = on_airflow2.messages.get(f"{f}::import", "import failed")
+            else:
+                res.unverified.append(Unverified(f, err))
+    for f, err in env_failures.items():
+        res.skipped.append(f"`{f}` doesn't import on Airflow 2 either, so it isn't counted as an Airflow 3 problem: "
+                           f"`{err.splitlines()[0][:200] if err else 'import failed'}`. Usually a package, Variable or "
+                           "connection the check's environment doesn't have.")
 
     # 2. removed DAG methods, rejected kwargs
     rules = {r.id: r for r in ruleset.rules}
@@ -258,10 +290,10 @@ def verify(before: Path, after: Path, *, rules_path: Path, venv: Path, old_venv:
         title=f"verify an Airflow 2 → 3 change ({target})", dag_target=target,
         render_results=res.render_results, unverified=res.unverified, unpinned=res.unpinned, timezone=tz_after,
         verify=True)
-    return res, _per_dag(res, old, new)
+    return res, _per_dag(res, old, new, set(env_failures))
 
 
-def _per_dag(res: RunResult, old: dict, new: dict) -> dict:
+def _per_dag(res: RunResult, old: dict, new: dict, env_failures: set = frozenset()) -> dict:
     """One verdict per DAG: does it import on Airflow 3, and how did its templates render."""
     out = {}
     after = res.tests_after
@@ -284,7 +316,7 @@ def _per_dag(res: RunResult, old: dict, new: dict) -> dict:
                 render = "identical"
             else:
                 render = "no template fields" if key in new["dags"] else "not rendered"
-            out[key] = {"imports": i not in after.failures, "render": render,
+            out[key] = {"imports": i not in after.failures, "render": render, "fails_on_airflow2": f in env_failures,
                         "fields": len(fields), "mismatched_fields": sum(1 for r in fields if r.mismatches),
                         "example": next((f"{r.task_id}.{r.field}: {render_check.summary(r)}" for r in fields
                                          if r.mismatches), "")}
