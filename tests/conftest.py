@@ -22,6 +22,9 @@ def no_real_credentials(tmp_path_factory, monkeypatch):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.delenv("INPUT_ANTHROPIC-API-KEY", raising=False)
     monkeypatch.delenv("INPUT_ANTHROPIC_API_KEY", raising=False)
+    # in CI these point at the real job's summary and outputs: a test must not write into them
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    monkeypatch.delenv("GITHUB_OUTPUT", raising=False)
 
 
 @pytest.fixture
