@@ -344,3 +344,22 @@ def test_still_imports_on_real_airflow_3():
                                   "airflow.operators.dummy.DummyOperator"]) == {
         "airflow.operators.email.EmailOperator": True, "airflow.utils.dates.days_ago": False,
         "airflow.operators.dummy.DummyOperator": False}
+
+
+@pytest.mark.parametrize("airflow2, airflow3, env_only", [
+    # the same failure on both: the environment lacks something
+    ("KeyError: 'Variable X does not exist'", "KeyError: 'Variable X does not exist.'", True),
+    ("airflow.exceptions.AirflowNotFoundException: The conn_id `c` isn't defined",
+     "airflow.sdk.exceptions.AirflowNotFoundException: The conn_id `c` isn't defined", True),
+    # a library the environment can't run, in different places on each version
+    ("ImportError: cannot import name 'A' from 'kafka.errors' (/v/af2/kafka/errors.py)",
+     "ImportError: cannot import name 'B' from 'kafka.util' (/v/real-world-airflow/kafka/util.py)", True),
+    # Airflow 3 fails earlier, on something Airflow 3 changed: still an Airflow 3 problem
+    ("KeyError: 'Variable X does not exist'", "TypeError: DAG.__init__() got an unexpected keyword argument 'x'", False),
+    ("KeyError: 'Variable X does not exist'", "ModuleNotFoundError: No module named 'airflow.datasets'", False),
+    ("AirflowDagCycleException: Cycle detected in DAG: c", "ModuleNotFoundError: No module named 'airflow.operators.dummy'",
+     False),
+])
+def test_which_failures_on_both_versions_are_the_environment(airflow2, airflow3, env_only):
+    from api_change_agent.verify import environment_only
+    assert environment_only(airflow2, airflow3) is env_only

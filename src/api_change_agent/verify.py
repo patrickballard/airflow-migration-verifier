@@ -44,6 +44,23 @@ DOTTED = re.compile(r"`(airflow\.[\w.]+)`")  # the import path a ruff AIR3 messa
 IMPORTS = Path(__file__).with_name("airflow_imports.py")
 
 
+def _error_key(err: str) -> tuple[str, str]:
+    """(exception class, message) of an error's first line, without module prefixes, file paths or punctuation."""
+    first = next((ln for ln in err.strip().splitlines() if ln.strip()), "")
+    first = re.sub(r"\s*\((?:/|[A-Za-z]:\\)[^)]*\)", "", first)  # "(/path/to/site-packages/...)"
+    cls, _, msg = first.partition(":")
+    return cls.rsplit(".", 1)[-1].strip(), re.sub(r"[\"'`]", "", msg).strip().rstrip(".")
+
+
+def environment_only(airflow2_error: str, airflow3_error: str) -> bool:
+    """A DAG file failed on both versions: is its Airflow 3 failure just the Airflow 2 one again (a package,
+    Variable or connection the environment lacks), or an Airflow 3 break that happens before it?"""
+    if _error_key(airflow2_error) == _error_key(airflow3_error):
+        return True
+    cls, msg = _error_key(airflow3_error)
+    return not re.search(r"\bairflow\b|\bDAG\b", f"{cls}: {msg}", re.I)
+
+
 def still_imports(python: Path, names: list[str], timeout: int = 300) -> dict[str, bool]:
     """{name: True} for each dotted name that imports with `python` (Airflow 3); {} if that can't be checked."""
     if not names or not Path(python).exists():
@@ -181,7 +198,8 @@ def verify(before: Path, after: Path, *, rules_path: Path, venv: Path, old_venv:
     for f in sorted(imports_after):
         if f"{f}::import" in res.tests_after.failures:
             err = res.tests_after.messages.get(f"{f}::import", "import failed")
-            if on_airflow2 and f"{f}::import" in on_airflow2.failures:
+            if on_airflow2 and f"{f}::import" in on_airflow2.failures and environment_only(
+                    on_airflow2.messages.get(f"{f}::import", ""), err):
                 env_failures[f] = on_airflow2.messages.get(f"{f}::import", "import failed")
             else:
                 res.unverified.append(Unverified(f, err))
