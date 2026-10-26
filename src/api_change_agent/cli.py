@@ -5,10 +5,13 @@ Action inputs arrive as ``INPUT_<NAME>`` env vars; flags override them.
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tarfile
 from pathlib import Path
 
 from .agent import DEFAULT_BRANCH, Options, run
@@ -67,6 +70,27 @@ def anthropic_api_key() -> str | None:
     return path.read_text().strip() or None
 
 
+class ParentTreeError(Exception):
+    pass
+
+
+def parent_tree(repo: Path, dest: Path) -> Path:
+    """Write the tree of `repo`'s HEAD^1 to `dest`/base, without touching `repo`'s working tree or index."""
+    git = ["git", "-c", "safe.directory=*", "-C", str(repo)]
+    if subprocess.run(git + ["rev-parse", "--verify", "-q", "HEAD^1"], capture_output=True).returncode != 0:
+        raise ParentTreeError(
+            "mode: verify compares the checked-out commit with its parent, and the checkout has no parent "
+            "commit. Add `with: {fetch-depth: 2}` to actions/checkout, or pass `before` and `after`.")
+    out = dest / "base"
+    if out.exists():
+        shutil.rmtree(out)
+    out.mkdir(parents=True)
+    archive = subprocess.run(git + ["archive", "--format=tar", "HEAD^1"], capture_output=True, check=True)
+    with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
+        tar.extractall(out, filter="data")
+    return out
+
+
 def parse_args(argv=None) -> argparse.Namespace:
     in_actions = os.environ.get("GITHUB_ACTIONS") == "true"
     p = argparse.ArgumentParser(prog="api-change-agent", description=__doc__)
@@ -104,8 +128,17 @@ def main(argv=None) -> int:
         if argv[:1] == ["verify"]:
             return verify.main(argv[1:])
         before, after = _input("before"), _input("after")
-        if not before or not after:
-            print("::error::mode: verify needs the `before` and `after` inputs (the two checked-out trees)")
+        if not before and not after:
+            # one checkout: the workspace is the after tree, its first parent the before tree (on pull_request,
+            # actions/checkout checks out the merge commit, whose first parent is the base branch)
+            after = os.environ.get("GITHUB_WORKSPACE", ".")
+            try:
+                before = str(parent_tree(Path(after), Path(os.environ.get("RUNNER_TEMP") or "/tmp") / "aca-base"))
+            except ParentTreeError as e:
+                print(f"::error::{e}")
+                return 2
+        elif not before or not after:
+            print("::error::mode: verify needs both `before` and `after` (the two checked-out trees), or neither")
             return 2
         args = ["--before", str(Path(before).resolve()), "--after", str(Path(after).resolve()),
                 "--rules", _input("rules", "airflow"), "--venv", _input("venv-dir", "/github/home/aca-venv")]

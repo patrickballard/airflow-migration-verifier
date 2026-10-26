@@ -17,11 +17,12 @@ tree that sets them gets no shift warning, and its Airflow 3 render runs with th
 from __future__ import annotations
 
 import json
+import re
 import shlex
 from pathlib import Path
 from typing import NamedTuple
 
-from . import kwarg_check, render_check
+from . import kwarg_check, render_check, ruff_layer
 from .agent import DAG_CHECK, ManualItem, RunResult, Unverified, _rows
 from .airflow_config import ENV as ENV_TZ
 from .airflow_config import find_default_timezone, find_setting
@@ -33,6 +34,7 @@ from .testrun import TestRunner, default_install_command
 
 TEXT_SUFFIXES = {".py", ".sql", ".sh", ".hql", ".j2", ".jinja2", ".txt", ".cfg", ".toml", ".yaml", ".yml", ".json"}
 FLAGS = (("scheduler", "create_cron_data_intervals"), ("scheduler", "create_delta_data_intervals"))
+BREAKING_RUFF_CODES = ("AIR301", "AIR302")  # removed in Airflow 3; moved to a provider (the old path is gone)
 
 
 def _constraints(url: str) -> str:
@@ -43,8 +45,6 @@ def _constraints(url: str) -> str:
 
 def install_commands(before: Path, after: Path, ruleset) -> tuple[str, str]:
     """(Airflow 3 venv, Airflow 2 venv) install commands, from what each tree declares."""
-    import re
-
     target = str(ruleset.target_version)
     new_c = ruleset.install_constraints.replace("{version}", target)
     new = (f"python -m pip install -q --upgrade pip && python -m pip install -q '{ruleset.dist}=={target}'"
@@ -192,6 +192,34 @@ def verify(before: Path, after: Path, *, rules_path: Path, venv: Path, old_venv:
             for s in judgment:
                 why = s.reason if s.reason.startswith("`") else f"`{s.snippet}`: {s.reason}"
                 res.manual.append(ManualItem(rel, s.line, rule_id, f"uses {what} Airflow 3 removed. {why}"))
+    # removed or moved Airflow APIs, by ruff's AIR3 rules: all of them at once, where an import error shows only the first
+    ours = []  # (file, line, name) that one of migrate mode's own deterministic rules rewrites
+    for rule in ruleset.rules:
+        if rule.fix == "deterministic" and rule.match.plugin:
+            for rel in files:
+                try:
+                    text = new_text.get(rel) or (after / rel).read_text(errors="replace")
+                    sites = PLUGINS[rule.match.plugin].find(Path(rel), text, rule.options, "deterministic")
+                except Exception:  # noqa: BLE001 - unparsable: the DAG check reports it
+                    continue
+                ours += [(rel, s.line, m.group()) for s in sites if (m := re.match(r"[\w.]+", s.snippet))]
+
+    def fixed_by_us(d) -> bool:
+        # the same name in the same call: a site's line is its call's first line, ruff's the name's own line
+        return any(rel == d.path and 0 <= d.line - line <= 20 and f"{name}`" in d.message for rel, line, name in ours)
+
+    for tool in ruleset.tools:
+        try:
+            found = ruff_layer.diagnose(after, files, tool)
+        except Exception as e:  # noqa: BLE001
+            res.skipped.append(f"ruff `{tool.select}` check failed to run: {e}")
+            continue
+        for d in found:
+            if d.code not in BREAKING_RUFF_CODES:
+                continue  # AIR311/AIR312: still works on Airflow 3, deprecated
+            fix = (" Migrate mode fixes it (ruff's fix)." if d.edit_lines else
+                   " Migrate mode fixes it." if fixed_by_us(d) else "")
+            res.manual.append(ManualItem(d.path, d.line, f"ruff {d.code}", d.message.strip().rstrip(";") + "." + fix))
     swapped = {}
     for rel in files:
         if rel in old_text and rel in new_text:
@@ -251,13 +279,14 @@ def verify(before: Path, after: Path, *, rules_path: Path, venv: Path, old_venv:
             u["evidence"] = f"{render_check.summary(bad[0])} (field {bad[0].dag_id}.{bad[0].task_id}.{bad[0].field})"
 
     res.rows = rows
+    res.manual.sort(key=lambda m: (m.path, m.line or 0))
     res.body = render_body(
         package=ruleset.dist, rows=rows, rules=[], pin_minimum=None, pin_conflicts=[], lock_notes=[],
         skipped_rules=[], skipped=res.skipped, manual=res.manual, unparsable=[], tests_baseline=res.tests_baseline,
         tests_after=res.tests_after, new_failures=set(), blob_base=None, rules_path=f"{before.name}/` and `{after.name}/",
         title=f"verify an Airflow 2 → 3 change ({target})", dag_target=target,
         render_results=res.render_results, unverified=res.unverified, unpinned=res.unpinned, timezone=tz_after,
-        verify=True)
+        verify=True, verify_same_tree=before == after)
     return res, _per_dag(res, old, new)
 
 

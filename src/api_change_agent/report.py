@@ -206,14 +206,18 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
                 unparsable, tests_baseline, tests_after, new_failures, blob_base, rules_path,
                 rule_notes=None, dep_notes=(), title="", tools=(), dag_target=None, llm_usage=None,
                 llm_notes=(), render_results=(), timezone=None, naive_pins=(), unverified=(), unpinned=(),
-                verify=False) -> str:
+                verify=False, verify_same_tree=False) -> str:
     rule_notes = rule_notes or {}
     applied = sorted({r.rule_id for r in rows})
     name = "Airflow Migration Verifier" if dag_target else "api-change-agent"
     parts = [f"## {name}: {title}" if title else f"## {name}: `{package}` SDK migration", ""]
     if verify:  # the rows are a plain diff, with no rule or changelog behind them: the PR's diff shows them better
+        parts += [verify_headline(manual, unverified, unpinned, render_results), ""]
         files = len({r.path for r in rows})
-        parts += [f"{len(rows)} changed line(s) in {files} file(s) between `{rules_path}`, checked below.", ""]
+        if verify_same_tree:
+            parts += [f"Checked `{rules_path.split('`')[0]}` as it is: what breaks if it runs on {dag_target} unchanged.", ""]
+        else:
+            parts += [f"{len(rows)} changed line(s) in {files} file(s) between `{rules_path}`, checked below.", ""]
     else:
         parts += [f"{len(rows)} change(s) from `{rules_path}`."
                   + (" Every row links to the documentation behind it." if rows and all(r.changelog for r in rows)
@@ -315,10 +319,26 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
     return "\n".join(parts)
 
 
+def verify_findings(manual, unverified, unpinned, render_results) -> int:
+    """How many problems a verify run found: each manual site, unverified file, unpinned schedule and field that
+    renders differently."""
+    return len(manual) + len(unverified) + len(unpinned) + sum(1 for r in render_results if r.mismatches)
+
+
+def verify_headline(manual, unverified, unpinned, render_results) -> str:
+    n = verify_findings(manual, unverified, unpinned, render_results)
+    if not n:
+        return "✅ **No Airflow 3 problems found.**"
+    files = {m.path for m in manual} | {u.path for u in unverified} | {u["path"] for u in unpinned} | {
+        r.file for r in render_results if r.mismatches}
+    return f"❌ **{n} Airflow 3 problem(s) found in {len(files)} file(s).** Each one is listed below with its fix."
+
+
 def _verify_tail(manual, skipped) -> list[str]:
     out = []
     if manual:
-        out += ["### Needs manual migration", *(f"- `{m.path}:{m.line}` (`{m.rule_id}`): {m.reason}" for m in manual), ""]
+        out += ["### Airflow 2 code that breaks on Airflow 3",
+                *(f"- `{m.path}:{m.line}` (`{m.rule_id}`): {m.reason}" for m in manual), ""]
     if skipped:
         out += ["### Other notes", *(f"- {s}" for s in skipped), ""]
     return out + ["<sub>Airflow Migration Verifier, verify mode: nothing in either tree was changed.</sub>"]

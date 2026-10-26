@@ -130,7 +130,7 @@ def test_removed_context_keys_left_in_python_are_listed(tmp_path):
     from api_change_agent.verify import strict_problems
     assert any(m["rule_id"] == "airflow3-context-keys" and m["path"] == "dags/partitions.py" for m in res["manual"])
     assert any("execution_date" in p.text and p.path == "dags/partitions.py" and p.line for p in strict_problems(res))
-    assert "execution_date" in report.split("### Needs manual migration", 1)[1]
+    assert "execution_date" in report.split("### Airflow 2 code that breaks on Airflow 3", 1)[1]
     # says what to write, not just that migrate mode would: the PR may be someone else's
     assert any(m["path"] == "dags/partitions.py" and "write the line as `return context[\"logical_date\"].hour`"
                in m["reason"] for m in res["manual"])
@@ -219,3 +219,78 @@ def test_strict_fails_on_problems_only():
         "::error file=a,line=1,title=Airflow 3 migration::a:1: x"]
     assert annotation(type(problems[0])("d.py", 2, "100%: a\nb")) == (
         "::error file=d.py,line=2,title=Airflow 3 migration::d.py:2: 100%25: a%0Ab")
+
+
+def _git(repo, *args):
+    subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+                   check=True, capture_output=True)
+
+
+def test_one_checkout_verifies_head_against_its_parent(tmp_path, monkeypatch):
+    # the short Quickstart: actions/checkout with fetch-depth 2, no before/after inputs
+    from api_change_agent import cli, verify
+    repo = tmp_path / "workspace"
+    write(repo, "dags/a.py", "from airflow.utils.dates import days_ago\n")
+    _git(repo, "init", "-q")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "base")
+    write(repo, "dags/a.py", "import pendulum\n")
+    _git(repo, "commit", "-qam", "migrate")
+    seen = {}
+    monkeypatch.setattr(verify, "main", lambda argv: seen.setdefault("argv", argv) and 0)
+    monkeypatch.setenv("INPUT_MODE", "verify")
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(repo))
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path / "tmp"))
+    assert cli.main([]) == 0
+    argv = seen["argv"]
+    before, after = Path(argv[argv.index("--before") + 1]), Path(argv[argv.index("--after") + 1])
+    assert after == repo
+    assert (before / "dags/a.py").read_text() == "from airflow.utils.dates import days_ago\n"
+    assert not (before / ".git").exists() and (repo / "dags/a.py").read_text() == "import pendulum\n"
+
+
+def test_one_checkout_without_a_parent_says_to_fetch_two_commits(tmp_path, monkeypatch, capsys):
+    from api_change_agent import cli
+    repo = tmp_path / "workspace"
+    write(repo, "dags/a.py", "x = 1\n")
+    _git(repo, "init", "-q")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-qm", "only")
+    monkeypatch.setenv("INPUT_MODE", "verify")
+    monkeypatch.setenv("GITHUB_WORKSPACE", str(repo))
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path / "tmp"))
+    assert cli.main([]) == 2
+    assert "fetch-depth: 2" in capsys.readouterr().out
+
+
+def test_removed_openai_ruleset_names_the_last_version(capsys):
+    from api_change_agent import cli
+    assert cli.main(["--rules", "openai", "--dry-run"]) == 2
+    assert "@v1.3.3" in capsys.readouterr().out
+
+
+def test_verify_lists_every_removed_api_at_once(tmp_path, monkeypatch):
+    # an import error names only the first removed API; ruff's AIR3 rules and our own name all of them
+    from api_change_agent import verify as v
+    from api_change_agent.testrun import TestOutcome
+    shutil.copy(ROOT / "examples" / "broken_dag.py", tmp_path / "broken_dag.py")
+    err = "ModuleNotFoundError: No module named 'airflow.operators.bash_operator'"
+    outcome = TestOutcome("dag check", False, 1, frozenset({"broken_dag.py::import"}), True,
+                          ids=("broken_dag.py::import",), messages={"broken_dag.py::import": err})
+    monkeypatch.setattr(v, "_dag_check", lambda *a, **k: outcome)
+    res, _ = v.verify(tmp_path, tmp_path, rules_path=AIRFLOW_RULES, venv=tmp_path / "none", old_venv=None,
+                      log=lambda *_: None)
+    found = {(m.line, m.rule_id) for m in res.manual}
+    assert {(17, "airflow3-context-keys"), (23, "ruff AIR301"), (24, "ruff AIR301"), (28, "ruff AIR302"),
+            (31, "airflow3-templates"), (33, "ruff AIR302"), (36, "ruff AIR301")} <= found
+    assert not any(m.rule_id == "ruff AIR311" for m in res.manual)  # still works on Airflow 3
+    days_ago = next(m for m in res.manual if m.line == 23)
+    assert days_ago.reason.endswith("Migrate mode fixes it.")  # our rule, not ruff's
+    assert next(m for m in res.manual if m.line == 36).reason.endswith("Migrate mode fixes it.")
+    assert "❌ **9 Airflow 3 problem(s) found in 1 file(s).**" in res.body
+    assert "Checked `" in res.body and "as it is" in res.body
+
+
+def test_clean_verify_says_so():
+    from api_change_agent.report import verify_headline
+    assert verify_headline([], [], [], []) == "✅ **No Airflow 3 problems found.**"
