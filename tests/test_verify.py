@@ -294,3 +294,53 @@ def test_verify_lists_every_removed_api_at_once(tmp_path, monkeypatch):
 def test_clean_verify_says_so():
     from api_change_agent.report import verify_headline
     assert verify_headline([], [], [], []) == "✅ **No Airflow 3 problems found.**"
+
+
+def test_a_file_that_fails_on_airflow_2_too_is_not_an_airflow_3_problem(tmp_path, monkeypatch):
+    # found on real repos: a missing Variable, connection or package fails the import on both versions
+    from api_change_agent import verify as v
+    from api_change_agent.testrun import TestOutcome
+    write(tmp_path, "dags/needs_var.py", "from airflow.sdk import DAG, Variable\nDAG(Variable.get('X'), schedule=None)\n")
+    err = "KeyError: 'Variable X does not exist.'"
+    failed = TestOutcome("dag check", False, 1, frozenset({"dags/needs_var.py::import"}), True,
+                         ids=("dags/needs_var.py::import",), messages={"dags/needs_var.py::import": err})
+    monkeypatch.setattr(v, "_dag_check", lambda *a, **k: failed)
+    res, dags = v.verify(tmp_path, tmp_path, rules_path=AIRFLOW_RULES, venv=tmp_path / "af3",
+                         old_venv=tmp_path / "af2", log=lambda *_: None)
+    assert res.unverified == []
+    assert any("doesn't import on Airflow 2 either" in s and "Variable X" in s for s in res.skipped)
+    assert "✅ **No Airflow 3 problems found.**" in res.body
+    summary = res.summary()
+    summary["dags"] = dags
+    assert v.strict_problems(summary) == []
+
+
+def test_import_paths_airflow_3_only_deprecated_are_not_counted(tmp_path, monkeypatch):
+    # ruff's AIR302 calls airflow.operators.email.EmailOperator moved; on Airflow 3.3.2 it still imports
+    from api_change_agent import verify as v
+    from api_change_agent.testrun import TestOutcome
+    write(tmp_path, "dags/d.py", "from airflow.operators.email import EmailOperator\n"
+                                 "from airflow.operators.dummy import DummyOperator\n"
+                                 "EmailOperator(task_id='e', to='a@b.c', subject='s', html_content='h')\n"
+                                 "DummyOperator(task_id='d')\n")
+    ok = TestOutcome("dag check", True, 0, has_junit=True)
+    monkeypatch.setattr(v, "_dag_check", lambda *a, **k: ok)
+    seen = {}
+    monkeypatch.setattr(v, "still_imports", lambda python, names: seen.setdefault("names", names) and {
+        n: n.endswith("EmailOperator") for n in names})
+    res, _ = v.verify(tmp_path, tmp_path, rules_path=AIRFLOW_RULES, venv=tmp_path / "none", old_venv=None,
+                      log=lambda *_: None)
+    flagged = {m.reason.split("`")[1] for m in res.manual if m.rule_id.startswith("ruff")}
+    assert "airflow.operators.dummy.DummyOperator" in flagged
+    assert "airflow.operators.email.EmailOperator" not in flagged
+    assert any("still import" in s and "EmailOperator" in s for s in res.skipped)
+
+
+@pytest.mark.skipif(not os.environ.get("ACA_AIRFLOW3_VENV"), reason="set ACA_AIRFLOW3_VENV")
+def test_still_imports_on_real_airflow_3():
+    from api_change_agent.verify import still_imports
+    python = Path(os.environ["ACA_AIRFLOW3_VENV"]) / "bin" / "python"
+    assert still_imports(python, ["airflow.operators.email.EmailOperator", "airflow.utils.dates.days_ago",
+                                  "airflow.operators.dummy.DummyOperator"]) == {
+        "airflow.operators.email.EmailOperator": True, "airflow.utils.dates.days_ago": False,
+        "airflow.operators.dummy.DummyOperator": False}
