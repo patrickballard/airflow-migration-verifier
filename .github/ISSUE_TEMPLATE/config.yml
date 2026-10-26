@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and ideas
+    url: https://github.com/patrickballard/airflow-migration-verifier/discussions
+    about: Ask how to use the verifier, or suggest something, in Discussions.
+  - name: Report a security vulnerability
+    url: https://github.com/patrickballard/airflow-migration-verifier/security/advisories/new
+    about: Report it privately. Please don't open a public issue.

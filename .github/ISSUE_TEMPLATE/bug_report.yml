@@ -1,0 +1,64 @@
+name: Bug report
+description: The verifier crashed, reported something wrong, or a migration it made is wrong.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. If the verifier passed something that then broke on Airflow 3, use **It missed something** instead.
+        Remove anything private (hostnames, connection IDs, credentials) from what you paste.
+  - type: input
+    id: airflow-from
+    attributes:
+      label: Airflow version you migrated from
+      placeholder: "2.11.2"
+    validations:
+      required: true
+  - type: input
+    id: airflow-to
+    attributes:
+      label: Airflow version you migrated to
+      placeholder: "3.3.2"
+    validations:
+      required: true
+  - type: dropdown
+    id: how
+    attributes:
+      label: How was the migration done?
+      options:
+        - This action's migrate mode
+        - ruff (--select AIR --fix)
+        - airflow-v2-to-v3
+        - Astronomer's migration skill / an AI agent
+        - By hand
+        - Other (say below)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Action version and mode
+      description: The `uses:` line, and `mode:` (verify or migrate).
+      placeholder: "patrickballard/airflow-migration-verifier@v1, mode: verify"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: report
+    attributes:
+      label: Report or log excerpt
+      description: The relevant part of the job summary, or of the action step's log.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: dag
+    attributes:
+      label: Minimal DAG (if you can)
+      description: The smallest DAG file that shows the problem.
+      render: python

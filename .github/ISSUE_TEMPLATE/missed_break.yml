@@ -1,0 +1,43 @@
+name: It missed something
+description: Something broke on Airflow 3 that the verifier didn't flag.
+labels: [bug, missed-break]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        These reports are the most useful kind: each one becomes a rule or a check, with a test.
+        Remove anything private (hostnames, connection IDs, credentials) from what you paste.
+  - type: textarea
+    id: broke
+    attributes:
+      label: What broke on Airflow 3
+      description: The error, or the behaviour that changed (a wrong date, a skipped run, a task that fails at run time, ...).
+    validations:
+      required: true
+  - type: textarea
+    id: verifier-said
+    attributes:
+      label: What the verifier said
+      description: Its report for that DAG, from the job summary or the log. "It passed" is fine if that's all it said.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: dag
+    attributes:
+      label: The DAG (or a minimal version of it)
+      render: python
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Airflow versions and action version
+      placeholder: "2.11.2 -> 3.3.2, patrickballard/airflow-migration-verifier@v1"
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: How the migration was done, your timetable or default_timezone settings, providers involved.
