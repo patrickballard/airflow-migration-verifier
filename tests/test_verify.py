@@ -262,3 +262,36 @@ def test_a_file_that_fails_on_airflow_2_too_is_not_an_airflow_3_problem(tmp_path
 def test_which_failures_on_both_versions_are_the_environment(airflow2, airflow3, env_only):
     from api_change_agent.verify import environment_only
     assert environment_only(airflow2, airflow3) is env_only
+
+
+SCHEDULES = ("import datetime\nfrom airflow.sdk import DAG\n"
+             "DAG('daily', schedule='@daily', start_date=datetime.datetime(2024, 1, 1))\n"
+             "DAG('six_hourly', schedule=datetime.timedelta(hours=6), start_date=datetime.datetime(2024, 1, 1))\n")
+
+
+@pytest.mark.parametrize("cfg, shifted, note", [
+    # on Airflow 3.3.2, create_cron_data_intervals picks the timetable for timedelta schedules too
+    ("[scheduler]\ncreate_cron_data_intervals = True\n", set(), False),
+    # and create_delta_data_intervals is never read (apache/airflow#69868): nothing is restored
+    ("[scheduler]\ncreate_delta_data_intervals = True\n", {"'@daily'", "datetime.timedelta(hours=6)"}, True),
+    ("", {"'@daily'", "datetime.timedelta(hours=6)"}, False),
+])
+def test_one_flag_decides_both_cron_and_timedelta_schedules(tmp_path, monkeypatch, cfg, shifted, note):
+    from api_change_agent import verify as v
+    from api_change_agent.testrun import TestOutcome
+    write(tmp_path, "dags/d.py", SCHEDULES)
+    if cfg:
+        write(tmp_path, "airflow.cfg", cfg)
+    ok = TestOutcome("dag check", True, 0, has_junit=True)
+    monkeypatch.setattr(v, "_dag_check", lambda *a, **k: ok)
+    res, _ = v.verify(tmp_path, tmp_path, rules_path=AIRFLOW_RULES, venv=tmp_path / "af3", old_venv=None,
+                      log=lambda *_: None)
+    assert {u["schedule"] for u in res.unpinned} == shifted
+    assert any("create_delta_data_intervals" in s and "69868" in s for s in res.skipped) is note
+    assert "create_delta_data_intervals = True" not in res.body.split("### ⚠️ Run dates will shift", 1)[-1][:900]
+
+
+def test_the_shift_warning_names_only_the_flag_airflow_3_reads():
+    from api_change_agent.report import _unpinned_section
+    text = "\n".join(_unpinned_section([{"path": "d.py", "line": 1, "schedule": "'@daily'", "reason": "x: y"}], None))
+    assert "create_cron_data_intervals = True" in text and "create_delta_data_intervals" not in text

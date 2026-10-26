@@ -10,9 +10,10 @@ Nothing is changed. It runs what the agent runs to check its own work, on someon
   runs paired by the moment they fire;
 - cron / timedelta schedules left on Airflow 3's new default timetables ("Run dates will shift").
 
-What the "after" tree configures is respected: `default_timezone`, and `[scheduler] create_cron_data_intervals`
-/ `create_delta_data_intervals`. Setting those flags is the global way to keep Airflow 2's run dates, so a
-tree that sets them gets no shift warning, and its Airflow 3 render runs with them.
+What the "after" tree configures is respected: `default_timezone`, and `[scheduler] create_cron_data_intervals`.
+Setting that flag is the global way to keep Airflow 2's run dates, for cron *and* timedelta schedules (Airflow 3
+reads it for both and never reads `create_delta_data_intervals`, apache/airflow#69868), so a tree that sets it
+gets no shift warning, and its Airflow 3 render runs with it.
 """
 from __future__ import annotations
 
@@ -151,7 +152,13 @@ def verify(before: Path, after: Path, *, rules_path: Path, venv: Path, old_venv:
     env_after = {ENV_TZ: tz_after.tz} if tz_after.tz else {}
     env_after.update({s.env: s.value for s in flags.values() if s.value is not None})
     for s in flags.values():
-        if s.value is not None:
+        if s.value is None:
+            continue
+        if s.key == "create_delta_data_intervals":
+            res.skipped.append(f"the after tree sets `[{s.section}] {s.key} = {s.value}` ({s.where()}), but Airflow 3 "
+                               "never reads it (apache/airflow#69868, checked on 3.3.2): "
+                               "`create_cron_data_intervals` decides timedelta schedules too")
+        else:
             res.skipped.append(f"the after tree sets `[{s.section}] {s.key} = {s.value}` ({s.where()}); "
                                "its Airflow 3 render ran with it")
 
@@ -255,8 +262,8 @@ def verify(before: Path, after: Path, *, rules_path: Path, venv: Path, old_venv:
             except Exception:  # noqa: BLE001
                 continue
             for s in sites:
-                timedelta = "timedelta" in s.snippet or "timedelta" in s.reason
-                if (flags["create_delta_data_intervals"] if timedelta else flags["create_cron_data_intervals"]).is_true():
+                # Airflow 3 picks cron *and* timedelta timetables from this one flag (apache/airflow#69868)
+                if flags["create_cron_data_intervals"].is_true():
                     continue
                 why = s.reason if s.reason.startswith(SHIFT) else (
                     f"{SHIFT}: a cron schedule left on Airflow 3's default timetable; pin it, or set "

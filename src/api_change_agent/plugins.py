@@ -571,7 +571,7 @@ class _CronPin(cst.CSTTransformer):
             return updated.with_changes(args=[*updated.args[:idx], arg, *updated.args[idx + 1:]])
         if isinstance(value, cst.Call) and _callee(value) in _TIMEDELTA:
             self._site(value, self.llm, f"{SHIFT}: timedelta schedule; Airflow 3 also changed the default for "
-                                        "these ([scheduler] create_delta_data_intervals = False); pin "
+                                        "these (decided by [scheduler] create_cron_data_intervals, now False); pin "
                                         "DeltaDataIntervalTimetable to keep Airflow 2's run dates")
         elif isinstance(value, cst.Attribute) or (isinstance(value, cst.Name) and value.value != "None"):
             self._site(value, self.llm, f"{SHIFT} if this is a cron string or timedelta: the schedule is not a "

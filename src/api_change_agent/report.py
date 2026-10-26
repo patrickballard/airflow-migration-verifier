@@ -138,7 +138,7 @@ def _unpinned_section(unpinned, blob_base) -> list[str]:
            "`data_interval_end` become the same moment: a task that processes the rows between them processes none. "
            "Pin each DAG to the interval timetable (`CronDataIntervalTimetable` / `DeltaDataIntervalTimetable`, as "
            "migrate mode does), or restore the old defaults for all DAGs with `[scheduler] "
-           "create_cron_data_intervals = True` and `create_delta_data_intervals = True`.", ""]
+           "create_cron_data_intervals = True`, which on Airflow 3 covers timedelta schedules too.", ""]
     for u in unpinned:
         why = u["reason"].split(": ", 1)[1] if ": " in u["reason"] else u["reason"]
         line = f"- {_link(u['path'], u['line'], blob_base)} <code>{html.escape(u['schedule'][:120], quote=False)}</code>: {why}"
