@@ -7,7 +7,6 @@ way), and every changed template field must render identically on every pair.
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
@@ -15,6 +14,8 @@ from pathlib import Path
 
 import libcst as cst
 from libcst.metadata import MetadataWrapper, PositionProvider
+
+from .testrun import scrubbed_env
 
 SCRIPT = Path(__file__).with_name("airflow_render.py")
 EMPTY = {"null", "", "[]", "{}"}
@@ -64,7 +65,7 @@ def render(python: Path, repo: Path, files: list[str], timeout: int = 1800, env:
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "render.json"
         proc = subprocess.run([str(python), "-I", str(SCRIPT), "--repo", str(repo), "--files", *files, "--out", str(out)],
-                              capture_output=True, text=True, timeout=timeout, env={**os.environ, **(env or {})})
+                              capture_output=True, text=True, timeout=timeout, env=scrubbed_env(env))
         if proc.returncode or not out.exists():
             raise RuntimeError(f"render failed (exit {proc.returncode}): {proc.stderr.strip()[-800:]}")
         return json.loads(out.read_text())

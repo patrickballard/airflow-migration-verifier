@@ -19,6 +19,13 @@ DEV_GROUPS = ("dev", "test", "tests", "testing")
 DUMMY_OPENAI_KEY = "sk-api-change-agent-dummy-key"
 # Env vars that look like credentials never reach the repo's install or tests.
 SECRET_NAME = re.compile(r"KEY|TOKEN|SECRET|PASSW|CREDENTIAL|AUTH", re.I)
+
+
+def scrubbed_env(extra: dict | None = None) -> dict[str, str]:
+    """This process's environment minus anything named like a credential (the Anthropic key, the job's
+    GitHub token, the runner's ACTIONS_* tokens), plus `extra`. For every subprocess that runs repo code."""
+    env = {k: v for k, v in os.environ.items() if not SECRET_NAME.search(k)}
+    return {**env, **(extra or {})}
 _PYTEST = re.compile(r"(^|[\s/])(pytest|py\.test)(\s|$)")
 
 
@@ -179,15 +186,12 @@ class TestRunner:
         self.log = log
 
     def _env(self) -> dict[str, str]:
-        env = dict(os.environ)
+        env = scrubbed_env()  # never let repo code reach a real API with our credentials
         if self.venv_dir:
             bindir = self.venv_dir / ("Scripts" if sys.platform == "win32" else "bin")
             env["PATH"] = f"{bindir}{os.pathsep}{env.get('PATH', '')}"
             env["VIRTUAL_ENV"] = str(self.venv_dir)
             env.pop("PYTHONHOME", None)
-        # Never let repo code reach a real API with our credentials.
-        for name in [n for n in env if SECRET_NAME.search(n)]:
-            del env[name]
         env["OPENAI_API_KEY"] = DUMMY_OPENAI_KEY
         return env
 

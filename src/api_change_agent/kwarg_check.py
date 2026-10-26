@@ -16,6 +16,8 @@ from pathlib import Path
 import libcst as cst
 from libcst.metadata import MetadataWrapper, PositionProvider
 
+from .testrun import scrubbed_env
+
 SCRIPT = Path(__file__).with_name("airflow_kwargs.py")
 _EMPTY = cst.Module(body=[])
 
@@ -99,6 +101,7 @@ def problems(text: str, introduced: dict, signatures: dict) -> list[Problem]:
 
 
 def signatures(python: Path, paths: list[str], timeout: int = 300) -> dict:
-    proc = subprocess.run([str(python), "-I", str(SCRIPT), *paths], capture_output=True, text=True, timeout=timeout)
+    proc = subprocess.run([str(python), "-I", str(SCRIPT), *paths], capture_output=True, text=True, timeout=timeout,
+                          env=scrubbed_env())  # it imports provider code: no credentials
     lines = proc.stdout.strip().splitlines()
     return json.loads(lines[-1]) if proc.returncode == 0 and lines else {}
