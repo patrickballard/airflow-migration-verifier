@@ -306,3 +306,26 @@ def test_pin_import_is_added_when_airflow_sdk_isnt_imported():
     ''')
     out = PIN.apply(Path("d.py"), src, {"default_timezone": "UTC"})
     assert "from airflow import DAG\nfrom airflow.sdk import CronDataIntervalTimetable\n" in out
+
+
+def test_a_parameter_named_like_a_context_key_is_flagged_only_on_possible_task_callables():
+    # found on DaliGuerfali/big-data: `conf=None` on an operator's __init__ and a helper was flagged as the
+    # removed `conf` context key. Airflow only passes context keys by name to callables it calls with the context.
+    from pathlib import Path
+
+    from api_change_agent.plugins import PLUGINS
+    from api_change_agent.rules import load_rules
+    from conftest import ROOT
+    rule = next(r for r in load_rules(ROOT / "rules" / "airflow.yaml").rules if r.id == "airflow3-context-judgment")
+    src = ("from airflow.decorators import task\n"
+           "def build_cmd(app, conf=None): ...\n"                       # a helper: never called with the context
+           "class Op:\n"
+           "    def __init__(self, app, conf=None, **kwargs): ...\n"   # a method
+           "def _init(self, conf=None): ...\n"                         # a method defined at module level
+           "def load(execution_date, **kwargs): ...\n"                 # **kwargs: may be a callable elsewhere
+           "def plain(next_ds): ...\n"                                 # passed as python_callable below
+           "@task\n"
+           "def t(prev_ds=None): ...\n"
+           "PythonOperator(task_id='x', python_callable=plain)\n")
+    sites = PLUGINS["airflow_context_keys"].find(Path("d.py"), src, rule.options, "llm")
+    assert [(s.line, s.reason.split("`")[1]) for s in sites] == [(6, "execution_date"), (7, "next_ds"), (9, "prev_ds")]
