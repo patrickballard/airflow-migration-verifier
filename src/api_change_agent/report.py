@@ -319,6 +319,10 @@ def render_body(*, package, rows, rules, pin_minimum, pin_conflicts, lock_notes,
     return "\n".join(parts)
 
 
+# One line in the job summary (never the PR body) of a run that found something; `show-sponsor-link: false` drops it.
+SPONSOR_LINE = "Saved you a migration headache? Sponsor this project → https://github.com/sponsors/patrickballard"
+
+
 def verify_findings(manual, unverified, unpinned, render_results) -> int:
     """How many problems a verify run found: each manual site, unverified file, unpinned schedule and field that
     renders differently."""

@@ -29,6 +29,9 @@ from .llm import BudgetExhausted, PatchModel, PatchRequest
 from .pins import PinPlan, apply_pins, plan_pins
 from .plugins import NAIVE, PLUGINS
 from .report import Row, render_body
+from .rule_files import DEFAULT_DIR as DEFAULT_RULES_DIR
+from .rule_files import PREFIX as RULE_FILE
+from .rule_files import with_rule_files
 from .rules import Rule, load_rules
 from .scanner import SKIP_DIRS, iter_python_files, scan_repo
 from .testrun import (TestOutcome, TestRunner, default_install_command, detect_test_command, merge_outcome,
@@ -56,6 +59,7 @@ class Options:
     server_url: str = "https://github.com"
     exclude: tuple[str, ...] = ()
     log: object = print
+    custom_rules: str | None = DEFAULT_RULES_DIR  # folder of rule files (rule_files.py), relative to the repo
 
 
 @dataclass(frozen=True)
@@ -163,8 +167,11 @@ class _Run:
         self.model = model
         self.github = github
         self.log = options.log if callable(options.log) else print
-        self.ruleset = load_rules(options.rules_path)
         self.result = RunResult()
+        self.ruleset, notes = with_rule_files(load_rules(options.rules_path),
+                                              self.repo / options.custom_rules if options.custom_rules else None,
+                                              log=self.log)
+        self.result.skipped += notes
         self.originals: dict[Path, str] = {}  # every file we may touch, as first read
         self.current: dict[Path, str] = {}
         self.rows: dict[Path, list[Row]] = {}
@@ -536,7 +543,7 @@ class _Run:
         for rows in self.rows.values():
             for r in rows:
                 plugin = self._plugin_of(r.rule_id)
-                if plugin == "airflow_templates" and (
+                if (plugin == "airflow_templates" or (plugin or "").startswith(RULE_FILE)) and (
                         (r.path == res.file and span and span[0] <= r.line <= span[1])
                         or (r.path != res.file and any(r.path == s or r.path.endswith("/" + s)  # by path, or by
                                                        or (r.raw_after.strip() and r.raw_after.strip() in s)  # contents

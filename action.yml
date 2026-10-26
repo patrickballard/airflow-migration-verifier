@@ -58,6 +58,14 @@ inputs:
   dry-run:
     description: Report only; no commit, push or PR.
     default: "false"
+  custom-rules:
+    description: >-
+      Folder of custom rule files (one .py file per rule, see docs/writing-rules.md), relative to the repo.
+      Verify mode reads it from the `before` tree, so a pull request can't add rules that run in the action. `none` turns custom rules off.
+    default: .airflow-verifier/rules
+  show-sponsor-link:
+    description: "Add one line linking to GitHub Sponsors at the end of the job summary, only when problems were found. Set to \"false\" to leave it out."
+    default: "true"
 outputs:
   pr-url:
     description: URL of the opened or updated PR (empty if none).

@@ -18,6 +18,8 @@ from .agent import DEFAULT_BRANCH, Options, run
 from .github_api import GitHubClient
 from .gitops import UnsafeBranchError
 from .llm import DEFAULT_MODEL, ClaudePatchModel
+from .report import SPONSOR_LINE
+from .rule_files import DEFAULT_DIR as DEFAULT_RULES_DIR
 from .rules import load_rules
 
 # src layout during development; /app/rules inside the action image
@@ -32,6 +34,12 @@ def _input(name: str, default: str | None = None) -> str | None:
         if value not in (None, ""):
             return value
     return default
+
+
+def _custom_rules() -> str:
+    """The custom-rules folder; "" when the input turns custom rules off."""
+    value = _input("custom-rules", DEFAULT_RULES_DIR)
+    return "" if value.strip().lower() in ("none", "false", "off") else value
 
 
 def _bool(value: str | None) -> bool:
@@ -113,6 +121,10 @@ def parse_args(argv=None) -> argparse.Namespace:
     p.add_argument("--max-llm-attempts", type=int, default=int(_input("max-llm-attempts", "2")))
     p.add_argument("--max-llm-usd", type=float, default=float(_input("max-llm-usd", "5")),
                    help="hard cap on Claude spend for the whole run (default $5)")
+    p.add_argument("--custom-rules", default=_custom_rules(),
+                   help="folder of custom rule files, relative to the repo (default: %(default)s)")
+    p.add_argument("--no-sponsor-link", action="store_true", default=not _bool(_input("show-sponsor-link", "true")),
+                   help="leave the sponsor line out of the job summary")
     p.add_argument("--exclude", action="append", default=[
         x.strip() for x in (_input("exclude") or "").replace("\n", ",").split(",") if x.strip()
     ])
@@ -146,6 +158,9 @@ def main(argv=None) -> int:
             args += ["--install-command", "auto"]
         if _bool(_input("strict", "false")):
             args.append("--strict")
+        if not _bool(_input("show-sponsor-link", "true")):
+            args.append("--no-sponsor-link")
+        args += ["--custom-rules", _custom_rules()]
         return verify.main(args)
     args = parse_args(argv)
     repo = Path(args.repo).resolve()
@@ -187,6 +202,7 @@ def main(argv=None) -> int:
         max_llm_attempts=args.max_llm_attempts, branch=branch, base_branch=args.base_branch,
         default_branch=_event_default_branch(), repo_slug=slug,
         server_url=os.environ.get("GITHUB_SERVER_URL", "https://github.com"), exclude=tuple(args.exclude),
+        custom_rules=args.custom_rules or None,
     )
     try:
         result = run(options, model=model, github=github)
@@ -202,8 +218,9 @@ def main(argv=None) -> int:
         (out_dir / "changes.diff").write_text(result.diff)
         (out_dir / "result.json").write_text(json.dumps(result.summary(), indent=2) + "\n")
     if summary := os.environ.get("GITHUB_STEP_SUMMARY"):
+        found = result.rows or result.manual or result.unverified or result.unpinned
         with open(summary, "a") as f:
-            f.write(result.body + "\n")
+            f.write(result.body + "\n" + (f"\n{SPONSOR_LINE}\n" if found and not args.no_sponsor_link else ""))
     if out := os.environ.get("GITHUB_OUTPUT"):
         with open(out, "a") as f:
             f.write(f"pr-url={result.pr_url or ''}\n")

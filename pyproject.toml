@@ -30,6 +30,6 @@ where = ["src"]
 api_change_agent = ["py.typed"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "docs/example-rules"]
 norecursedirs = [".*", "*.egg", "build", "dist", "venv", "fixtures"]
 pythonpath = ["src"]

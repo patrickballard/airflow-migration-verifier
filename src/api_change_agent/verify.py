@@ -16,6 +16,7 @@ tree that sets them gets no shift warning, and its Airflow 3 render runs with th
 """
 from __future__ import annotations
 
+import fnmatch
 import json
 import re
 import shlex
@@ -27,7 +28,10 @@ from .agent import DAG_CHECK, ManualItem, RunResult, Unverified, _rows
 from .airflow_config import ENV as ENV_TZ
 from .airflow_config import find_default_timezone, find_setting
 from .plugins import PLUGINS, SHIFT
-from .report import render_body
+from .report import SPONSOR_LINE, render_body, verify_findings
+from .rule_files import DEFAULT_DIR as DEFAULT_RULES_DIR
+from .rule_files import PREFIX as RULE_FILE
+from .rule_files import with_rule_files
 from .rules import load_rules
 from .scanner import SKIP_DIRS, scan_repo
 from .testrun import TestRunner, default_install_command
@@ -119,10 +123,13 @@ def _dag_check(tree: Path, venv: Path, dag_test: bool, timeout: int, log):
 
 
 def verify(before: Path, after: Path, *, rules_path: Path, venv: Path, old_venv: Path | None,
+           custom_rules: str | None = DEFAULT_RULES_DIR,
            dag_test: bool = False, timeout: int = 45, log=print) -> tuple[RunResult, dict]:
     before, after = Path(before).resolve(), Path(after).resolve()
-    ruleset = load_rules(rules_path)
     res = RunResult()
+    # custom rules come from the before tree (the base branch): a pull request can't run code in this process
+    ruleset, notes = with_rule_files(load_rules(rules_path), before / custom_rules if custom_rules else None, log=log)
+    res.skipped += notes
     target = f"{ruleset.dist} {ruleset.target_version}"
 
     # what the after tree configures
@@ -220,6 +227,22 @@ def verify(before: Path, after: Path, *, rules_path: Path, venv: Path, old_venv:
             fix = (" Migrate mode fixes it (ruff's fix)." if d.edit_lines else
                    " Migrate mode fixes it." if fixed_by_us(d) else "")
             res.manual.append(ManualItem(d.path, d.line, f"ruff {d.code}", d.message.strip().rstrip(";") + "." + fix))
+    # custom rules (rule files): every site, in DAG files and the files they name
+    for rule in ruleset.rules:
+        if not (rule.match.plugin or "").startswith(RULE_FILE):
+            continue
+        plugin, mode = PLUGINS[rule.match.plugin], "deterministic" if rule.fix == "deterministic" else "llm"
+        fix = " Migrate mode fixes it." if rule.fix == "deterministic" else ""
+        for rel, text in sorted(new_text.items()):
+            if rel not in files and not any(fnmatch.fnmatch(Path(rel).name, g) for g in plugin.file_globs):
+                continue
+            try:
+                sites = plugin.find(Path(rel), text, rule.options, mode)
+            except Exception as e:  # noqa: BLE001 - a broken rule shouldn't stop the others
+                res.skipped.append(f"custom rule `{rule.id}` failed on `{rel}`: {type(e).__name__}: {e}")
+                continue
+            for s in sites:
+                res.manual.append(ManualItem(rel, s.line, rule.id, (s.reason or rule.description) + fix))
     swapped = {}
     for rel in files:
         if rel in old_text and rel in new_text:
@@ -337,6 +360,9 @@ def main(argv) -> int:
                    help="exit 1 if a DAG doesn't import on Airflow 3 or renders differently, or a removed DAG "
                         "method or rejected kwarg is used")
     p.add_argument("--output", help="write report.md and result.json here")
+    p.add_argument("--custom-rules", default=DEFAULT_RULES_DIR,
+                   help="folder of custom rule files in the before tree (default: %(default)s)")
+    p.add_argument("--no-sponsor-link", action="store_true", help="leave the sponsor line out of the job summary")
     a = p.parse_args(argv)
     rules = Path(a.rules)
     if not rules.is_file():  # a bundled ruleset by name, even next to an airflow/ folder
@@ -349,7 +375,7 @@ def main(argv) -> int:
     if venv is None:
         p.error("pass --venv (an Airflow 3 venv) or --install-command auto")
     res, dags = verify(Path(a.before), Path(a.after), rules_path=rules, venv=venv, old_venv=old_venv,
-                       dag_test=a.dag_test)
+                       dag_test=a.dag_test, custom_rules=a.custom_rules)
     print(res.body)
     summary = res.summary()
     summary["dags"] = dags
@@ -361,8 +387,9 @@ def main(argv) -> int:
     import os
 
     if step := os.environ.get("GITHUB_STEP_SUMMARY"):
+        found = verify_findings(res.manual, res.unverified, res.unpinned, res.render_results)
         with open(step, "a") as f:
-            f.write(res.body + "\n")
+            f.write(res.body + "\n" + (f"\n{SPONSOR_LINE}\n" if found and not a.no_sponsor_link else ""))
     problems = strict_problems(summary) if a.strict else []
     for problem in problems:
         print(annotation(problem))
