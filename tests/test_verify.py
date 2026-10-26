@@ -95,6 +95,8 @@ def test_unpinned_cron_dags_are_caught(tmp_path):
     etl = res["dags"]["dags/etl_daily.py::etl_daily"]
     assert etl["imports"] and etl["render"] == "mismatch", etl
     assert "### ⚠️ Run dates will shift" in report and "dags/etl_daily.py" in report
+    # on Airflow 3's trigger timetables data_interval_start == data_interval_end (checked on 3.3.2)
+    assert "a task that processes the rows between them processes none" in report
 
 
 @needs_both

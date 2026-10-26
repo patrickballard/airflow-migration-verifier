@@ -134,9 +134,11 @@ def _unpinned_section(unpinned, blob_base) -> list[str]:
            "Airflow 3 runs cron schedules on `CronTriggerTimetable` and timedelta schedules on "
            "`DeltaTriggerTimetable`, where a run's logical date is the moment it fires; Airflow 2 used the interval "
            "timetables, where it is the start of the interval that just ended. For these DAGs every date derived from "
-           "the run (`{{ ds }}`, `logical_date`, partition paths) moves by one interval unless you pin them as in "
-           "Timetable pin, or restore the old defaults for all DAGs with `[scheduler] create_cron_data_intervals = "
-           "True` and `create_delta_data_intervals = True`.", ""]
+           "the run (`{{ ds }}`, `logical_date`, partition paths) moves by one interval, and `data_interval_start` and "
+           "`data_interval_end` become the same moment: a task that processes the rows between them processes none. "
+           "Pin each DAG to the interval timetable (`CronDataIntervalTimetable` / `DeltaDataIntervalTimetable`, as "
+           "migrate mode does), or restore the old defaults for all DAGs with `[scheduler] "
+           "create_cron_data_intervals = True` and `create_delta_data_intervals = True`.", ""]
     for u in unpinned:
         why = u["reason"].split(": ", 1)[1] if ": " in u["reason"] else u["reason"]
         line = f"- {_link(u['path'], u['line'], blob_base)} <code>{html.escape(u['schedule'][:120], quote=False)}</code>: {why}"
