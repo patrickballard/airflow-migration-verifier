@@ -55,25 +55,53 @@ def test_ruleset_loads():
 
 @pytest.mark.parametrize("src, expected", [
     ('def f(**context):\n    return context["execution_date"]\n',
-     'def f(**context):\n    return context["logical_date"]\n'),
+     'def f(**context):\n    return (context.get("logical_date") or context["dag_run"].run_after)\n'),
     ("def f(**kwargs):\n    return kwargs.get('execution_date', None)\n",
-     "def f(**kwargs):\n    return kwargs.get('logical_date', None)\n"),
+     "def f(**kwargs):\n    return (kwargs.get('logical_date') or kwargs['dag_run'].run_after)\n"),
     ('class Op(BaseOperator):\n    def execute(self, context):\n        return context["execution_date"]\n',
-     'class Op(BaseOperator):\n    def execute(self, context):\n        return context["logical_date"]\n'),
+     ('class Op(BaseOperator):\n    def execute(self, context):\n'
+      '        return (context.get("logical_date") or context["dag_run"].run_after)\n')),
     ('def f():\n    ctx = get_current_context()\n    return ctx["execution_date"]\n',
-     'def f():\n    ctx = get_current_context()\n    return ctx["logical_date"]\n'),
+     'def f():\n    ctx = get_current_context()\n    return (ctx.get("logical_date") or ctx["dag_run"].run_after)\n'),
+    # inside an f-string the replacement keeps the key's quote character (a " in f"..." breaks Python < 3.12)
+    ('def f(**context):\n    return f"day {context[\'execution_date\']:%Y-%m-%d}"\n',
+     'def f(**context):\n    return f"day {(context.get(\'logical_date\') or context[\'dag_run\'].run_after):%Y-%m-%d}"\n'),
     ('def f(**c):\n    return c["yesterday_ds"]\n',
      'def f(**c):\n    return c["macros"].ds_add(c["ds"], -1)\n'),
     ('def f(**c):\n    return c["tomorrow_ds_nodash"]\n',
      'def f(**c):\n    return c["macros"].ds_format(c["macros"].ds_add(c["ds"], 1), "%Y-%m-%d", "%Y%m%d")\n'),
     ('def f(**c):\n    return c["triggering_dataset_events"]\n',
      'def f(**c):\n    return c["triggering_asset_events"]\n'),
-    ('def f(dag_run):\n    return dag_run.execution_date\n', 'def f(dag_run):\n    return dag_run.logical_date\n'),
+    ('def f(dag_run):\n    return dag_run.execution_date\n',
+     'def f(dag_run):\n    return (dag_run.logical_date or dag_run.run_after)\n'),
+    # real repo (Workday/dj): a failure email's subject line
+    ('def f(dr):\n    return f"{dr.execution_date.strftime(\'%Y\')}"\n',
+     'def f(dr):\n    return f"{(dr.logical_date or dr.run_after).strftime(\'%Y\')}"\n'),
 ])
 def test_context_keys_rewritten(src, expected):
     path = Path("dag.py")
     assert CTX.find(path, src, OPTS, "llm") == []
     assert CTX.apply(path, src, OPTS) == expected
+
+
+class _DagRun:
+    def __init__(self, logical_date):
+        self.logical_date, self.run_after = logical_date, "fired-at"
+
+
+@pytest.mark.parametrize("context, expected", [
+    ({"logical_date": "logical", "dag_run": _DagRun("logical")}, "logical"),  # scheduled: unchanged value
+    ({"dag_run": _DagRun(None)}, "fired-at"),  # Airflow 3 manual run: no logical_date key at all
+])
+def test_execution_date_rewrite_survives_runs_without_a_logical_date(context, expected):
+    # Airflow 3 adds "logical_date" to the context only when the run has one (checked on 3.3.2), so the
+    # rewrite must neither raise KeyError nor return None there; Airflow 2 used the trigger time
+    for src in ('def f(**context):\n    return context["execution_date"]\n',
+                'def f(**context):\n    return context.get("execution_date")\n',
+                'def f(**context):\n    dag_run = context["dag_run"]\n    return dag_run.execution_date\n'):
+        namespace = {}
+        exec(CTX.apply(Path("d.py"), src, OPTS), namespace)  # noqa: S102 - our own rewrite of a test snippet
+        assert namespace["f"](**context) == expected
 
 
 @pytest.mark.parametrize("src, reason_has", [
@@ -96,7 +124,8 @@ def test_functions_with_compound_statements():
     src = ('from airflow.operators.python import get_current_context\n'
            'def f():\n    if True:\n        pass\n    for x in []:\n        pass\n'
            '    ctx = get_current_context()\n    return ctx["execution_date"]\n')
-    assert CTX.apply(Path("d.py"), src, OPTS) == src.replace('ctx["execution_date"]', 'ctx["logical_date"]')
+    assert CTX.apply(Path("d.py"), src, OPTS) == src.replace(
+        'ctx["execution_date"]', '(ctx.get("logical_date") or ctx["dag_run"].run_after)')
 
 
 def test_unrelated_lookups_untouched():
@@ -106,9 +135,13 @@ def test_unrelated_lookups_untouched():
 
 # --- templates -----------------------------------------------------------------
 
+LD = "(logical_date if logical_date is defined else dag_run.run_after)"  # also under StrictUndefined
+
+
 @pytest.mark.parametrize("src, expected", [
-    ('cmd = "echo {{ execution_date }}"\n', 'cmd = "echo {{ logical_date }}"\n'),
-    ('cmd = "{{ execution_date.strftime(\'%Y\') }} {{ ds }}"\n', 'cmd = "{{ logical_date.strftime(\'%Y\') }} {{ ds }}"\n'),
+    ('cmd = "echo {{ execution_date }}"\n', f'cmd = "echo {{{{ {LD} }}}}"\n'),
+    ('cmd = "{{ execution_date.strftime(\'%Y\') }} {{ ds }}"\n', f'cmd = "{{{{ {LD}.strftime(\'%Y\') }}}} {{{{ ds }}}}"\n'),
+    ('cmd = "{{ execution_date | ts }}"\n', f'cmd = "{{{{ {LD} | ts }}}}"\n'),
     # the replacement's quotes flip to fit inside a "..." literal
     ('cmd = "{{ yesterday_ds_nodash }}"\n',
      "cmd = \"{{ macros.ds_format(macros.ds_add(ds, -1), '%Y-%m-%d', '%Y%m%d') }}\"\n"),
@@ -116,7 +149,7 @@ def test_unrelated_lookups_untouched():
      'cmd = \'{{ macros.ds_format(macros.ds_add(ds, -1), "%Y-%m-%d", "%Y%m%d") }}\'\n'),
     ('sql = """\nWHERE d = \'{{ tomorrow_ds }}\'\n"""\n', 'sql = """\nWHERE d = \'{{ macros.ds_add(ds, 1) }}\'\n"""\n'),
     ('cmd = "{% if execution_date %}x{% endif %} {{ dag_run.execution_date }}"\n',
-     'cmd = "{% if logical_date %}x{% endif %} {{ dag_run.logical_date }}"\n'),
+     f'cmd = "{{% if {LD} %}}x{{% endif %}} {{{{ (dag_run.logical_date or dag_run.run_after) }}}}"\n'),
 ])
 def test_templates_in_python_literals(src, expected):
     assert TPL.apply(Path("dag.py"), src, OPTS) == expected
@@ -134,7 +167,7 @@ def test_templates_left_alone(src):
 
 def test_template_files_and_judgment():
     sh = "echo {{ execution_date }} $execution_date\necho {{ next_ds }}\n"
-    assert TPL.apply(Path("run.sh"), sh, OPTS) == "echo {{ logical_date }} $execution_date\necho {{ next_ds }}\n"
+    assert TPL.apply(Path("run.sh"), sh, OPTS) == f"echo {{{{ {LD} }}}} $execution_date\necho {{{{ next_ds }}}}\n"
     (site,) = TPL.find(Path("run.sh"), sh, OPTS, "llm")
     assert site.line == 2 and site.snippet == "next_ds"
     assert TPL.apply(Path("notes.txt"), sh, OPTS) == sh  # not a template file type
@@ -258,9 +291,9 @@ def test_agent_on_fixture_without_tests(tmp_path):
     assert any(r.startswith("ruff AIR3") for r in rules)
     assert (repo / "requirements.txt").read_text() == "apache-airflow==3.3.2\n"
     etl = (repo / "dags" / "etl_daily.py").read_text()
-    assert 'context["logical_date"]' in etl and "execution_date" not in etl
+    assert '(context.get("logical_date") or context["dag_run"].run_after)' in etl and "execution_date" not in etl
     assert 'schedule=CronDataIntervalTimetable("@daily", timezone="UTC")' in etl
-    assert "{{ logical_date.strftime('%Y-%m-%d') }}" in (repo / "dags" / "scripts" / "report.sh").read_text()
+    assert f"{{{{ {LD}.strftime('%Y-%m-%d') }}}}" in (repo / "dags" / "scripts" / "report.sh").read_text()
     assert "{{ macros.ds_add(ds, 1) }}" in (repo / "dags" / "sql" / "summary.sql").read_text()
     # judgment sites are untouched and listed, each with its reason
     part = (repo / "dags" / "partitions.py").read_text()
@@ -373,30 +406,24 @@ def test_agent_makes_etl_daily_work_on_airflow_3(tmp_path):
 
 # --- the "Manual runs" warning ------------------------------------------------------------
 
-FALLBACK = 'context["logical_date"] or context["dag_run"].run_after'
+FALLBACK = 'context.get("logical_date") or context["dag_run"].run_after'  # the key is absent, not None
 
 
 def _manual_runs(body):
     return body.split("### ⚠️ Manual runs", 1)[1].split("\n### ", 1)[0]
 
 
-def test_manual_runs_warning_lists_every_execution_date_site(tmp_path):
+def test_execution_date_rewrites_are_guarded_so_there_is_no_manual_runs_warning(tmp_path):
+    # regression (real repo, 2026-11-08): `dag_run.execution_date` became plain `dag_run.logical_date`, which
+    # is None on an Airflow 3 manual run; a failure email built from it raised instead of sending
     repo = tmp_path / "repo"
     shutil.copytree(AIRFLOW_REPO, repo)
     result = run(Options(repo=repo, rules_path=AIRFLOW_RULES, dry_run=True, test_command=None,
                          repo_slug="acme/dags", branch="api-change-agent/airflow"), model=None)
-    section = _manual_runs(result.body)
-    blob = "https://github.com/acme/dags/blob/api-change-agent/airflow"
-    for path, line in [("dags/etl_daily.py", 10), ("dags/etl_daily.py", 16), ("dags/etl_daily.py", 34),
-                       ("dags/scripts/report.sh", 3), ("dags/sql/summary.sql", 3)]:
-        assert f"[`{path}:{line}`]({blob}/{path}#L{line})" in section
-    assert "These 5 line(s) now read `logical_date` where they read `execution_date`" in section
-    assert "etl_daily.py:17" not in section          # yesterday_ds -> macros.ds_add: no logical_date
-    assert "partitions.py" not in section            # left for judgment, not changed
-    assert FALLBACK in section and "{{ logical_date or dag_run.run_after }}" in section
-    assert "can have **no logical date**" in section
-    # the warning is in the PR body, and the code itself is not guarded
-    assert "run_after" not in (repo / "dags" / "etl_daily.py").read_text()
+    assert "Manual runs" not in result.body
+    for rel in ("dags/etl_daily.py", "dags/scripts/report.sh", "dags/sql/summary.sql"):
+        text = (repo / rel).read_text()
+        assert "execution_date" not in text.replace("$execution_date", "") and "run_after" in text, rel
 
 
 def test_manual_runs_warning_includes_claude_patches(tmp_path):
@@ -414,7 +441,8 @@ def test_manual_runs_warning_includes_claude_patches(tmp_path):
     section = _manual_runs(result.body)
     assert "`dags/partitions.py:11`" in section.split("in place of another removed key")[0]  # execution_date -> logical_date
     assert "`dags/partitions.py:20`" in section.split("in place of another removed key")[1]  # next_ds -> logical_date + 1h
-    assert "These 6 line(s)" in section and "These 1 line(s)" in section
+    assert section.count("These 1 line(s)") == 2  # only Claude's two unguarded lines, not ours
+    assert FALLBACK in section and f"{{{{ {LD} }}}}" in section and "etl_daily.py" not in section
 
 
 def test_no_manual_runs_section_for_openai(sample_repo):
@@ -426,8 +454,8 @@ def test_no_manual_runs_section_for_openai(sample_repo):
 @pytest.mark.parametrize("src, expected", [
     # real repo (mozilla): a template built by concatenation; the kwarg was renamed but the key inside wasn't
     ('d = "{{ execution_date.replace(" + h + ").isoformat() }}"\n',
-     'd = "{{ logical_date.replace(" + h + ").isoformat() }}"\n'),
-    ('d = x + ") }} and {{ execution_date }}"\n', 'd = x + ") }} and {{ logical_date }}"\n'),
+     f'd = "{{{{ {LD}.replace(" + h + ").isoformat() }}}}"\n'),
+    ('d = x + ") }} and {{ execution_date }}"\n', f'd = x + ") }}}} and {{{{ {LD} }}}}"\n'),
     ('d = "a " + ds + " }} {{ yesterday_ds"\n', 'd = "a " + ds + " }} {{ macros.ds_add(ds, -1)"\n'),
 ])
 def test_templates_split_across_concatenated_literals(src, expected):
@@ -451,3 +479,19 @@ def test_report_says_why_judgment_rules_didnt_run_and_what_the_pin_is(tmp_path):
     assert "Every row links to the documentation behind it." in body  # ruff rows link to ruff's docs, not a changelog
     # the pin is written `==3.3.2` here; the report mustn't call it `>=3.3.2`
     assert ">=3.3.2" not in body and "`apache-airflow` pins raised to 3.3.2" in body
+
+
+@needs_af3
+def test_execution_date_template_renders_without_a_logical_date():
+    # Airflow 3 leaves `logical_date` undefined on a manual run with none; StrictUndefined must not raise
+    script = textwrap.dedent(f'''
+        from types import SimpleNamespace
+        from jinja2 import Environment, StrictUndefined, Undefined
+        run = SimpleNamespace(run_after="fired-at")
+        for und in (Undefined, StrictUndefined):
+            tpl = Environment(undefined=und).from_string("{{{{ {LD} }}}}")
+            print(tpl.render(dag_run=run), tpl.render(dag_run=run, logical_date="logical"))
+    ''')
+    out = subprocess.run([str(Path(AF3) / "bin" / "python"), "-I", "-c", script],
+                         capture_output=True, text=True, check=False)
+    assert out.stdout.split() == ["fired-at", "logical"] * 2, out.stderr
