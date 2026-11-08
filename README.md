@@ -21,6 +21,8 @@ This GitHub Action checks a migration the same way, whoever made it: a person, r
 - ❌ [PR #1](https://github.com/patrickballard/airflow-verifier-trial/pull/1), migrated with ruff alone, **fails** ([run](https://github.com/patrickballard/airflow-verifier-trial/actions/runs/40110340024)). `{{ ds }}` renders a day later on 25 of 25 runs, `days_ago` no longer imports, and `context["execution_date"]` is still read.
 - ✅ [PR #5](https://github.com/patrickballard/airflow-verifier-trial/pull/5), opened by this action's migrate mode, **passes** ([run](https://github.com/patrickballard/airflow-verifier-trial/actions/runs/40110745663)).
 
+**Need it done for you?** The action is free and stays free. If you'd rather not run it yourself, I do a fixed-price [migration audit](https://patrickballard.github.io/airflow-migration-verifier/): every DAG checked on Airflow 2 and 3, a written fix list, two business days. I also do verified migration PRs.
+
 ## What it does
 
 1. **ruff's AIR3 fixes** (`--select AIR3 --preview`): imports, `schedule_interval`, moved operators. Every change ruff makes is credited in the PR table.
