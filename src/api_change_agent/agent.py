@@ -332,7 +332,7 @@ class _Run:
                         self.current.setdefault(rel, text)
                         self.originals.setdefault(rel, text)
         for tool in self.ruleset.tools:
-            diags = ruff_layer.diagnose(self.repo, [f.as_posix() for f in scan.files], tool)
+            diags = ruff_layer.diagnose(self.repo, [f.as_posix() for f in scan.files], tool, notes=self.result.skipped)
             for d in diags:
                 hits.setdefault(tool.id, {}).setdefault(Path(d.path), []).append(Site(d.line, f"{d.code}: {d.message}"))
             for rel in hits.get(tool.id, {}):

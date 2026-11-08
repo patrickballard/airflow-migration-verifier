@@ -6,6 +6,7 @@ built with the official constraints (e.g. research/target-pick/setup_venvs.sh):
 
     ACA_AIRFLOW2_VENV=.../airflow-2 ACA_AIRFLOW3_VENV=.../airflow-3 pytest tests/test_airflow.py
 """
+import dataclasses
 import os
 import shutil
 import subprocess
@@ -180,6 +181,44 @@ def test_ruff_fixes_drop_the_airflow_imports_they_leave_unused(tmp_path):
     assert "import os\n" in text and "from airflow.models import Variable" in text  # unused before: not ours to remove
     removed = [c for c in res.changes if "airflow.operators.dummy" in c.before]
     assert removed and all(c.codes for c in removed)  # credited to the fix that made them unused
+
+
+BAD_PYPROJECT = '[project]\nname = "pipeline"\nrequires-python="3.11"\n'  # no operator: not a valid specifier
+
+
+def test_ruff_runs_isolated_when_the_repo_config_does_not_parse(tmp_path):
+    # regression (real repo, 2026-11-08): hubmapconsortium/ingest-pipeline's pyproject.toml has
+    # requires-python="3.11"; ruff refused to start on it and the whole run crashed
+    shutil.copytree(AIRFLOW_REPO, tmp_path / "repo")
+    repo = tmp_path / "repo"
+    (repo / "pyproject.toml").write_text(BAD_PYPROJECT)
+    notes = []
+    diags = ruff_layer.diagnose(repo, ["dags/etl_daily.py"], RULESET.tools[0], notes=notes)
+    assert "AIR301" in {d.code for d in diags}
+    (note,) = notes
+    assert "`pyproject.toml` (line 3): Failed to parse version" in note and "expected operator." in note
+    assert "--isolated" in note and "^" not in note
+    res = ruff_layer.run(repo, ["dags/etl_daily.py"], RULESET.tools[0])
+    assert ("AIR301",) in {c.codes for c in res.changes}
+
+
+def test_ruff_still_fails_loudly_on_other_errors(tmp_path):
+    (tmp_path / "d.py").write_text("x = 1\n")
+    broken = dataclasses.replace(RULESET.tools[0], args=("--not-a-ruff-flag",))
+    with pytest.raises(RuntimeError, match="ruff failed"):
+        ruff_layer.diagnose(tmp_path, ["d.py"], broken)
+
+
+def test_agent_survives_an_unparsable_repo_config(tmp_path):
+    repo = tmp_path / "repo"
+    shutil.copytree(AIRFLOW_REPO, repo)
+    (repo / "pyproject.toml").write_text(BAD_PYPROJECT)
+    result = run(Options(repo=repo, rules_path=AIRFLOW_RULES, dry_run=True, test_command=None, log=lambda *_: None),
+                 model=None)
+    assert 'schedule=CronDataIntervalTimetable("@daily"' in (repo / "dags/etl_daily.py").read_text()
+    assert any(r.rule_id.startswith("ruff") for r in result.rows)
+    assert sum("--isolated" in n for n in result.skipped) == 1
+    assert "--isolated" in result.body
 
 
 # --- gate: progress that uncovers the next failure is not a regression -------------
