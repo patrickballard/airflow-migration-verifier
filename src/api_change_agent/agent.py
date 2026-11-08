@@ -194,6 +194,9 @@ class _Run:
     def _set_source(self, rel: Path, new: str, new_rows: list[Row]) -> None:
         remap = _line_map(self.current[rel], new)
         self.rows[rel] = [dataclasses.replace(r, line=remap(r.line)) for r in self.rows.get(rel, [])] + new_rows
+        # items recorded earlier point into the text as it was then: keep them on the same code
+        self.result.manual = [dataclasses.replace(m, line=remap(m.line)) if m.path == rel.as_posix() else m
+                              for m in self.result.manual]
         self.current[rel] = new
         self._write(rel, new)
 
@@ -577,9 +580,7 @@ class _Run:
                 self.rows[rel] = [x for x in self.rows[rel] if x is not r]
                 self.render_reverted.setdefault(rel, set()).add(r.rule_id)
                 self.result.manual.append(ManualItem(path, r.line, r.rule_id, reasons[id(r)]))
-            new = "".join(lines)
-            self.current[rel] = new
-            self._write(rel, new)
+            self._set_source(rel, "".join(lines), [])
 
     def render_gate(self) -> None:
         """Deterministic template rewrites and pins must render identically; revert any that don't."""

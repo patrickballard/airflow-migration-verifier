@@ -426,6 +426,32 @@ def test_execution_date_rewrites_are_guarded_so_there_is_no_manual_runs_warning(
         assert "execution_date" not in text.replace("$execution_date", "") and "run_after" in text, rel
 
 
+def test_manual_items_point_at_the_migrated_file(tmp_path):
+    # regression (2026-11-08): ruff's leftover items were recorded before the timetable pin inserted an
+    # import line above them and were never moved, so the PR linked one line too high (to a blank line)
+    repo = tmp_path / "repo"
+    (repo / "dags").mkdir(parents=True)
+    (repo / "requirements.txt").write_text("apache-airflow==2.11.2\n")
+    (repo / "dags" / "d.py").write_text(code('''
+        import datetime
+
+        from airflow.sdk import (
+            DAG,
+        )
+
+        with DAG("d", schedule="@daily", start_date=datetime.datetime(2024, 1, 1)) as dag:
+            pass
+
+        other = DAG("other", schedule=None, start_date=datetime.datetime.now())
+    '''))
+    result = run(Options(repo=repo, rules_path=AIRFLOW_RULES, dry_run=True, test_command=None,
+                         log=lambda *_: None), model=None)
+    final = (repo / "dags" / "d.py").read_text().splitlines()
+    assert "from airflow.sdk import CronDataIntervalTimetable" in final  # the insert above the item
+    (item,) = [m for m in result.manual if m.rule_id == "ruff AIR304"]
+    assert "datetime.datetime.now()" in final[item.line - 1], (item.line, final)
+
+
 def test_manual_runs_warning_includes_claude_patches(tmp_path):
     repo = tmp_path / "repo"
     shutil.copytree(AIRFLOW_REPO, repo)
