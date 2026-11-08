@@ -22,7 +22,7 @@ from packaging.version import Version
 
 from . import gitops, kwarg_check, render_check, ruff_layer
 from .airflow_config import ENV as ENV_TZ
-from .airflow_config import find_default_timezone
+from .airflow_config import find_default_timezone, find_setting
 from .codemod import Site, apply_deterministic, find_sites, missing_comments
 from .deps import plan_add_dependency
 from .llm import BudgetExhausted, PatchModel, PatchRequest
@@ -176,6 +176,14 @@ class _Run:
         self.pin_minimum: Version | None = None
         self.inserted: list[tuple[Path, int]] = []  # (file, line) of whole lines added by dependency rules
         self.tz = find_default_timezone(self.repo) if self.ruleset.verify == "airflow-dags" else None
+        # [scheduler] create_cron_data_intervals = True keeps Airflow 2's run dates for every cron and
+        # timedelta schedule on Airflow 3 (apache/airflow#69868), so there is nothing to pin
+        self.cron_flag = (find_setting(self.repo, "scheduler", "create_cron_data_intervals")
+                          if self.ruleset.verify == "airflow-dags" else None)
+        if self.pins_off:
+            self.result.skipped.append(
+                f"`[scheduler] create_cron_data_intervals = {self.cron_flag.value}` ({self.cron_flag.where()}) keeps "
+                "Airflow 2's run dates for cron and timedelta schedules on Airflow 3, so no schedules were pinned")
         self.render_reverted: dict[Path, set[str]] = {}  # rule ids the render check took back, per file
 
     # -- helpers ------------------------------------------------------------
@@ -208,10 +216,14 @@ class _Run:
         tz = self.tz.tz or (None if self.tz.problem else "UTC")  # nothing set: Airflow's default, UTC
         return {**rule.options, "default_timezone": tz, "timezone_problem": self.tz.problem}
 
+    @property
+    def pins_off(self) -> bool:
+        return bool(self.cron_flag and self.cron_flag.is_true())
+
     def naive_pin_lines(self) -> set[tuple[Path, int]]:
         """Current (file, line) of pinned schedules whose DAG has a naive start_date (zone = default_timezone)."""
         rule = next((r for r in self.ruleset.rules if r.match.plugin == "airflow_cron_pin"), None)
-        if rule is None:
+        if rule is None or self.pins_off:
             return set()
         out = set()
         for rel, text in self.originals.items():
@@ -223,10 +235,15 @@ class _Run:
                     if s.reason.startswith(NAIVE)}
         return out
 
-    def _render_env(self) -> dict:
-        return {ENV_TZ: self.tz.tz} if self.tz and self.tz.tz else {}
+    def _render_env(self, airflow3: bool = False) -> dict:
+        env = {ENV_TZ: self.tz.tz} if self.tz and self.tz.tz else {}
+        if airflow3 and self.cron_flag and self.cron_flag.value is not None:
+            env[self.cron_flag.env] = self.cron_flag.value  # the tree's own setting, as verify mode renders it
+        return env
 
     def _sites(self, text: str, rule: Rule, rel: Path) -> list[Site]:
+        if rule.match.plugin == "airflow_cron_pin" and self.pins_off:
+            return []
         if rule.match.plugin:
             mode = "deterministic" if rule.fix == "deterministic" else "llm"
             return PLUGINS[rule.match.plugin].find(rel, text, self._options(rule), mode)
@@ -315,7 +332,7 @@ class _Run:
                         self.current.setdefault(rel, text)
                         self.originals.setdefault(rel, text)
         for tool in self.ruleset.tools:
-            diags = ruff_layer.diagnose(self.repo, [f.as_posix() for f in scan.files], tool)
+            diags = ruff_layer.diagnose(self.repo, [f.as_posix() for f in scan.files], tool, notes=self.result.skipped)
             for d in diags:
                 hits.setdefault(tool.id, {}).setdefault(Path(d.path), []).append(Site(d.line, f"{d.code}: {d.message}"))
             for rel in hits.get(tool.id, {}):
@@ -512,7 +529,7 @@ class _Run:
         files = sorted(f.as_posix() for f in self.sdk_files)
         try:
             old = render_check.render(pythons[0], self._old_snapshot(), files, env=self._render_env())
-            new = render_check.render(pythons[1], self.repo, files, env=self._render_env())
+            new = render_check.render(pythons[1], self.repo, files, env=self._render_env(airflow3=True))
         except Exception as e:  # noqa: BLE001
             self.render_unavailable = f"render check failed to run: {e}"
             self.result.skipped.append(self.render_unavailable)

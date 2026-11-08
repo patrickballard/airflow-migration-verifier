@@ -28,7 +28,7 @@ This GitHub Action checks a migration the same way, whoever made it: a person, r
 2. **What ruff misses:**
    - **Timetable pin.** `schedule="@daily"` becomes `CronDataIntervalTimetable("@daily", timezone=...)`, so runs keep their Airflow 2 dates.
      - The zone comes from the DAG's `start_date`, then `default_args`, then the repo's `default_timezone` (`airflow.cfg`, `.env`, docker-compose, Helm, Dockerfile).
-     - The PR also names the global alternative, `[scheduler] create_cron_data_intervals = True`.
+     - The PR also names the global alternative, `[scheduler] create_cron_data_intervals = True`. If the repo already sets it (same places as `default_timezone`), nothing is pinned and the PR says where it's set.
    - **`days_ago(N)`** becomes `pendulum.today("UTC").add(days=-N)`. That's the same moment, still computed at parse time. A fixed date would change scheduling and catchup.
    - **Removed context keys,** in Python (`context["execution_date"]`) and in Jinja (operator strings, `.sql` / `.sh` / `.j2` files). They're rewritten only where Airflow's docs say the replacement is the same value: `execution_date` → `logical_date`, `yesterday_ds` → `macros.ds_add(ds, -1)`, …
    - **Removed DAG methods** (`following_schedule`, `previous_schedule` and 50 others, checked against both versions) are flagged. A DAG that calls one still imports, then fails when the call runs.
@@ -211,7 +211,7 @@ python -m api_change_agent verify --before ../before --after . --install-command
 
 ### Why not just set `create_cron_data_intervals = True`?
 
-You can, and verify mode respects it when your repo sets it. But:
+You can, and both modes respect it when your repo sets it: verify mode renders with it, and migrate mode then pins nothing. But:
 - **It has to be set before you upgrade.** Once a DAG has runs from Airflow 3's default `CronTriggerTimetable`, switching it to `CronDataIntervalTimetable` skips one scheduled run ([apache/airflow#66441](https://github.com/apache/airflow/pull/66441) documents this). The per-DAG pin this action writes follows the same rule: merge it together with the upgrade, not after it.
 - **It only keeps the run dates.** `days_ago`, `execution_date` and the other removed context keys, removed DAG methods, and arguments Airflow 3 rejects all still break. The verifier checks those too.
 

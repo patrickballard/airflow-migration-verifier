@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import re
 import subprocess
 import sys
 from collections import Counter
@@ -47,15 +48,40 @@ class RuffResult:
     new_text: dict[str, str] = field(default_factory=dict)
 
 
+CONFIG_ERROR = re.compile(r"Failed to parse (\S*(?:pyproject|ruff)\.toml)")
+
+
 def _cmd(tool: Tool, *extra: str) -> list[str]:
     return [sys.executable, "-m", "ruff", "check", "--no-cache", "--exit-zero", "--select", tool.select,
             *tool.args, *extra]
 
 
-def diagnose(repo: Path, files: list[str], tool: Tool) -> list[Diagnostic]:
+def _check(repo: Path, tool: Tool, *extra: str, notes: list[str] | None = None) -> subprocess.CompletedProcess:
+    """ruff refuses to start on a repo config it can't parse (e.g. requires-python="3.11", no operator).
+    Then run it again with --isolated: ruff's defaults, which the AIR rules don't depend on."""
+    proc = subprocess.run(_cmd(tool, *extra), cwd=repo, capture_output=True, text=True)
+    if proc.returncode == 0 or not (m := CONFIG_ERROR.search(proc.stderr)):
+        return proc
+    if notes is not None:
+        path = Path(m.group(1))
+        try:
+            rel = path.resolve().relative_to(repo.resolve()).as_posix() if path.is_absolute() else path.as_posix()
+        except ValueError:  # ruff also reads configs above the repo
+            rel = path.as_posix()
+        where = re.search(r"line (\d+)", proc.stderr)
+        # the message is the first unindented line after "ruff failed" (the rest are causes and carets)
+        reason = next((ln.strip().rstrip(":") for ln in proc.stderr.splitlines()[1:] if ln[:1].isalpha()), "")
+        notes.append(f"ruff couldn't parse this repo's `{rel}`{f' (line {where.group(1)})' if where else ''}"
+                     f"{f': {reason}' if reason else ''}. Its `{tool.select}` pass ran with `--isolated`, so the repo's own ruff "
+                     "settings (e.g. per-file-ignores) were not applied")
+    return subprocess.run(_cmd(tool, "--isolated", *extra), cwd=repo, capture_output=True, text=True)
+
+
+def diagnose(repo: Path, files: list[str], tool: Tool, notes: list[str] | None = None) -> list[Diagnostic]:
+    """`notes` collects why ruff had to ignore the repo's config, if it did."""
     if not files:
         return []
-    proc = subprocess.run(_cmd(tool, "--output-format", "json", *files), cwd=repo, capture_output=True, text=True)
+    proc = _check(repo, tool, "--output-format", "json", *files, notes=notes)
     if proc.returncode != 0:
         raise RuntimeError(f"ruff failed: {proc.stderr.strip()[:500]}")
     out = []
@@ -75,7 +101,7 @@ def run(repo: Path, files: list[str], tool: Tool) -> RuffResult:
     before = {f: (repo / f).read_text() for f in touched}
     if touched:
         unused_before = {(d["filename"], d["message"]) for d in _unused_imports(repo, touched)}
-        proc = subprocess.run(_cmd(tool, "--fix", *touched), cwd=repo, capture_output=True, text=True)
+        proc = _check(repo, tool, "--fix", *touched)
         if proc.returncode != 0:
             raise RuntimeError(f"ruff --fix failed: {proc.stderr.strip()[:500]}")
         _drop_imports_left_unused(repo, touched, unused_before)
