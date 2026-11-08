@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Airflow 3 Migration Audit</title>
+<meta name="description" content="Fixed-price Airflow 2 to 3 migration audit: every DAG imported and every template rendered on both versions, with a fix list, in two business days.">
+<meta property="og:title" content="Airflow 3 Migration Audit">
+<meta property="og:description" content="Fixed-price Airflow 2 to 3 migration audit: every DAG imported and every template rendered on both versions, with a fix list, in two business days.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one narrow reading column; the hero is a run-by-run render log, pricing is a two-up ledger. */
+:root {
+  --paper: #f6f8fa;
+  --surface: #ffffff;
+  --ink: #14202b;
+  --muted: #566573;
+  --rule: #d5dde4;
+  --accent: #1d5f8a;
+  --shift: #b8590f;
+  --shift-bg: #fbeee2;
+  --ok: #2c7a4b;
+  --display: "Bricolage Grotesque", "Avenir Next", system-ui, sans-serif;
+  --body: "Public Sans", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f161d; --surface: #16202a; --ink: #e4ebf1; --muted: #93a3b1; --rule: #2a3946;
+    --accent: #6fb3e0; --shift: #f0a35e; --shift-bg: #33240f; --ok: #6cc592; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f161d; --surface: #16202a; --ink: #e4ebf1; --muted: #93a3b1; --rule: #2a3946;
+  --accent: #6fb3e0; --shift: #f0a35e; --shift-bg: #33240f; --ok: #6cc592; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { color-scheme: light; }
+body {
+  margin: 0;
+  background: var(--paper); color: var(--ink); font: 400 17px/1.6 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+main { max-width: 760px; margin: 0 auto; padding-block: 56px 72px; display: grid; gap: 64px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.12; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.1rem, 6vw, 3.2rem); font-weight: 700; letter-spacing: -0.02em; }
+h2 { font-size: 1.7rem; font-weight: 700; }
+h3 { font-size: 1.15rem; font-weight: 500; }
+p { margin: 0; max-width: 65ch; }
+a { color: var(--accent); }
+a:focus-visible, .btn:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+.eyebrow { font: 600 0.75rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+section { display: grid; gap: 20px; }
+.lede { font-size: 1.15rem; color: var(--muted); }
+code { font-family: var(--mono); font-size: 0.88em; }
+
+/* Render log */
+.log { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; overflow-x: auto; }
+.log table { border-collapse: collapse; width: 100%; font: 400 0.86rem/1.5 var(--mono); font-variant-numeric: tabular-nums; }
+.log th, .log td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+.log th { font-weight: 600; color: var(--muted); font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase; }
+.log tr:last-child td { border-bottom: 0; }
+.log .bad { color: var(--shift); background: var(--shift-bg); font-weight: 600; }
+.log caption { caption-side: bottom; text-align: left; padding: 10px 14px; color: var(--muted); font: 400 0.8rem/1.5 var(--body); border-top: 1px solid var(--rule); }
+
+.hero { display: grid; gap: 22px; }
+.cta-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.btn { display: inline-block; font: 600 1rem/1 var(--body); padding: 14px 20px; border-radius: 4px; text-decoration: none; border: 1px solid var(--accent); }
+.btn.primary { background: var(--accent); color: var(--paper); }
+.btn.secondary { color: var(--accent); background: transparent; }
+
+/* Checks list */
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.checks li { display: grid; grid-template-columns: 1.5rem 1fr; gap: 10px; }
+.checks li::before { content: "✓"; color: var(--ok); font-weight: 700; }
+
+/* Proof */
+.bars { display: grid; gap: 10px; }
+.bar { display: grid; grid-template-columns: minmax(0, 15rem) 1fr 3rem; gap: 12px; align-items: center; font-size: 0.92rem; }
+.bar .track { height: 12px; background: var(--rule); border-radius: 2px; overflow: hidden; }
+.bar .fill { height: 100%; background: var(--muted); }
+.bar.ours .fill { background: var(--accent); }
+.bar.ours { font-weight: 600; }
+.bar .n { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+.note { font-size: 0.85rem; color: var(--muted); }
+
+/* Pricing ledger */
+.ledger { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.offer { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 24px; display: grid; gap: 14px; align-content: start; }
+.offer.featured { border-color: var(--accent); border-width: 2px; }
+.price { font: 700 2.2rem/1 var(--display); }
+.price small { font: 400 0.95rem var(--body); color: var(--muted); }
+.offer ul { margin: 0; padding-left: 1.1rem; display: grid; gap: 6px; font-size: 0.95rem; }
+.free { font-size: 0.95rem; color: var(--muted); }
+
+.faq { display: grid; gap: 18px; }
+.faq div { display: grid; gap: 4px; }
+.faq dt { font-weight: 600; }
+.faq dd { margin: 0; color: var(--muted); max-width: 65ch; }
+
+.contact { background: var(--surface); border: 1px solid var(--rule); border-radius: 6px; padding: 24px; display: grid; gap: 12px; }
+.addr { font: 600 1.05rem var(--mono); user-select: all; word-break: break-all; }
+footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 20px; }
+
+@media (max-width: 520px) {
+  main { gap: 48px; padding-block: 32px 56px; }
+  .bar { grid-template-columns: 1fr 3rem; }
+  .bar .track { grid-column: 1 / -1; grid-row: 2; }
+}
+</style>
+</head>
+<body>
+
+<main>
+  <header class="hero">
+    <span class="eyebrow">Airflow 2 → 3 · fixed-price audit</span>
+    <h1>Your DAGs will run on Airflow 3. Some of them will process the wrong day.</h1>
+    <p class="lede">Airflow 3 changes what <code>{{ ds }}</code> means for cron schedules, with no error and no warning. Linters fix imports. They don't check the dates your tasks run. I render every template on both versions and show you exactly what moves, before you upgrade.</p>
+    <div class="log" role="region" aria-label="Example render comparison" tabindex="0">
+      <table>
+        <thead><tr><th>Run fires (UTC)</th><th>Airflow 2.11</th><th>Airflow 3.3</th></tr></thead>
+        <tbody>
+          <tr><td>2024-05-02 00:00</td><td>process 2024-05-01</td><td class="bad">process 2024-05-02</td></tr>
+          <tr><td>2024-05-03 00:00</td><td>process 2024-05-02</td><td class="bad">process 2024-05-03</td></tr>
+          <tr><td>2024-05-04 00:00</td><td>process 2024-05-03</td><td class="bad">process 2024-05-04</td></tr>
+        </tbody>
+        <caption>An <code>@daily</code> DAG whose task runs <code>process {{ ds }}</code>, rendered on the real versions. Every partition path built from <code>ds</code> moves by one day.</caption>
+      </table>
+    </div>
+    <div class="cta-row">
+      <a class="btn primary" id="cta-top" href="#book">Book an audit · $299</a>
+      <a class="btn secondary" href="https://github.com/patrickballard/airflow-migration-verifier">Try the free tool</a>
+    </div>
+  </header>
+
+  <section aria-labelledby="what">
+    <span class="eyebrow">What the audit checks</span>
+    <h2 id="what">Every DAG, every template field, run by run</h2>
+    <ul class="checks">
+      <li><span>Each DAG file imported on Airflow 3, before and after the migration.</span></li>
+      <li><span>Every template field rendered on Airflow 2 and on Airflow 3 for the same fire times, so a shifted <code>ds</code>, <code>logical_date</code> or partition path shows up as a diff.</span></li>
+      <li><span>Context keys and template variables Airflow 3 removed (<code>execution_date</code>, <code>next_ds</code>, <code>prev_ds</code> and others) that your code still reads.</span></li>
+      <li><span>Operator arguments Airflow 3 rejects at parse time, such as <code>mysql_conn_id=</code> left behind when ruff swaps in <code>SQLExecuteQueryOperator</code>.</span></li>
+      <li><span>Cron and timedelta schedules whose run dates will shift, with the one-line pin that keeps your Airflow 2 dates.</span></li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="proof">
+    <span class="eyebrow">Measured, not claimed</span>
+    <h2 id="proof">161 real DAGs that break on Airflow 3</h2>
+    <p>Ten public Airflow 2 repos, migrated by each tool at its latest version with no hand edits, then checked the same way: imports on 3.3.2, identical renders on every sampled run, no removed DAG methods.</p>
+    <div class="bars" role="list" aria-label="DAGs passing all checks, out of 161">
+      <div class="bar" role="listitem"><span>ruff <code>--fix</code> alone</span><span class="track"><span class="fill" style="width:14.9%"></span></span><span class="n">24</span></div>
+      <div class="bar" role="listitem"><span>airflow-v2-to-v3</span><span class="track"><span class="fill" style="width:15.5%"></span></span><span class="n">25</span></div>
+      <div class="bar" role="listitem"><span>airflow-migration-helper</span><span class="track"><span class="fill" style="width:14.9%"></span></span><span class="n">24</span></div>
+      <div class="bar ours" role="listitem"><span>Airflow Migration Verifier</span><span class="track"><span class="fill" style="width:74.5%"></span></span><span class="n">120</span></div>
+    </div>
+    <p class="note">DAGs with <code>schedule=None</code> can't be render-checked and count as unproven for every tool. Full method and raw results are in the <a href="https://github.com/patrickballard/airflow-migration-verifier/blob/main/research/competitor-check/REPORT.md">competitor check</a>. See a <a href="https://github.com/patrickballard/airflow-verifier-trial/pull/1">failing ruff-only PR</a> next to a <a href="https://github.com/patrickballard/airflow-verifier-trial/pull/5">passing verified one</a>.</p>
+  </section>
+
+  <section aria-labelledby="pricing" id="pricing">
+    <span class="eyebrow">Pricing</span>
+    <h2 id="pricing-h">Two fixed prices. No hourly billing.</h2>
+    <div class="ledger">
+      <article class="offer featured" aria-labelledby="audit-h">
+        <h3 id="audit-h">Migration audit</h3>
+        <div class="price">$299 <small>one-off</small></div>
+        <ul>
+          <li>The full check above on your repo, up to 150 DAGs</li>
+          <li>A written report: what breaks, what shifts, and the fix for each</li>
+          <li>A 30-minute call to walk through it</li>
+          <li>Delivered in 2 business days</li>
+          <li>Full refund if it finds nothing you need to change</li>
+        </ul>
+        <a class="btn primary" id="cta-audit" href="#book">Book the audit</a>
+      </article>
+      <article class="offer" aria-labelledby="mig-h">
+        <h3 id="mig-h">Done-for-you migration</h3>
+        <div class="price">$1,500 <small>up to 40 DAGs</small></div>
+        <ul>
+          <li>A pull request that migrates your DAGs to Airflow 3</li>
+          <li>Every change proven by rendering it on both versions</li>
+          <li>Anything that can't be proven is labelled for review, never hidden</li>
+          <li>The audit is included; $25 per DAG beyond 40</li>
+        </ul>
+        <a class="btn secondary" id="cta-mig" href="#book">Ask about a migration</a>
+      </article>
+    </div>
+    <p class="free">Prefer to do it yourself? The verifier is a free GitHub Action. Add one workflow file and every migration PR gets checked.</p>
+  </section>
+
+  <section aria-labelledby="faq-h">
+    <span class="eyebrow">Questions</span>
+    <h2 id="faq-h">Before you book</h2>
+    <dl class="faq">
+      <div><dt>Do you need access to our code?</dt><dd>No. I send you a workflow file and you run it in your own GitHub Actions. The report stays in your CI. If you'd rather I run it, read-only access to one repo is enough.</dd></div>
+      <div><dt>Does it run our tasks?</dt><dd>No. It imports each DAG file and renders templates. It never executes a task, so nothing touches your databases or APIs.</dd></div>
+      <div><dt>We're on MWAA / Astronomer / Cloud Composer.</dt><dd>That's fine. The check works on the DAG code and reads your Airflow settings from <code>airflow.cfg</code>, env files, docker-compose, Helm values or a Dockerfile.</dd></div>
+      <div><dt>We already ran ruff's AIR3 rules.</dt><dd>Good, that handles imports. The audit checks the other half: render dates, removed context keys and arguments ruff leaves behind.</dd></div>
+    </dl>
+  </section>
+
+  <section id="book" aria-labelledby="book-h" class="contact">
+    <span class="eyebrow">Book</span>
+    <h2 id="book-h">Send your repo size and Airflow version</h2>
+    <p>Email the address below with roughly how many DAGs you have and the Airflow version you're on. You'll get a payment link and the workflow file the same day.</p>
+    <span class="addr" id="contact-email">you@yourdomain.com</span>
+    <div class="cta-row" id="pay-row" hidden>
+      <a class="btn primary" id="pay-link" href="#">Pay for the audit · $299</a>
+    </div>
+  </section>
+
+  <footer>Built by <a href="https://github.com/patrickballard">Patrick Ballard</a>, author of the open-source Airflow Migration Verifier. Not affiliated with the Apache Software Foundation. Apache Airflow is a trademark of the ASF.</footer>
+</main>
+
+<script>
+  // Fill these in before sharing the page.
+  const CONFIG = {
+    email: "",   // e.g. "audits@yourdomain.com"
+    payUrl: "",  // a Stripe Payment Link for $299
+  };
+  if (CONFIG.email) document.getElementById("contact-email").textContent = CONFIG.email;
+  if (CONFIG.payUrl) {
+    const link = document.getElementById("pay-link");
+    link.href = CONFIG.payUrl;
+    document.getElementById("pay-row").hidden = false;
+  }
+</script>
+</body>
+</html>
