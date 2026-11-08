@@ -206,29 +206,16 @@ footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--ru
 
   <section id="book" aria-labelledby="book-h" class="contact">
     <span class="eyebrow">Book</span>
-    <h2 id="book-h">Send your repo size and Airflow version</h2>
-    <p>Email the address below with roughly how many DAGs you have and the Airflow version you're on. You'll get a payment link and the workflow file the same day.</p>
-    <span class="addr" id="contact-email">you@yourdomain.com</span>
-    <div class="cta-row" id="pay-row" hidden>
-      <a class="btn primary" id="pay-link" href="#">Pay for the audit · $299</a>
+    <h2 id="book-h">Pay now, or ask first</h2>
+    <p>Pay below and you'll get the workflow file and instructions by email within one business day. Not sure it fits your setup, or want the $1,500 migration? Email first with roughly how many DAGs you have and the Airflow version you're on.</p>
+    <div class="cta-row">
+      <a class="btn primary" id="pay-link" href="https://buy.stripe.com/eVqcN58Ra28ud1C2wL4c800">Pay for the audit · $299</a>
     </div>
+    <a class="addr" id="contact-email" href="mailto:paddybefc@gmail.com?subject=Airflow%203%20audit">paddybefc@gmail.com</a>
   </section>
 
   <footer>Built by <a href="https://github.com/patrickballard">Patrick Ballard</a>, author of the open-source Airflow Migration Verifier. Not affiliated with the Apache Software Foundation. Apache Airflow is a trademark of the ASF.</footer>
 </main>
 
-<script>
-  // Fill these in before sharing the page.
-  const CONFIG = {
-    email: "",   // e.g. "audits@yourdomain.com"
-    payUrl: "",  // a Stripe Payment Link for $299
-  };
-  if (CONFIG.email) document.getElementById("contact-email").textContent = CONFIG.email;
-  if (CONFIG.payUrl) {
-    const link = document.getElementById("pay-link");
-    link.href = CONFIG.payUrl;
-    document.getElementById("pay-row").hidden = false;
-  }
-</script>
 </body>
 </html>
