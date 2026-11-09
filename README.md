@@ -189,6 +189,37 @@ python -m api_change_agent --repo . --rules airflow --dry-run --output out --ins
 python -m api_change_agent verify --before ../before --after . --install-command auto --output out
 ```
 
+## Check the output too
+
+The render check compares what your tasks are told to do. To see what they actually write, run the same DAGs on both versions and diff the output. It has to be a live side-by-side run, because a backfill won't show the date shift.
+
+**Why a backfill won't show it.** Over a date range, both versions create runs with the same logical dates. What changes is when each run fires:
+
+| `@daily` run with `ds=2024-05-01` | Data interval | Fires at |
+|---|---|---|
+| Airflow 2.11.2 | 05-01 00:00 → 05-02 00:00 | 2024-05-02 00:00, after the day is over |
+| Airflow 3.3.2 | 05-01 00:00 → 05-01 00:00 | 2024-05-01 00:00, as the day starts |
+
+A backfill runs after all the data already exists, so both versions read complete days and agree. The only difference that shows up is reads that use the data interval, which come back empty on Airflow 3. `airflow dags test <dag_id> <date>` hides the shift the same way, because it sets the logical date directly.
+
+**The side-by-side run:**
+
+1. Set up two staging environments: your current 2.x, and 3.x with the migrated code. Give them the same source, but separate output locations (for example `s3://bucket/af2/` and `s3://bucket/af3/`). A local docker-compose Airflow is enough.
+2. Feed the source rows as time passes. Give each row an ID, and include rows just before and just after each boundary in the DAG's timezone: midnight for daily DAGs, the hour for hourly ones.
+3. Unpause the DAGs on both environments at the same time with `catchup=False`, and let at least two scheduled runs fire.
+4. On each environment, trigger one manual run without a logical date: `airflow dags trigger <dag_id>`.
+5. For each partition, compare row counts and row IDs. They should match exactly.
+
+What a difference usually means:
+
+| On Airflow 3 | Likely cause |
+|---|---|
+| Partition empty or short, run green | The task reads a day or hour that has only just started, or uses the zero-length data interval |
+| Same rows, partition dated one interval later | The path is built from `ds` or `logical_date`, while the rows are selected some other way, such as everything since the last run |
+| Manual run fails with `KeyError`, `UndefinedError` or `AttributeError` | Code reads `logical_date` or `ds`, which a manual run with no logical date doesn't have (see [the fallback](#what-it-does)) |
+
+Setting `[scheduler] create_cron_data_intervals = True` on the 3.x environment, or pinning `CronDataIntervalTimetable`, should get rid of the first two. Re-run the check to confirm. Weekly and monthly schedules are too slow to run live, so for those, rely on the render check.
+
 ## Limitations
 
 - **Python context reads aren't render-checked.** Only templates are rendered and compared. The `execution_date` rewrite keeps a fallback for manual runs with no logical date; if Claude's patch reads `logical_date` without one, migrate mode's PR lists the line with the fix.
@@ -242,6 +273,8 @@ What they do better:
 - **DAGs with no schedule** (`schedule=None`): there are no scheduled runs to compare, so they're reported as not render-checked.
 - **Python context reads**, such as `context["execution_date"]` in a callable. They're rewritten where Airflow documents the same value, and listed, but not run and compared.
 - **Runtime-only behaviour:** XCom values, what tasks do with connections and external systems, and DAGs that need a connection, variable or private package just to import. Those are reported as unverified.
+
+To check what your tasks actually write, see [Check the output too](#check-the-output-too).
 
 More under [Limitations](#limitations).
 
