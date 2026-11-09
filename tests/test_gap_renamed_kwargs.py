@@ -69,7 +69,8 @@ def test_renamed_kwargs_import_on_airflow_3_and_render_the_same(tmp_path):
                          install_command=None, venv_dir=Path(AF3), render_old_venv=Path(AF2), log=lambda *_: None),
                  model=None)
     text = (repo / "dags" / "marker.py").read_text()
-    assert "logical_date=\"{{ logical_date.replace(" in text and "max_active_tis_per_dag=1" in text
+    assert ('logical_date="{{ (logical_date if logical_date is defined else dag_run.run_after).replace('
+            in text and "max_active_tis_per_dag=1" in text)
     assert "dags/marker.py::import" in result.tests_baseline.failures
     assert "dags/marker.py::import" not in result.tests_after.failures
     (res,) = [r for r in result.render_results if r.dag_id == "marker" and r.field == "logical_date"]

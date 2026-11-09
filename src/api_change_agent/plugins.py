@@ -96,6 +96,7 @@ class _ContextKeys(cst.CSTTransformer):
         self.expressions: dict[str, str] = options.get("expressions", {})
         self.judgment: dict[str, str] = options.get("judgment", {})
         self.attr_rename: dict[str, dict[str, str]] = options.get("attribute_rename", {})
+        self.attr_expressions: dict[str, dict[str, str]] = options.get("attribute_expressions", {})
         self.attr_judgment: dict[str, dict[str, str]] = options.get("attribute_judgment", {})
         self.rewrite = rewrite
         self.scopes: list[_FunctionScope] = []
@@ -149,11 +150,15 @@ class _ContextKeys(cst.CSTTransformer):
                                    "code that passes it in shows that; check the caller")
         return "llm"
 
-    def _replacement(self, receiver: str, key: str):
-        """(expression to splice in, None) or (None, renamed key)."""
+    def _replacement(self, receiver: str, key: str, quote: str):
+        """(expression to splice in, None) or (None, renamed key). The expression's string literals take the
+        key's own quote character, which is safe wherever the key was (inside f"..." on Python < 3.12)."""
         if key in self.rename:
             return None, self.rename[key]
-        return cst.parse_expression(self.expressions[key].format(ctx=receiver)), None
+        expr = self.expressions[key].format(ctx=receiver)
+        if quote.startswith("'"):
+            expr = expr.replace('"', "'")
+        return cst.parse_expression(expr), None
 
     def leave_Subscript(self, original: cst.Subscript, updated: cst.Subscript):
         key = _subscript_key(original)
@@ -161,10 +166,10 @@ class _ContextKeys(cst.CSTTransformer):
             return updated
         if self._classify(original, original.value.value, key) != "det" or not self.rewrite:
             return updated
-        expr, new_key = self._replacement(original.value.value, key)
+        old = original.slice[0].slice.value
+        expr, new_key = self._replacement(original.value.value, key, old.quote)
         if expr is not None:
             return expr
-        old = original.slice[0].slice.value
         new_str = old.with_changes(value=old.prefix + old.quote + new_key + old.quote)
         return updated.with_changes(slice=[updated.slice[0].with_changes(slice=cst.Index(value=new_str))])
 
@@ -175,10 +180,10 @@ class _ContextKeys(cst.CSTTransformer):
         receiver, key = hit
         if self._classify(original, receiver, key) != "det" or not self.rewrite:
             return updated
-        expr, new_key = self._replacement(receiver, key)
+        old = original.args[0].value
+        expr, new_key = self._replacement(receiver, key, old.quote)
         if expr is not None:
             return expr
-        old = original.args[0].value
         new_str = old.with_changes(value=old.prefix + old.quote + new_key + old.quote)
         return updated.with_changes(args=[updated.args[0].with_changes(value=new_str), *updated.args[1:]])
 
@@ -188,6 +193,10 @@ class _ContextKeys(cst.CSTTransformer):
         owner, attr = original.value.value, original.attr.value
         if attr in self.attr_judgment.get(owner, {}):
             self._site(original, self.llm, self.attr_judgment[owner][attr])
+        elif attr in self.attr_expressions.get(owner, {}):
+            self._site(original, self.det)
+            if self.rewrite:
+                return cst.parse_expression(self.attr_expressions[owner][attr].format(obj=owner))
         elif attr in self.attr_rename.get(owner, {}):
             self._site(original, self.det)
             if self.rewrite:
@@ -242,10 +251,11 @@ class TemplateRewriter:
         self.expressions: dict[str, str] = options.get("template_expressions", {})
         self.judgment: dict[str, str] = options.get("judgment", {})
         self.attr_rename: dict[str, dict[str, str]] = options.get("attribute_rename", {})
+        self.attr_expressions: dict[str, dict[str, str]] = options.get("attribute_expressions", {})
         self.attr_judgment: dict[str, dict[str, str]] = options.get("attribute_judgment", {})
         names = sorted(set(self.rename) | set(self.expressions) | set(self.judgment), key=len, reverse=True)
         self.bare = re.compile(r"(?<![\w.])(" + "|".join(map(re.escape, names)) + r")(?![\w])") if names else None
-        owners = sorted(set(self.attr_rename) | set(self.attr_judgment))
+        owners = sorted(set(self.attr_rename) | set(self.attr_expressions) | set(self.attr_judgment))
         self.attr = re.compile(r"(?<![\w.])(" + "|".join(map(re.escape, owners)) + r")\s*\.\s*(\w+)") if owners else None
 
     def rewrite(self, text: str, forbidden_quote: str | None = None, partial: bool = False):
@@ -285,6 +295,9 @@ class TemplateRewriter:
             owner, attr = m.group(1), m.group(2)
             if attr in self.attr_judgment.get(owner, {}):
                 llm.append((base + m.start(), m.group(0), self.attr_judgment[owner][attr]))
+            elif attr in self.attr_expressions.get(owner, {}):
+                det.append((base + m.start(), m.group(0), ""))
+                return self.attr_expressions[owner][attr].format(obj=owner)
             elif attr in self.attr_rename.get(owner, {}):
                 det.append((base + m.start(), m.group(0), ""))
                 return f"{owner}.{self.attr_rename[owner][attr]}"

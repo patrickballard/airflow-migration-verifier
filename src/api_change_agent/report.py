@@ -47,17 +47,18 @@ def render_table(rows: list[Row], blob_base: str | None) -> str:
 
 
 def logical_date_sites(rows: list[Row]) -> tuple[list[tuple[str, int, str]], list[tuple[str, int, str]]]:
-    """Lines this PR changed to read `logical_date`: (from execution_date, from any other key).
+    """Lines this PR changed to read `logical_date` with no fallback for a run that has none:
+    (from execution_date, from any other key).
 
     Paired line by line from each row's before/after, so it lists exactly what changed,
-    whichever rule (or Claude) changed it.
+    whichever rule (or Claude) changed it. A line that also reads `run_after` has its fallback.
     """
     renamed, other = [], []
     for r in rows:
         before, after = r.before.splitlines(), r.after.splitlines()
         pairs = zip(before, after) if len(before) == len(after) else [("\n".join(before), "\n".join(after))]
         for i, (old, new) in enumerate(pairs):
-            if "logical_date" not in new or "logical_date" in old:
+            if "logical_date" not in new or "logical_date" in old or "run_after" in new:
                 continue
             target = renamed if "execution_date" in old else other
             target.append((r.path, r.line + i, new.strip()))
@@ -78,7 +79,8 @@ def _manual_runs_section(rows: list[Row], blob_base: str | None) -> list[str]:
         return f"- {_link(path, line, blob_base)} <code>{html.escape(code[:160], quote=False)}</code>"
 
     out = ["### ⚠️ Manual runs", "",
-           "In Airflow 3 a manually triggered run can have **no logical date**, and then `logical_date` is `None`. "
+           "In Airflow 3 a manually triggered run can have **no logical date**: then the task context has no "
+           "`logical_date` key and `dag_run.logical_date` is `None`. "
            "Airflow 2 always set `execution_date` (for a manual run, to the time it was triggered). "
            "Scheduled runs are not affected.", ""]
     if renamed:
@@ -89,9 +91,9 @@ def _manual_runs_section(rows: list[Row], blob_base: str | None) -> list[str]:
         out += [item(*s) for s in other] + [""]
     out += ["If your team triggers these DAGs manually without a logical date, fall back to the time the run "
             "was triggered (`run_after` is always set):", "",
-            "```python", 'context["logical_date"] or context["dag_run"].run_after', "```", "",
+            "```python", 'context.get("logical_date") or context["dag_run"].run_after', "```", "",
             "Use your own name for the context (`kwargs`, `ctx`, ...). In a Jinja template: "
-            "`{{ logical_date or dag_run.run_after }}`.", ""]
+            "`{{ (logical_date if logical_date is defined else dag_run.run_after) }}`.", ""]
     return out
 
 

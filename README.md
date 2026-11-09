@@ -32,7 +32,7 @@ This GitHub Action checks a migration the same way, whoever made it: a person, r
      - The zone comes from the DAG's `start_date`, then `default_args`, then the repo's `default_timezone` (`airflow.cfg`, `.env`, docker-compose, Helm, Dockerfile).
      - The PR also names the global alternative, `[scheduler] create_cron_data_intervals = True`. If the repo already sets it (same places as `default_timezone`), nothing is pinned and the PR says where it's set.
    - **`days_ago(N)`** becomes `pendulum.today("UTC").add(days=-N)`. That's the same moment, still computed at parse time. A fixed date would change scheduling and catchup.
-   - **Removed context keys,** in Python (`context["execution_date"]`) and in Jinja (operator strings, `.sql` / `.sh` / `.j2` files). They're rewritten only where Airflow's docs say the replacement is the same value: `execution_date` → `logical_date`, `yesterday_ds` → `macros.ds_add(ds, -1)`, …
+   - **Removed context keys,** in Python (`context["execution_date"]`) and in Jinja (operator strings, `.sql` / `.sh` / `.j2` files). They're rewritten only where the replacement is the same value: `yesterday_ds` → `macros.ds_add(ds, -1)`, … and `execution_date` → `context.get("logical_date") or context["dag_run"].run_after`. An Airflow 3 manual run can have no logical date; then the context has no `logical_date` key and `dag_run.logical_date` is `None`, so a plain `logical_date` would fail where Airflow 2 used the trigger time.
    - **Removed DAG methods** (`following_schedule`, `previous_schedule` and 50 others, checked against both versions) are flagged. A DAG that calls one still imports, then fails when the call runs.
    - **Judgment sites** (`next_ds`, `prev_ds`, computed schedules) go to Claude when you give it a key, with a hard spend cap. Otherwise they're listed for a human.
 3. **A render check that proves each change.**
@@ -191,7 +191,7 @@ python -m api_change_agent verify --before ../before --after . --install-command
 
 ## Limitations
 
-- **Python context reads aren't render-checked.** `context["execution_date"]` → `context["logical_date"]` is the documented equivalent, but only templates are rendered and compared. In Airflow 3 a manually triggered run can have no logical date; migrate mode's PR lists each such site with a one-line fallback.
+- **Python context reads aren't render-checked.** Only templates are rendered and compared. The `execution_date` rewrite keeps a fallback for manual runs with no logical date; if Claude's patch reads `logical_date` without one, migrate mode's PR lists the line with the fix.
 - **Some things are always manual:**
   - operators removed from their providers (`PostgresOperator`, `SnowflakeOperator`, `SubDagOperator`, …);
   - `prev_ds` / `next_ds` without a key;
