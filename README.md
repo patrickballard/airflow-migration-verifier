@@ -263,6 +263,10 @@ pip install -e '.[test]' && pytest
 ACA_AIRFLOW2_VENV=.../airflow-2 ACA_AIRFLOW3_VENV=.../airflow-3 pytest   # + real-Airflow integration tests
 ```
 
+## License
+
+MIT. See [LICENSE](LICENSE).
+
 ---
 
 Need help migrating a larger Airflow estate? I offer verified migrations — [paddybefc@gmail.com](mailto:paddybefc@gmail.com)
